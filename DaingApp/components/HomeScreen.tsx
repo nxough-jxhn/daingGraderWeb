@@ -39,9 +39,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <View style={homeStyles.heroButtonInner}>
             <Ionicons name="camera" size={80} color="#fff" />
             <Text style={homeStyles.heroButtonText}>SCAN</Text>
-            <Text style={homeStyles.heroButtonSubtext}>
-              Analyze Fish Quality
-            </Text>
+            <Text style={homeStyles.heroButtonSubtext}>Analyze Dried Fish</Text>
           </View>
         </TouchableOpacity>
 

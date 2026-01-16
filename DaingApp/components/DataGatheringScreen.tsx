@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -40,6 +40,13 @@ export const DataGatheringScreen: React.FC<DataGatheringScreenProps> = ({
   onSetFishType,
   onSetCondition,
 }) => {
+  const [showSettings, setShowSettings] = useState(false);
+
+  const getConditionLabel = () => {
+    const found = CONDITIONS.find((c) => c.value === condition);
+    return found ? found.label : condition;
+  };
+
   return (
     <View style={commonStyles.container}>
       <View style={commonStyles.screenHeader}>
@@ -52,7 +59,16 @@ export const DataGatheringScreen: React.FC<DataGatheringScreenProps> = ({
           <Ionicons name="arrow-back" size={28} color="white" />
         </TouchableOpacity>
         <Text style={commonStyles.screenTitle}>Data Gathering</Text>
-        <View style={{ width: 28 }} />
+        {!capturedImage && (
+          <TouchableOpacity onPress={() => setShowSettings(!showSettings)}>
+            <Ionicons
+              name={showSettings ? "close" : "menu"}
+              size={28}
+              color="white"
+            />
+          </TouchableOpacity>
+        )}
+        {capturedImage && <View style={{ width: 28 }} />}
       </View>
 
       {capturedImage ? (
@@ -81,76 +97,86 @@ export const DataGatheringScreen: React.FC<DataGatheringScreenProps> = ({
           )}
         </View>
       ) : (
-        <>
-          {/* SELECTION PANEL */}
-          <View style={dataGatheringStyles.selectionPanel}>
-            <View style={dataGatheringStyles.pickerGroup}>
-              <Text style={dataGatheringStyles.pickerLabel}>Fish Type:</Text>
-              <View style={dataGatheringStyles.selectorRow}>
-                {FISH_TYPES.map((type) => (
-                  <TouchableOpacity
-                    key={type}
-                    style={[
-                      dataGatheringStyles.selectorButton,
-                      fishType === type &&
-                        dataGatheringStyles.selectorButtonActive,
-                    ]}
-                    onPress={() => onSetFishType(type)}
-                  >
-                    <Text
+        <CameraView style={commonStyles.camera} ref={cameraRef}>
+          {/* CURRENT SETTINGS LABEL (when settings closed) */}
+          {!showSettings && (
+            <View style={dataGatheringStyles.statusLabel}>
+              <Text style={dataGatheringStyles.statusText}>
+                {fishType.charAt(0).toUpperCase() + fishType.slice(1)} •{" "}
+                {getConditionLabel()}
+              </Text>
+            </View>
+          )}
+
+          {/* SELECTION PANEL OVERLAY (when settings open) */}
+          {showSettings && (
+            <View style={dataGatheringStyles.selectionPanel}>
+              <View style={dataGatheringStyles.pickerGroup}>
+                <Text style={dataGatheringStyles.pickerLabel}>Fish Type:</Text>
+                <View style={dataGatheringStyles.selectorRow}>
+                  {FISH_TYPES.map((type) => (
+                    <TouchableOpacity
+                      key={type}
                       style={[
-                        dataGatheringStyles.selectorButtonText,
+                        dataGatheringStyles.selectorButton,
                         fishType === type &&
-                          dataGatheringStyles.selectorButtonTextActive,
+                          dataGatheringStyles.selectorButtonActive,
                       ]}
+                      onPress={() => onSetFishType(type)}
                     >
-                      {type.charAt(0).toUpperCase() + type.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text
+                        style={[
+                          dataGatheringStyles.selectorButtonText,
+                          fishType === type &&
+                            dataGatheringStyles.selectorButtonTextActive,
+                        ]}
+                      >
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
-            </View>
 
-            <View style={dataGatheringStyles.pickerGroup}>
-              <Text style={dataGatheringStyles.pickerLabel}>Condition:</Text>
-              <View style={dataGatheringStyles.selectorRow}>
-                {CONDITIONS.map((item) => (
-                  <TouchableOpacity
-                    key={item.value}
-                    style={[
-                      dataGatheringStyles.selectorButton,
-                      condition === item.value &&
-                        dataGatheringStyles.selectorButtonActive,
-                    ]}
-                    onPress={() => onSetCondition(item.value)}
-                  >
-                    <Text
+              <View style={dataGatheringStyles.pickerGroup}>
+                <Text style={dataGatheringStyles.pickerLabel}>Condition:</Text>
+                <View style={dataGatheringStyles.selectorRow}>
+                  {CONDITIONS.map((item) => (
+                    <TouchableOpacity
+                      key={item.value}
                       style={[
-                        dataGatheringStyles.selectorButtonText,
+                        dataGatheringStyles.selectorButton,
                         condition === item.value &&
-                          dataGatheringStyles.selectorButtonTextActive,
+                          dataGatheringStyles.selectorButtonActive,
                       ]}
+                      onPress={() => onSetCondition(item.value)}
                     >
-                      {item.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text
+                        style={[
+                          dataGatheringStyles.selectorButtonText,
+                          condition === item.value &&
+                            dataGatheringStyles.selectorButtonTextActive,
+                        ]}
+                      >
+                        {item.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
             </View>
-          </View>
+          )}
 
-          {/* CAMERA */}
-          <CameraView style={commonStyles.camera} ref={cameraRef}>
-            <View style={commonStyles.buttonContainer}>
-              <TouchableOpacity
-                style={commonStyles.captureButton}
-                onPress={onTakePicture}
-              >
-                <View style={commonStyles.innerButton} />
-              </TouchableOpacity>
-            </View>
-          </CameraView>
-        </>
+          {/* CAMERA BUTTON */}
+          <View style={commonStyles.buttonContainer}>
+            <TouchableOpacity
+              style={commonStyles.captureButton}
+              onPress={onTakePicture}
+            >
+              <View style={commonStyles.innerButton} />
+            </TouchableOpacity>
+          </View>
+        </CameraView>
       )}
     </View>
   );
