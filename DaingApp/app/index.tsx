@@ -26,7 +26,7 @@ export default function Index() {
 
   // Data Gathering Mode
   const [fishType, setFishType] = useState<FishType>("danggit");
-  const [condition, setCondition] = useState<Condition>("export_quality");
+  const [condition, setCondition] = useState<Condition>("local_quality");
 
   // Check camera permissions
   if (!permission) return <View />;

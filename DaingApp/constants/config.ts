@@ -10,8 +10,8 @@ export const FISH_TYPES = ["danggit", "tunsoy", "dilis"] as const;
 
 // Condition options for data gathering
 export const CONDITIONS = [
+  { label: "Local", value: "local_quality" },
   { label: "Export", value: "export_quality" },
   { label: "Moldy", value: "moldy" },
   { label: "Fresh", value: "fresh" },
-  { label: "Damaged", value: "damaged" },
 ] as const;

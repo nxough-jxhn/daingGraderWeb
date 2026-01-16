@@ -19,7 +19,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     <View style={homeStyles.homeContainer}>
       {/* HEADER WITH SETTINGS */}
       <View style={homeStyles.header}>
-        <Text style={homeStyles.appTitle}>🐟 Daing Grader</Text>
+        <Text style={homeStyles.appTitle}>DaingGrader</Text>
         <TouchableOpacity
           style={homeStyles.settingsButton}
           onPress={onOpenSettings}

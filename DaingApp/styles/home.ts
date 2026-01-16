@@ -65,7 +65,7 @@ export const homeStyles = StyleSheet.create({
     paddingHorizontal: 25,
     borderRadius: 15,
     alignItems: "center",
-    minWidth: 140,
+    width: 160,
     borderWidth: 1,
     borderColor: "#334155",
   },

@@ -142,7 +142,7 @@ export default function Index() {
       <View style={styles.homeContainer}>
         {/* HEADER WITH SETTINGS */}
         <View style={styles.header}>
-          <Text style={styles.appTitle}>🐟 Daing Grader</Text>
+          <Text style={styles.appTitle}>DaingGrader</Text>
           <TouchableOpacity
             style={styles.settingsButton}
             onPress={() => setShowSettings(true)}
