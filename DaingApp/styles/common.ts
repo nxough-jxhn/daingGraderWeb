@@ -40,12 +40,14 @@ export const commonStyles = StyleSheet.create({
   },
   previewContainer: {
     flex: 1,
+    width: "100%",
     alignItems: "center",
     justifyContent: "center",
   },
   previewImage: {
-    width: "95%",
-    height: "80%",
+    width: "100%",
+    alignSelf: "stretch",
+    aspectRatio: 3 / 4,
     resizeMode: "contain",
     marginBottom: 20,
   },

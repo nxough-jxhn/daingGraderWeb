@@ -99,9 +99,10 @@ export const historyStyles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
     paddingTop: 60,
+    paddingHorizontal: 20,
     paddingBottom: 20,
+    backgroundColor: "#0a0e27",
   },
   fullScreenImage: {
     flex: 1,

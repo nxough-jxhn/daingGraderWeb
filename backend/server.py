@@ -187,8 +187,13 @@ def get_history():
 
 @app.delete("/history/{entry_id}")
 def delete_history(entry_id: str):
+  print(f"🗑️ Delete request for ID: {entry_id}")
+  entries = _read_history_entries()
+  print(f"📋 Current entries: {[e.get('id') for e in entries]}")
+  
   entry = remove_history_entry(entry_id)
   if not entry:
+    print(f"❌ Entry not found: {entry_id}")
     return {"status": "error", "message": "Entry not found"}
 
   public_id = None

@@ -1,6 +1,8 @@
 import axios from "axios";
 import type { FishType, Condition, HistoryEntry } from "../types";
 
+const normalizeUrl = (url: string) => url.trim().replace(/\/+$/, "");
+
 export const analyzeFish = async (
   imageUri: string,
   serverUrl: string
@@ -87,7 +89,7 @@ export const fetchHistory = async (
   historyUrl: string
 ): Promise<HistoryEntry[]> => {
   try {
-    const response = await axios.get(historyUrl);
+    const response = await axios.get(normalizeUrl(historyUrl));
     const entries = response.data?.entries;
     if (Array.isArray(entries)) {
       return entries as HistoryEntry[];
@@ -103,6 +105,7 @@ export const deleteHistoryEntry = async (
   historyUrl: string,
   entryId: string
 ): Promise<void> => {
-  const url = `${historyUrl}/${entryId}`;
-  await axios.delete(url);
+  const base = normalizeUrl(historyUrl);
+  const encodedId = encodeURIComponent(entryId);
+  await axios.delete(`${base}/${encodedId}`);
 };
