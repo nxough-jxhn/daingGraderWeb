@@ -12,14 +12,15 @@ export const homeStyles = StyleSheet.create({
     paddingTop: 60,
     paddingHorizontal: 20,
     paddingBottom: 20,
+    backgroundColor: "#0a0e27",
   },
   appTitle: {
-    fontSize: 28,
+    fontSize: 20,
     fontWeight: "bold",
     color: "white",
   },
   settingsButton: {
-    padding: 8,
+    // No extra padding needed
   },
   heroSection: {
     flex: 1,
@@ -55,27 +56,34 @@ export const homeStyles = StyleSheet.create({
     color: "rgba(255,255,255,0.8)",
     marginTop: 5,
   },
-  buttonRowsWrapper: {
-    minHeight: 120,
+  buttonGrid: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 8,
+    paddingBottom: 30,
+    backgroundColor: "#0a0e27",
   },
-  secondaryButtonsContainer: {
+  buttonRow: {
     flexDirection: "row",
-    gap: 15,
-    marginTop: 10,
-    width: "100%",
-    maxWidth: 360,
-    alignSelf: "center",
+    gap: 8,
+    marginBottom: 8,
   },
-  secondaryButton: {
-    backgroundColor: "#1e293b",
+  gridButton: {
+    flex: 1,
     paddingVertical: 16,
-    paddingHorizontal: 20,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
-    flex: 1,
+    backgroundColor: "#1e293b",
     borderWidth: 1,
     borderColor: "#334155",
+  },
+  gridButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "white",
   },
   devButton: {
     backgroundColor: "#7c3aed",
@@ -84,12 +92,5 @@ export const homeStyles = StyleSheet.create({
   hiddenButton: {
     opacity: 0,
     pointerEvents: "none",
-  },
-  secondaryButtonText: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "bold",
-    textAlign: "center",
-    lineHeight: 20,
   },
 });

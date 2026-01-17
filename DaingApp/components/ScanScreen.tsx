@@ -70,6 +70,19 @@ export const ScanScreen: React.FC<ScanScreenProps> = ({
               style={commonStyles.previewImage}
             />
           </View>
+          <View style={commonStyles.bottomButtonBar}>
+            <TouchableOpacity
+              style={[
+                commonStyles.bottomButton,
+                { backgroundColor: "#3b82f6" },
+              ]}
+              onPress={() => {
+                onReset();
+              }}
+            >
+              <Text style={commonStyles.bottomButtonText}>Scan Another</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ) : /* SCENARIO B: SHOW PREVIEW BEFORE SENDING */
       capturedImage ? (

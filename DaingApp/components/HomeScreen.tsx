@@ -19,6 +19,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     <View style={homeStyles.homeContainer}>
       {/* HEADER WITH SETTINGS */}
       <View style={homeStyles.header}>
+        <View style={{ width: 28 }} />
         <Text style={homeStyles.appTitle}>DaingGrader</Text>
         <TouchableOpacity
           style={homeStyles.settingsButton}
@@ -42,52 +43,50 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <Text style={homeStyles.heroButtonSubtext}>Analyze Dried Fish</Text>
           </View>
         </TouchableOpacity>
+      </View>
 
-        {/* SECONDARY BUTTONS CONTAINER - Fixed Height */}
-        <View style={homeStyles.buttonRowsWrapper}>
-          {/* First Row: History and Analytics */}
-          <View style={homeStyles.secondaryButtonsContainer}>
-            <TouchableOpacity
-              style={homeStyles.secondaryButton}
-              onPress={() => onNavigate("history")}
-            >
-              <Text style={homeStyles.secondaryButtonText}>History</Text>
-            </TouchableOpacity>
+      {/* SECONDARY BUTTONS - Match Preview Style */}
+      <View style={homeStyles.buttonGrid}>
+        <View style={homeStyles.buttonRow}>
+          <TouchableOpacity
+            style={homeStyles.gridButton}
+            onPress={() => onNavigate("history")}
+          >
+            <Text style={homeStyles.gridButtonText}>History</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={homeStyles.secondaryButton}
-              onPress={() => onNavigate("analytics")}
-            >
-              <Text style={homeStyles.secondaryButtonText}>Analytics</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={homeStyles.gridButton}
+            onPress={() => onNavigate("analytics")}
+          >
+            <Text style={homeStyles.gridButtonText}>Analytics</Text>
+          </TouchableOpacity>
+        </View>
 
-          {/* Second Row: Developer Mode Buttons - Always present */}
-          <View style={homeStyles.secondaryButtonsContainer}>
-            <TouchableOpacity
-              style={[
-                homeStyles.secondaryButton,
-                homeStyles.devButton,
-                !devMode && homeStyles.hiddenButton,
-              ]}
-              onPress={() => devMode && onNavigate("dataGathering")}
-              disabled={!devMode}
-            >
-              <Text style={homeStyles.secondaryButtonText}>Data Gathering</Text>
-            </TouchableOpacity>
+        <View style={homeStyles.buttonRow}>
+          <TouchableOpacity
+            style={[
+              homeStyles.gridButton,
+              homeStyles.devButton,
+              !devMode && homeStyles.hiddenButton,
+            ]}
+            onPress={() => devMode && onNavigate("dataGathering")}
+            disabled={!devMode}
+          >
+            <Text style={homeStyles.gridButtonText}>Data Gathering</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[
-                homeStyles.secondaryButton,
-                homeStyles.devButton,
-                !devMode && homeStyles.hiddenButton,
-              ]}
-              onPress={() => devMode && onNavigate("dataset")}
-              disabled={!devMode}
-            >
-              <Text style={homeStyles.secondaryButtonText}>Dataset</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={[
+              homeStyles.gridButton,
+              homeStyles.devButton,
+              !devMode && homeStyles.hiddenButton,
+            ]}
+            onPress={() => devMode && onNavigate("dataset")}
+            disabled={!devMode}
+          >
+            <Text style={homeStyles.gridButtonText}>Dataset</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </View>
