@@ -73,6 +73,12 @@ export const DataGatheringScreen: React.FC<DataGatheringScreenProps> = ({
 
       {capturedImage ? (
         <View style={commonStyles.previewContainer}>
+          <View style={dataGatheringStyles.previewCenteredBar}>
+            <Text style={dataGatheringStyles.previewCenteredText}>
+              {fishType.charAt(0).toUpperCase() + fishType.slice(1)} •{" "}
+              {getConditionLabel()}
+            </Text>
+          </View>
           <Image
             source={{ uri: capturedImage }}
             style={commonStyles.previewImage}
@@ -97,7 +103,9 @@ export const DataGatheringScreen: React.FC<DataGatheringScreenProps> = ({
           )}
         </View>
       ) : (
-        <CameraView style={commonStyles.camera} ref={cameraRef}>
+        <View style={commonStyles.cameraWrapper}>
+          <CameraView style={commonStyles.camera} ref={cameraRef} />
+
           {/* CURRENT SETTINGS LABEL (when settings closed) */}
           {!showSettings && (
             <View style={dataGatheringStyles.statusLabel}>
@@ -176,7 +184,7 @@ export const DataGatheringScreen: React.FC<DataGatheringScreenProps> = ({
               <View style={commonStyles.innerButton} />
             </TouchableOpacity>
           </View>
-        </CameraView>
+        </View>
       )}
     </View>
   );

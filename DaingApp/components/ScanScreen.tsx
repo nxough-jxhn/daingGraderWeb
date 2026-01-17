@@ -51,51 +51,65 @@ export const ScanScreen: React.FC<ScanScreenProps> = ({
 
       {/* SCENARIO A: SHOW RESULT FROM SERVER */}
       {resultImage ? (
-        <View style={commonStyles.previewContainer}>
-          <Text style={commonStyles.resultHeader}>✅ ANALYSIS COMPLETE</Text>
-          <Image
-            source={{ uri: resultImage }}
-            style={commonStyles.previewImage}
-          />
-          <TouchableOpacity
-            style={commonStyles.button}
-            onPress={() => {
-              onReset();
-              onNavigate("home");
-            }}
-          >
-            <Text style={commonStyles.text}>Back to Home</Text>
-          </TouchableOpacity>
+        <View style={commonStyles.container}>
+          <View style={commonStyles.screenHeader}>
+            <TouchableOpacity
+              onPress={() => {
+                onReset();
+                onNavigate("home");
+              }}
+            >
+              <Ionicons name="arrow-back" size={28} color="white" />
+            </TouchableOpacity>
+            <Text style={commonStyles.screenTitle}>Analysis Result</Text>
+            <View style={{ width: 28 }} />
+          </View>
+          <View style={commonStyles.previewContainer}>
+            <Image
+              source={{ uri: resultImage }}
+              style={commonStyles.previewImage}
+            />
+          </View>
         </View>
       ) : /* SCENARIO B: SHOW PREVIEW BEFORE SENDING */
       capturedImage ? (
-        <View style={commonStyles.previewContainer}>
-          <Image
-            source={{ uri: capturedImage }}
-            style={commonStyles.previewImage}
-          />
-          {loading ? (
-            <ActivityIndicator size="large" color="#00ff00" />
-          ) : (
-            <View style={commonStyles.row}>
-              <TouchableOpacity
-                style={[commonStyles.button, { backgroundColor: "red" }]}
-                onPress={onReset}
-              >
-                <Text style={commonStyles.text}>Retake</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[commonStyles.button, { backgroundColor: "green" }]}
-                onPress={onAnalyze}
-              >
-                <Text style={commonStyles.text}>Analyze</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+        <View style={commonStyles.container}>
+          <View style={commonStyles.screenHeader}>
+            <TouchableOpacity onPress={onReset}>
+              <Ionicons name="arrow-back" size={28} color="white" />
+            </TouchableOpacity>
+            <Text style={commonStyles.screenTitle}>Preview</Text>
+            <View style={{ width: 28 }} />
+          </View>
+          <View style={commonStyles.previewContainer}>
+            <Image
+              source={{ uri: capturedImage }}
+              style={commonStyles.previewImage}
+            />
+            {loading ? (
+              <ActivityIndicator size="large" color="#00ff00" />
+            ) : (
+              <View style={commonStyles.row}>
+                <TouchableOpacity
+                  style={[commonStyles.button, { backgroundColor: "red" }]}
+                  onPress={onReset}
+                >
+                  <Text style={commonStyles.text}>Retake</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[commonStyles.button, { backgroundColor: "green" }]}
+                  onPress={onAnalyze}
+                >
+                  <Text style={commonStyles.text}>Analyze</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </View>
       ) : (
         /* SCENARIO C: LIVE CAMERA */
-        <CameraView style={commonStyles.camera} ref={cameraRef}>
+        <View style={commonStyles.cameraWrapper}>
+          <CameraView style={commonStyles.camera} ref={cameraRef} />
           <View style={commonStyles.buttonContainer}>
             <TouchableOpacity
               style={commonStyles.captureButton}
@@ -104,7 +118,7 @@ export const ScanScreen: React.FC<ScanScreenProps> = ({
               <View style={commonStyles.innerButton} />
             </TouchableOpacity>
           </View>
-        </CameraView>
+        </View>
       )}
     </View>
   );

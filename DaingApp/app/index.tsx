@@ -6,10 +6,12 @@ import { HomeScreen } from "../components/HomeScreen";
 import { ScanScreen } from "../components/ScanScreen";
 import { AnalyticsScreen } from "../components/AnalyticsScreen";
 import { DataGatheringScreen } from "../components/DataGatheringScreen";
+import { HistoryScreen } from "../components/HistoryScreen";
+import { DatasetScreen } from "../components/DatasetScreen";
 import { SettingsModal } from "../components/SettingsModal";
 import { takePicture } from "../utils/camera";
 import { analyzeFish, uploadDataset } from "../services/api";
-import { SERVER_URL } from "../constants/config";
+import { DEFAULT_SERVER_BASE_URL, getServerUrls } from "../constants/config";
 import type { Screen, FishType, Condition } from "../types";
 
 export default function Index() {
@@ -23,6 +25,7 @@ export default function Index() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("home");
   const [showSettings, setShowSettings] = useState(false);
   const [devMode, setDevMode] = useState(false);
+  const [serverBaseUrl, setServerBaseUrl] = useState(DEFAULT_SERVER_BASE_URL);
 
   // Data Gathering Mode
   const [fishType, setFishType] = useState<FishType>("danggit");
@@ -54,13 +57,14 @@ export default function Index() {
     setLoading(true);
 
     try {
-      const result = await analyzeFish(capturedImage);
+      const urls = getServerUrls(serverBaseUrl);
+      const result = await analyzeFish(capturedImage, urls.analyze);
       setResultImage(result);
     } catch (error) {
       console.error("Server Error:", error);
       Alert.alert(
         "Connection Failed",
-        `Make sure your IP is correct.\nCurrent Target: ${SERVER_URL}`
+        `Make sure your server URL is correct.\nCurrent Target: ${serverBaseUrl}`
       );
     } finally {
       setLoading(false);
@@ -72,15 +76,34 @@ export default function Index() {
     setLoading(true);
 
     try {
-      await uploadDataset(capturedImage, fishType, condition);
-      Alert.alert(
-        "Success",
-        `✅ Image saved to dataset/${fishType}/${condition}/`
+      const urls = getServerUrls(serverBaseUrl);
+      const result = await uploadDataset(
+        capturedImage,
+        fishType,
+        condition,
+        urls.uploadDataset
       );
-      handleReset();
+
+      if (result.success) {
+        Alert.alert(
+          "Success",
+          `${result.message}\n\nSaved to: ${fishType}/${condition}/`
+        );
+        handleReset();
+      } else {
+        Alert.alert(
+          "Upload Failed",
+          result.error ||
+            "Unknown error occurred. Image was NOT saved to Cloudinary."
+        );
+        setLoading(false);
+      }
     } catch (error) {
       console.error("Upload Error:", error);
-      Alert.alert("Upload Failed", "Check your server connection.");
+      Alert.alert(
+        "Upload Failed",
+        "Network error. Check your server connection. Image was NOT saved."
+      );
       setLoading(false);
     }
   };
@@ -106,7 +129,9 @@ export default function Index() {
         <SettingsModal
           visible={showSettings}
           devMode={devMode}
+          serverBaseUrl={serverBaseUrl}
           onToggleDevMode={() => setDevMode(!devMode)}
+          onSetServerUrl={setServerBaseUrl}
           onClose={() => setShowSettings(false)}
         />
       </>
@@ -115,6 +140,14 @@ export default function Index() {
 
   if (currentScreen === "analytics") {
     return <AnalyticsScreen onNavigate={setCurrentScreen} />;
+  }
+
+  if (currentScreen === "history") {
+    return <HistoryScreen onNavigate={setCurrentScreen} />;
+  }
+
+  if (currentScreen === "dataset") {
+    return <DatasetScreen onNavigate={setCurrentScreen} />;
   }
 
   if (currentScreen === "dataGathering") {

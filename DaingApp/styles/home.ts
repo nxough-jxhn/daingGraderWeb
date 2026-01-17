@@ -55,17 +55,25 @@ export const homeStyles = StyleSheet.create({
     color: "rgba(255,255,255,0.8)",
     marginTop: 5,
   },
+  buttonRowsWrapper: {
+    minHeight: 120,
+  },
   secondaryButtonsContainer: {
     flexDirection: "row",
     gap: 15,
+    marginTop: 10,
+    width: "100%",
+    maxWidth: 360,
+    alignSelf: "center",
   },
   secondaryButton: {
     backgroundColor: "#1e293b",
-    paddingVertical: 20,
+    paddingVertical: 18,
     paddingHorizontal: 25,
-    borderRadius: 15,
+    borderRadius: 12,
     alignItems: "center",
-    width: 160,
+    justifyContent: "center",
+    flex: 1,
     borderWidth: 1,
     borderColor: "#334155",
   },
@@ -73,15 +81,15 @@ export const homeStyles = StyleSheet.create({
     backgroundColor: "#7c3aed",
     borderColor: "#8b5cf6",
   },
-  secondaryButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "600",
-    marginTop: 8,
+  hiddenButton: {
+    opacity: 0,
+    pointerEvents: "none",
   },
-  secondaryButtonSubtext: {
-    color: "rgba(255,255,255,0.6)",
-    fontSize: 12,
-    marginTop: 4,
+  secondaryButtonText: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "bold",
+    textAlign: "center",
+    lineHeight: 20,
   },
 });

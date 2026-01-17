@@ -1,5 +1,11 @@
-export type Screen = "home" | "scan" | "analytics" | "dataGathering";
+export type Screen =
+  | "home"
+  | "scan"
+  | "analytics"
+  | "dataGathering"
+  | "history"
+  | "dataset";
 
-export type FishType = "danggit" | "tunsoy" | "dilis";
+export type FishType = "danggit" | "galunggong" | "espada" | "bangus" | "pusit";
 
 export type Condition = "local_quality" | "export_quality" | "moldy" | "fresh";

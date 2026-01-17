@@ -1,8 +1,10 @@
 import axios from "axios";
-import { SERVER_URL, DATA_GATHERING_URL } from "../constants/config";
 import type { FishType, Condition } from "../types";
 
-export const analyzeFish = async (imageUri: string): Promise<string> => {
+export const analyzeFish = async (
+  imageUri: string,
+  serverUrl: string
+): Promise<string> => {
   const formData = new FormData();
   // @ts-ignore: React Native FormData requires these specific fields
   formData.append("file", {
@@ -11,7 +13,7 @@ export const analyzeFish = async (imageUri: string): Promise<string> => {
     type: "image/jpeg",
   });
 
-  const response = await axios.post(SERVER_URL, formData, {
+  const response = await axios.post(serverUrl, formData, {
     headers: { "Content-Type": "multipart/form-data" },
     responseType: "blob",
   });
@@ -35,8 +37,9 @@ export const analyzeFish = async (imageUri: string): Promise<string> => {
 export const uploadDataset = async (
   imageUri: string,
   fishType: FishType,
-  condition: Condition
-): Promise<void> => {
+  condition: Condition,
+  uploadUrl: string
+): Promise<{ success: boolean; message: string; error?: string }> => {
   const formData = new FormData();
   // @ts-ignore: React Native FormData requires these specific fields
   formData.append("file", {
@@ -47,7 +50,35 @@ export const uploadDataset = async (
   formData.append("fish_type", fishType);
   formData.append("condition", condition);
 
-  await axios.post(DATA_GATHERING_URL, formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  try {
+    const response = await axios.post(uploadUrl, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+
+    // Check if backend returned success status
+    if (response.data.status === "success") {
+      return {
+        success: true,
+        message: "Image uploaded to Cloudinary successfully!",
+      };
+    } else if (response.data.status === "error") {
+      return {
+        success: false,
+        message: "Upload failed",
+        error: response.data.message || "Unknown error occurred",
+      };
+    } else {
+      return {
+        success: false,
+        message: "Upload failed",
+        error: "Unexpected response from server",
+      };
+    }
+  } catch (error: any) {
+    return {
+      success: false,
+      message: "Network error",
+      error: error.message || "Failed to connect to server",
+    };
+  }
 };

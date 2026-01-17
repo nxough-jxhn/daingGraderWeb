@@ -1,12 +1,20 @@
-// =========================================================
-// 🛑 IMPORTANT: REPLACE THIS WITH YOUR COMPUTER'S IP
-// Example: 'http://192.168.1.5:8000/analyze'
-// =========================================================
-export const SERVER_URL = "http://192.168.1.108:8000/analyze";
-export const DATA_GATHERING_URL = "http://192.168.1.108:8000/upload-dataset";
+// Default server base URL (can be customized in settings)
+export const DEFAULT_SERVER_BASE_URL = "http://192.168.1.108:8000";
+
+// Generate API URLs from base URL
+export const getServerUrls = (baseUrl: string) => ({
+  analyze: `${baseUrl}/analyze`,
+  uploadDataset: `${baseUrl}/upload-dataset`,
+});
 
 // Fish types available in the app
-export const FISH_TYPES = ["danggit", "tunsoy", "dilis"] as const;
+export const FISH_TYPES = [
+  "danggit",
+  "galunggong",
+  "espada",
+  "bangus",
+  "pusit",
+] as const;
 
 // Condition options for data gathering
 export const CONDITIONS = [

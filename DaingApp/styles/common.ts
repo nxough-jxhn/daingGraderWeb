@@ -6,16 +6,21 @@ export const commonStyles = StyleSheet.create({
     backgroundColor: "black",
     justifyContent: "center",
   },
+  cameraWrapper: {
+    flex: 1,
+    position: "relative",
+  },
   camera: {
     flex: 1,
   },
   buttonContainer: {
-    flex: 1,
+    position: "absolute",
+    bottom: 64,
+    left: 0,
+    right: 0,
     flexDirection: "row",
-    backgroundColor: "transparent",
-    margin: 64,
     justifyContent: "center",
-    alignItems: "flex-end",
+    alignItems: "center",
   },
   captureButton: {
     width: 70,
@@ -39,8 +44,8 @@ export const commonStyles = StyleSheet.create({
     justifyContent: "center",
   },
   previewImage: {
-    width: "90%",
-    height: "70%",
+    width: "95%",
+    height: "80%",
     resizeMode: "contain",
     marginBottom: 20,
   },

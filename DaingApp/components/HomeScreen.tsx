@@ -43,30 +43,51 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </View>
         </TouchableOpacity>
 
-        {/* SECONDARY BUTTONS */}
-        <View style={homeStyles.secondaryButtonsContainer}>
-          <TouchableOpacity
-            style={homeStyles.secondaryButton}
-            onPress={() => onNavigate("analytics")}
-          >
-            <Ionicons name="analytics-outline" size={32} color="#fff" />
-            <Text style={homeStyles.secondaryButtonText}>Analytics</Text>
-            <Text style={homeStyles.secondaryButtonSubtext}>View History</Text>
-          </TouchableOpacity>
-
-          {/* DATA GATHERING BUTTON (DEV MODE ONLY) */}
-          {devMode && (
+        {/* SECONDARY BUTTONS CONTAINER - Fixed Height */}
+        <View style={homeStyles.buttonRowsWrapper}>
+          {/* First Row: History and Analytics */}
+          <View style={homeStyles.secondaryButtonsContainer}>
             <TouchableOpacity
-              style={[homeStyles.secondaryButton, homeStyles.devButton]}
-              onPress={() => onNavigate("dataGathering")}
+              style={homeStyles.secondaryButton}
+              onPress={() => onNavigate("history")}
             >
-              <Ionicons name="folder-open-outline" size={32} color="#fff" />
-              <Text style={homeStyles.secondaryButtonText}>Data Gathering</Text>
-              <Text style={homeStyles.secondaryButtonSubtext}>
-                Build Dataset
-              </Text>
+              <Text style={homeStyles.secondaryButtonText}>History</Text>
             </TouchableOpacity>
-          )}
+
+            <TouchableOpacity
+              style={homeStyles.secondaryButton}
+              onPress={() => onNavigate("analytics")}
+            >
+              <Text style={homeStyles.secondaryButtonText}>Analytics</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Second Row: Developer Mode Buttons - Always present */}
+          <View style={homeStyles.secondaryButtonsContainer}>
+            <TouchableOpacity
+              style={[
+                homeStyles.secondaryButton,
+                homeStyles.devButton,
+                !devMode && homeStyles.hiddenButton,
+              ]}
+              onPress={() => devMode && onNavigate("dataGathering")}
+              disabled={!devMode}
+            >
+              <Text style={homeStyles.secondaryButtonText}>Data Gathering</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                homeStyles.secondaryButton,
+                homeStyles.devButton,
+                !devMode && homeStyles.hiddenButton,
+              ]}
+              onPress={() => devMode && onNavigate("dataset")}
+              disabled={!devMode}
+            >
+              <Text style={homeStyles.secondaryButtonText}>Dataset</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </View>

@@ -48,6 +48,25 @@ export const modalStyles = StyleSheet.create({
     marginTop: 5,
     marginBottom: 20,
   },
+  inputSection: {
+    marginTop: 10,
+  },
+  inputLabel: {
+    fontSize: 16,
+    color: "white",
+    marginBottom: 8,
+    fontWeight: "500",
+  },
+  input: {
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderRadius: 8,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: "white",
+  },
   closeButton: {
     backgroundColor: "#3b82f6",
     paddingVertical: 15,
