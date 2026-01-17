@@ -1,47 +1,143 @@
 import { StyleSheet } from "react-native";
 
 export const historyStyles = StyleSheet.create({
-  listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  columnWrapper: {
-    gap: 16,
-    marginBottom: 16,
-  },
-  card: {
+  contentWrapper: {
     flex: 1,
-    backgroundColor: "#111836",
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#1f2a44",
   },
-  thumbnail: {
-    width: "100%",
-    height: 140,
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  dateSection: {
+    marginBottom: 28,
+  },
+  dateHeader: {
+    color: "#cbd5f5",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  gridRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 12,
+  },
+  square: {
     borderRadius: 12,
-    marginBottom: 10,
     backgroundColor: "#0f172a",
+    overflow: "hidden",
+    marginBottom: 10,
   },
-  timestamp: {
-    color: "#94a3b8",
-    fontSize: 12,
+  squareImage: {
+    width: "100%",
+    height: "100%",
   },
-  emptyState: {
+  squareSpacer: {
+    backgroundColor: "transparent",
+  },
+  emptyStateWrapper: {
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 40,
-    marginTop: 60,
   },
   emptyTitle: {
     fontSize: 20,
     color: "white",
     fontWeight: "600",
+    marginTop: 20,
   },
   emptySubtitle: {
     fontSize: 14,
     color: "#94a3b8",
     textAlign: "center",
-    marginTop: 10,
+    marginTop: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.75)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: "#0f172a",
+    borderRadius: 20,
+    padding: 16,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#1f2a44",
+  },
+  modalImage: {
+    width: "100%",
+    aspectRatio: 3 / 4,
+    borderRadius: 14,
+    marginBottom: 12,
+  },
+  modalTimestamp: {
+    color: "#94a3b8",
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  modalCloseButton: {
+    backgroundColor: "#3b82f6",
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 12,
+  },
+  modalCloseText: {
+    color: "white",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  fullScreenContainer: {
+    flex: 1,
+    backgroundColor: "#020617",
+  },
+  fullScreenHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
+  },
+  fullScreenImage: {
+    flex: 1,
+    width: "100%",
+    resizeMode: "contain",
+  },
+  fullScreenMeta: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderColor: "#1f2a44",
+  },
+  fullScreenTimestamp: {
+    color: "#cbd5f5",
+    fontSize: 15,
+  },
+  actionButtons: {
+    flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+  },
+  actionButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  closeButton: {
+    backgroundColor: "#1f2a44",
+  },
+  deleteButton: {
+    backgroundColor: "#dc2626",
+  },
+  actionText: {
+    color: "white",
+    fontSize: 15,
+    fontWeight: "600",
   },
 });

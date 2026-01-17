@@ -1,19 +1,21 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   ActivityIndicator,
-  FlatList,
   RefreshControl,
   Image,
   Alert,
+  ScrollView,
+  Modal,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { commonStyles } from "../styles/common";
 import { historyStyles } from "../styles/history";
 import type { Screen, HistoryEntry } from "../types";
-import { fetchHistory } from "../services/api";
+import { fetchHistory, deleteHistoryEntry } from "../services/api";
 
 interface HistoryScreenProps {
   onNavigate: (screen: Screen) => void;
@@ -26,6 +28,51 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
 }) => {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedEntry, setSelectedEntry] = useState<HistoryEntry | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const photoSize = useMemo(() => {
+    const screenWidth = Dimensions.get("window").width;
+    const horizontalPadding = 40; // scroll padding left + right
+    const gapTotal = 20; // gaps between three columns
+    return (screenWidth - horizontalPadding - gapTotal) / 3;
+  }, []);
+
+  const chunkEntries = useCallback(
+    (items: HistoryEntry[], chunkSize: number) => {
+      const chunks: HistoryEntry[][] = [];
+      for (let i = 0; i < items.length; i += chunkSize) {
+        chunks.push(items.slice(i, i + chunkSize));
+      }
+      return chunks;
+    },
+    []
+  );
+
+  const sections = useMemo(() => {
+    const map = new Map<string, HistoryEntry[]>();
+    entries.forEach((entry) => {
+      const date = new Date(entry.timestamp);
+      const key = date.toISOString().split("T")[0];
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key)!.push(entry);
+    });
+
+    return Array.from(map.entries())
+      .sort((a, b) => (a[0] > b[0] ? -1 : 1))
+      .map(([isoDate, list]) => ({
+        isoDate,
+        formattedDate: new Date(isoDate).toLocaleDateString(undefined, {
+          weekday: "short",
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        }),
+        rows: chunkEntries(list, 3),
+      }));
+  }, [entries, chunkEntries]);
 
   const loadHistory = useCallback(async () => {
     setLoading(true);
@@ -46,16 +93,46 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
     loadHistory();
   }, [loadHistory]);
 
-  const renderItem = ({ item }: { item: HistoryEntry }) => (
-    <View style={historyStyles.card}>
-      <Image source={{ uri: item.url }} style={historyStyles.thumbnail} />
-      <Text style={historyStyles.timestamp}>
-        {new Date(item.timestamp).toLocaleString()}
-      </Text>
-    </View>
+  const showEmpty = !loading && entries.length === 0;
+  const formattedModalTimestamp = selectedEntry
+    ? new Date(selectedEntry.timestamp).toLocaleString()
+    : "";
+
+  const handleDeleteEntry = useCallback(
+    async (entry: HistoryEntry) => {
+      if (isDeleting) return;
+      setIsDeleting(true);
+      try {
+        await deleteHistoryEntry(historyUrl, entry.id);
+        setEntries((prev) => prev.filter((item) => item.id !== entry.id));
+        if (selectedEntry?.id === entry.id) {
+          setSelectedEntry(null);
+        }
+      } catch (error) {
+        Alert.alert(
+          "Delete Failed",
+          "We couldn't delete this photo. Please try again."
+        );
+      } finally {
+        setIsDeleting(false);
+      }
+    },
+    [historyUrl, isDeleting, selectedEntry]
   );
 
-  const showEmpty = !loading && entries.length === 0;
+  const confirmDelete = useCallback(
+    (entry: HistoryEntry) => {
+      Alert.alert("Delete Photo", "Remove this scan from history?", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => handleDeleteEntry(entry),
+        },
+      ]);
+    },
+    [handleDeleteEntry]
+  );
 
   return (
     <View style={commonStyles.container}>
@@ -67,33 +144,120 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
         <View style={{ width: 28 }} />
       </View>
 
-      {loading && entries.length === 0 ? (
-        <ActivityIndicator
-          size="large"
-          color="#3b82f6"
-          style={{ marginTop: 40 }}
-        />
-      ) : showEmpty ? (
-        <View style={historyStyles.emptyState}>
-          <Ionicons name="time-outline" size={72} color="#334155" />
-          <Text style={historyStyles.emptyTitle}>No scans yet</Text>
-          <Text style={historyStyles.emptySubtitle}>
-            Scan fish to see your previous analyses here.
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={entries}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          renderItem={renderItem}
-          contentContainerStyle={historyStyles.listContent}
-          columnWrapperStyle={historyStyles.columnWrapper}
-          refreshControl={
-            <RefreshControl refreshing={loading} onRefresh={loadHistory} />
-          }
-        />
-      )}
+      <View style={historyStyles.contentWrapper}>
+        {loading && entries.length === 0 ? (
+          <ActivityIndicator
+            size="large"
+            color="#3b82f6"
+            style={{ marginTop: 40 }}
+          />
+        ) : showEmpty ? (
+          <View style={historyStyles.emptyStateWrapper}>
+            <Ionicons name="time-outline" size={72} color="#334155" />
+            <Text style={historyStyles.emptyTitle}>No scans yet</Text>
+            <Text style={historyStyles.emptySubtitle}>
+              Scan fish to see your previous analyses here.
+            </Text>
+          </View>
+        ) : (
+          <ScrollView
+            refreshControl={
+              <RefreshControl refreshing={loading} onRefresh={loadHistory} />
+            }
+            contentContainerStyle={historyStyles.scrollContent}
+          >
+            {sections.map((section) => (
+              <View key={section.isoDate} style={historyStyles.dateSection}>
+                <Text style={historyStyles.dateHeader}>
+                  {section.formattedDate}
+                </Text>
+                {section.rows.map((row, rowIndex) => (
+                  <View
+                    key={`${section.isoDate}-row-${rowIndex}`}
+                    style={historyStyles.gridRow}
+                  >
+                    {row.map((entry, index) => (
+                      <TouchableOpacity
+                        key={entry.id}
+                        style={[
+                          historyStyles.square,
+                          { width: photoSize, height: photoSize },
+                        ]}
+                        onPress={() => setSelectedEntry(entry)}
+                        onLongPress={() => confirmDelete(entry)}
+                        delayLongPress={300}
+                        activeOpacity={0.8}
+                      >
+                        <Image
+                          source={{ uri: entry.url }}
+                          style={historyStyles.squareImage}
+                        />
+                      </TouchableOpacity>
+                    ))}
+                    {row.length < 3 &&
+                      Array.from({ length: 3 - row.length }).map((_, idx) => (
+                        <View
+                          key={`spacer-${idx}`}
+                          style={[
+                            historyStyles.square,
+                            historyStyles.squareSpacer,
+                            { width: photoSize, height: photoSize },
+                          ]}
+                        />
+                      ))}
+                  </View>
+                ))}
+              </View>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+
+      <Modal
+        visible={!!selectedEntry}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setSelectedEntry(null)}
+      >
+        {selectedEntry && (
+          <View style={historyStyles.fullScreenContainer}>
+            <View style={historyStyles.fullScreenHeader}>
+              <TouchableOpacity onPress={() => setSelectedEntry(null)}>
+                <Ionicons name="arrow-back" size={28} color="white" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => confirmDelete(selectedEntry)}>
+                <Ionicons name="trash" size={24} color="#f87171" />
+              </TouchableOpacity>
+            </View>
+
+            <Image
+              source={{ uri: selectedEntry.url }}
+              style={historyStyles.fullScreenImage}
+            />
+
+            <View style={historyStyles.fullScreenMeta}>
+              <Text style={historyStyles.fullScreenTimestamp}>
+                {formattedModalTimestamp}
+              </Text>
+            </View>
+
+            <View style={historyStyles.actionButtons}>
+              <TouchableOpacity
+                style={[historyStyles.actionButton, historyStyles.closeButton]}
+                onPress={() => setSelectedEntry(null)}
+              >
+                <Text style={historyStyles.actionText}>Close</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[historyStyles.actionButton, historyStyles.deleteButton]}
+                onPress={() => confirmDelete(selectedEntry)}
+              >
+                <Text style={historyStyles.actionText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </Modal>
     </View>
   );
 };

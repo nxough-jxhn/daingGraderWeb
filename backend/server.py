@@ -52,6 +52,15 @@ def add_history_entry(entry):
   # keep latest 200 entries
   _write_history_entries(entries[:200])
 
+def remove_history_entry(entry_id: str):
+  entries = _read_history_entries()
+  filtered = [e for e in entries if e.get("id") != entry_id]
+  if len(filtered) == len(entries):
+    return None
+  _write_history_entries(filtered)
+  removed = next(e for e in entries if e.get("id") == entry_id)
+  return removed
+
 @app.post("/analyze")
 async def analyze_fish(file: UploadFile = File(...)):
   print("Received an image from the app!") 
@@ -174,3 +183,25 @@ def get_history():
     "status": "success",
     "entries": _read_history_entries()
   }
+
+
+@app.delete("/history/{entry_id}")
+def delete_history(entry_id: str):
+  entry = remove_history_entry(entry_id)
+  if not entry:
+    return {"status": "error", "message": "Entry not found"}
+
+  public_id = None
+  folder = entry.get("folder")
+  if folder:
+    public_id = f"{folder}/{entry_id}"
+  else:
+    public_id = entry_id
+
+  try:
+    if public_id:
+      cloudinary.uploader.destroy(public_id, resource_type="image")
+  except Exception as err:
+    print(f"⚠️ Failed to remove Cloudinary asset {public_id}: {err}")
+
+  return {"status": "success", "message": "Entry deleted"}

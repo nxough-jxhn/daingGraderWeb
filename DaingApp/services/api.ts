@@ -98,3 +98,11 @@ export const fetchHistory = async (
     throw new Error("Unable to load history");
   }
 };
+
+export const deleteHistoryEntry = async (
+  historyUrl: string,
+  entryId: string
+): Promise<void> => {
+  const url = `${historyUrl}/${entryId}`;
+  await axios.delete(url);
+};
