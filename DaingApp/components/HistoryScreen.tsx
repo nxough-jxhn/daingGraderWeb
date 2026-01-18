@@ -1,4 +1,10 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   View,
   Text,
@@ -9,8 +15,7 @@ import {
   Alert,
   ScrollView,
   Dimensions,
-  PanResponder,
-  Animated,
+  FlatList,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { commonStyles } from "../styles/common";
@@ -33,7 +38,7 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [swipeX] = useState(new Animated.Value(0));
+  const flatListRef = useRef<FlatList>(null);
 
   const photoSize = useMemo(() => {
     const screenWidth = Dimensions.get("window").width;
@@ -213,70 +218,31 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
     return entries.findIndex((e) => e.id === selectedEntry.id);
   }, [selectedEntry, entries]);
 
-  const navigateToImage = useCallback(
-    (direction: "next" | "prev") => {
-      const currentIndex = getCurrentIndex();
-      if (currentIndex === -1) return;
-
-      let newIndex = currentIndex;
-      if (direction === "next" && currentIndex < entries.length - 1) {
-        newIndex = currentIndex + 1;
-      } else if (direction === "prev" && currentIndex > 0) {
-        newIndex = currentIndex - 1;
-      }
-
-      if (newIndex !== currentIndex) {
-        setSelectedEntry(entries[newIndex]);
-        swipeX.setValue(0);
-      }
-    },
-    [getCurrentIndex, entries, swipeX],
-  );
-
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: (_, gestureState) => {
-          return Math.abs(gestureState.dx) > 10;
-        },
-        onPanResponderMove: (_, gestureState) => {
-          swipeX.setValue(gestureState.dx);
-        },
-        onPanResponderRelease: (_, gestureState) => {
-          const { dx, vx } = gestureState;
-          const screenWidth = Dimensions.get("window").width;
-
-          // Swipe threshold: either 1/3 of screen or fast swipe
-          if (Math.abs(dx) > screenWidth / 3 || Math.abs(vx) > 0.5) {
-            if (dx > 0) {
-              // Swipe right - go to previous
-              navigateToImage("prev");
-            } else {
-              // Swipe left - go to next
-              navigateToImage("next");
-            }
-          }
-
-          Animated.spring(swipeX, {
-            toValue: 0,
-            useNativeDriver: true,
-          }).start();
-        },
-      }),
-    [swipeX, navigateToImage],
-  );
-
   const showEmpty = !loading && entries.length === 0;
 
-  // If viewing a specific entry, show full-screen view instead of grid
+  // If viewing a specific entry, show full-screen view with horizontal swipe
   if (selectedEntry) {
     const formattedTimestamp = new Date(
       selectedEntry.timestamp,
     ).toLocaleString();
     const currentIndex = getCurrentIndex();
-    const hasPrev = currentIndex > 0;
-    const hasNext = currentIndex < entries.length - 1;
+    const screenWidth = Dimensions.get("window").width;
+
+    const renderFullscreenItem = ({ item }: { item: HistoryEntry }) => (
+      <View
+        style={{
+          width: screenWidth,
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <Image
+          source={{ uri: item.url }}
+          style={commonStyles.previewImage}
+          resizeMode="contain"
+        />
+      </View>
+    );
 
     return (
       <View style={commonStyles.container}>
@@ -290,50 +256,29 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
           </TouchableOpacity>
         </View>
 
-        <Animated.View
-          style={[
-            commonStyles.previewContainer,
-            {
-              transform: [{ translateX: swipeX }],
-            },
-          ]}
-          {...panResponder.panHandlers}
-        >
-          <Image
-            source={{ uri: selectedEntry.url }}
-            style={commonStyles.previewImage}
-          />
-          {hasPrev && (
-            <View
-              style={{
-                position: "absolute",
-                left: 20,
-                top: "50%",
-                transform: [{ translateY: -20 }],
-                backgroundColor: "rgba(0,0,0,0.5)",
-                borderRadius: 20,
-                padding: 8,
-              }}
-            >
-              <Ionicons name="chevron-back" size={24} color="white" />
-            </View>
-          )}
-          {hasNext && (
-            <View
-              style={{
-                position: "absolute",
-                right: 20,
-                top: "50%",
-                transform: [{ translateY: -20 }],
-                backgroundColor: "rgba(0,0,0,0.5)",
-                borderRadius: 20,
-                padding: 8,
-              }}
-            >
-              <Ionicons name="chevron-forward" size={24} color="white" />
-            </View>
-          )}
-        </Animated.View>
+        <FlatList
+          ref={flatListRef}
+          data={entries}
+          renderItem={renderFullscreenItem}
+          keyExtractor={(item) => item.id}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          initialScrollIndex={currentIndex}
+          getItemLayout={(_, index) => ({
+            length: screenWidth,
+            offset: screenWidth * index,
+            index,
+          })}
+          onMomentumScrollEnd={(event) => {
+            const newIndex = Math.round(
+              event.nativeEvent.contentOffset.x / screenWidth,
+            );
+            if (entries[newIndex]) {
+              setSelectedEntry(entries[newIndex]);
+            }
+          }}
+        />
 
         <View style={commonStyles.bottomButtonBar}>
           <TouchableOpacity
