@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --muted: #64748b;
+  --surface: #f1f5f9;
+  --sidebar: #1e3a5f;
+  --sidebar-hover: #2a4a75;
+  --sidebar-active: #3b82f6;
+}
+
+html, body, #root {
+  height: 100%;
+  background: var(--bg);
+}
+
+/* Monday.com-style design tokens (work even if Tailwind theme extend not loaded) */
+.bg-sidebar { background-color: var(--sidebar); }
+.hover\:bg-sidebar-hover:hover { background-color: var(--sidebar-hover); }
+.bg-surface { background-color: var(--surface); }
+.bg-sidebar-active-bg { background-color: rgba(59, 130, 246, 0.2); }
+.border-sidebar-active { border-color: var(--sidebar-active); }
+.text-sidebar-active { color: var(--sidebar-active); }
+.shadow-soft { box-shadow: 0 2px 8px rgba(2, 6, 23, 0.06); }
+.shadow-card { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }
+
+/* Basic utility to mimic Monday.com-like card style */
+.card {
+  @apply bg-white rounded-xl shadow-card p-6 transition-shadow duration-200 hover:shadow-soft;
+}
+
+.header-shadow {
+  box-shadow: 0 2px 8px rgba(2,6,23,0.06);
+}
