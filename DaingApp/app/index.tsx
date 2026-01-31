@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo, useEffect } from "react";
 import { View, Button, Alert } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as ImagePicker from "expo-image-picker";
 import { commonStyles } from "../styles/common";
 import { HomeScreen } from "../components/HomeScreen";
 import { ScanScreen } from "../components/ScanScreen";
@@ -74,6 +75,23 @@ export default function Index() {
     }
   };
 
+  const handlePickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images",
+        allowsEditing: false,
+        quality: 1,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setCapturedImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      Alert.alert("Error", "Failed to pick image from gallery");
+    }
+  };
+
   const handleAnalyzeFish = async () => {
     if (!capturedImage) return;
     setLoading(true);
@@ -82,7 +100,6 @@ export default function Index() {
       const result = await analyzeFish(capturedImage, serverUrls.analyze);
       setResultImage(result);
     } catch (error) {
-      console.error("Server Error:", error);
       Alert.alert(
         "Connection Failed",
         `Make sure your server URL is correct.\nCurrent Target: ${serverBaseUrl}`,
@@ -212,6 +229,7 @@ export default function Index() {
       latestHistoryImage={latestHistoryEntry?.url || null}
       onNavigate={setCurrentScreen}
       onTakePicture={handleTakePicture}
+      onPickImage={handlePickImage}
       onAnalyze={handleAnalyzeFish}
       onReset={handleReset}
       onViewHistoryImage={handleViewHistoryImage}
