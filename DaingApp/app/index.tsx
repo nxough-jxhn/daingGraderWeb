@@ -78,7 +78,7 @@ export default function Index() {
   const handlePickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: "images",
         allowsEditing: false,
         quality: 1,
       });
@@ -100,7 +100,6 @@ export default function Index() {
       const result = await analyzeFish(capturedImage, serverUrls.analyze);
       setResultImage(result);
     } catch (error) {
-      console.error("Server Error:", error);
       Alert.alert(
         "Connection Failed",
         `Make sure your server URL is correct.\nCurrent Target: ${serverBaseUrl}`,

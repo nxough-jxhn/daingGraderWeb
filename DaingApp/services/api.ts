@@ -135,23 +135,8 @@ export const fetchHistory = async (
     }
     return [];
   } catch (error: any) {
-    console.error("Failed to fetch history", error);
-    if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
-      throw new Error(
-        "Request timed out. Please check your server IP address and try again.",
-      );
-    } else if (
-      error.code === "ERR_NETWORK" ||
-      error.message?.includes("Network Error")
-    ) {
-      throw new Error(
-        "Cannot connect to server. Please verify the IP address is correct.",
-      );
-    } else {
-      throw new Error(
-        "Unable to load history. " + (error.message || "Unknown error"),
-      );
-    }
+    // Silently return empty array - don't trigger Expo error overlay
+    return [];
   }
 };
 
