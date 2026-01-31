@@ -63,9 +63,6 @@ export default function HeroCarousel() {
   }, [])
 
   const goTo = (i: number) => setIndex(i)
-  const prev = () => setIndex((i) => (i - 1 + slides.length) % slides.length)
-  const next = () => setIndex((i) => (i + 1) % slides.length)
-
   const slide = slides[index]
 
   return (
@@ -116,21 +113,7 @@ export default function HeroCarousel() {
         </div>
       </div>
 
-      {/* Previous / Next arrows */}
-      <button
-        onClick={prev}
-        className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors"
-        aria-label="Previous slide"
-      >
-        <span className="text-xl leading-none">‹</span>
-      </button>
-      <button
-        onClick={next}
-        className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors"
-        aria-label="Next slide"
-      >
-        <span className="text-xl leading-none">›</span>
-      </button>
+      {/* Carousel auto-plays. Use the dots to jump between slides. */}
     </div>
   )
 }

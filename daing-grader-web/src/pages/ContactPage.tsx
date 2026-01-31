@@ -10,6 +10,7 @@ export default function ContactPage(){
         <form className="mt-4 space-y-3">
           <Input label="Name" />
           <Input label="Email" />
+          <Input label="Contact Number" placeholder="e.g. +63 912 345 6789" />
           <Input label="Subject" />
           <div>
             <label className="text-sm text-gray-700 mb-1">Message</label>

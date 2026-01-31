@@ -9,7 +9,7 @@ export default function Footer() {
         <div>
           <div className="text-lg font-semibold">DaingGrader</div>
           <p className="text-sm text-white/70 mt-2">
-            Educational fish grading platform for classification and dataset management.
+            Dried fish quality grader platform for classification and dataset management.
           </p>
         </div>
         <div>
@@ -17,6 +17,9 @@ export default function Footer() {
           <ul className="mt-3 space-y-2 text-sm text-white/70">
             <li>
               <Link to="/" className="hover:text-white transition-colors duration-200">Home</Link>
+            </li>
+            <li>
+              <Link to="/grade" className="hover:text-white transition-colors duration-200">Grade</Link>
             </li>
             <li>
               <Link to="/dataset" className="hover:text-white transition-colors duration-200">Dataset</Link>

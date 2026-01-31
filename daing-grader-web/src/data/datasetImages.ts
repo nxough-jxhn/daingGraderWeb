@@ -14,7 +14,8 @@ export interface DatasetImage {
   description?: string
 }
 
-export const datasetImages: DatasetImage[] = Array.from({ length: 174 }, (_, i) => ({
+// NOTE: Currently limited to 50 placeholder images for UI demo.
+export const datasetImages: DatasetImage[] = Array.from({ length: 50 }, (_, i) => ({
   id: `img-${i + 1}`,
   filename: `PXL_20260125_163309686_${String(i + 1).padStart(3, '0')}.jpg`,
   hasAnnotations: i % 3 !== 0,

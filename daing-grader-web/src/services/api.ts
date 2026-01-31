@@ -31,4 +31,12 @@ api.interceptors.response.use(
   }
 )
 
+/** POST image to /analyze; returns blob (image/jpeg). Used by Grade page. */
+export async function analyzeImage(file: File): Promise<Blob> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await api.post<Blob>('/analyze', formData, { responseType: 'blob' })
+  return response.data
+}
+
 export default api
