@@ -1,11 +1,16 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Input from '../ui/Input'
+import PasswordInput from '../ui/PasswordInput'
 import Button from '../ui/Button'
 import { authService } from '../../services/auth.service'
+import { useAuth } from '../../contexts/AuthContext'
+import { useToast } from '../../contexts/ToastContext'
 
 export default function LoginForm() {
   const navigate = useNavigate()
+  const { login } = useAuth()
+  const { showToast, hideToast } = useToast()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
@@ -16,23 +21,29 @@ export default function LoginForm() {
     e.preventDefault()
     setError(null)
     setLoading(true)
+    showToast('Logging in...')
 
     try {
-      // Frontend wiring - will call backend when endpoints are ready
       const response = await authService.login(email, password)
-      
-      // Store token if received
+
       if (response.token) {
         localStorage.setItem('token', response.token)
         if (rememberMe) {
           localStorage.setItem('rememberEmail', email)
         }
+        login(response.token, {
+          id: response.user?.id,
+          name: response.user?.name || email.split('@')[0],
+          email: response.user?.email || email,
+          avatar_url: response.user?.avatar_url ?? null,
+        })
       }
 
-      // Redirect to profile or home
+      hideToast()
       navigate('/profile')
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed. Please check your credentials.')
+      hideToast()
+      setError(err.response?.data?.detail || err.response?.data?.message || 'Login failed. Please check your credentials.')
     } finally {
       setLoading(false)
     }
@@ -54,9 +65,8 @@ export default function LoginForm() {
         required
         error={error && email === '' ? 'Email is required' : null}
       />
-      <Input
+      <PasswordInput
         label="Password"
-        type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder="••••••"

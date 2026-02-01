@@ -1,11 +1,16 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Input from '../ui/Input'
+import PasswordInput from '../ui/PasswordInput'
 import Button from '../ui/Button'
 import { authService } from '../../services/auth.service'
+import { useAuth } from '../../contexts/AuthContext'
+import { useToast } from '../../contexts/ToastContext'
 
 export default function RegisterForm() {
   const navigate = useNavigate()
+  const { login } = useAuth()
+  const { showToast, hideToast } = useToast()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -17,7 +22,6 @@ export default function RegisterForm() {
     e.preventDefault()
     setError(null)
 
-    // Validation
     if (password !== confirmPassword) {
       setError('Passwords do not match')
       return
@@ -28,25 +32,32 @@ export default function RegisterForm() {
     }
 
     setLoading(true)
+    showToast('Creating account...')
 
     try {
-      // Frontend wiring - will call backend when endpoints are ready
       const response = await authService.register({
         name,
         email,
         password,
       })
 
-      // Auto-login after registration (if backend returns token)
       if (response.token) {
         localStorage.setItem('token', response.token)
+        login(response.token, {
+          id: response.user?.id,
+          name: response.user?.name || name,
+          email: response.user?.email || email,
+          avatar_url: response.user?.avatar_url ?? null,
+        })
+        hideToast()
         navigate('/profile')
       } else {
-        // Otherwise redirect to login
+        hideToast()
         navigate('/login')
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Registration failed. Please try again.')
+      hideToast()
+      setError(err.response?.data?.detail || err.response?.data?.message || 'Registration failed. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -76,18 +87,16 @@ export default function RegisterForm() {
         required
         error={error && email === '' ? 'Email is required' : null}
       />
-      <Input
+      <PasswordInput
         label="Password"
-        type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder="••••••"
         required
         error={error && password === '' ? 'Password is required' : null}
       />
-      <Input
+      <PasswordInput
         label="Confirm Password"
-        type="password"
         value={confirmPassword}
         onChange={(e) => setConfirmPassword(e.target.value)}
         placeholder="••••••"

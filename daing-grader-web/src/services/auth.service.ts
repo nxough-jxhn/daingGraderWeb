@@ -54,7 +54,7 @@ export const authService = {
   },
 
   /**
-   * Get current user from token (if backend provides /auth/me endpoint)
+   * Get current user from token (GET /auth/me)
    */
   async getCurrentUser() {
     try {
@@ -62,13 +62,30 @@ export const authService = {
       return response.data
     } catch (error: any) {
       if (error.response?.status === 404 || error.code === 'ECONNREFUSED') {
-        // Return mock user if backend not available
         const token = localStorage.getItem('token')
         if (token) {
-          return { email: 'user@example.com', name: 'User' }
+          return { email: 'user@example.com', name: 'User', avatar_url: null }
         }
       }
       throw error
     }
+  },
+
+  /**
+   * Update profile (name) - PATCH /auth/profile
+   */
+  async updateProfile(data: { name: string }) {
+    const response = await api.patch('/auth/profile', data)
+    return response.data
+  },
+
+  /**
+   * Upload profile avatar - POST /auth/profile/avatar (saves to Cloudinary + MongoDB)
+   */
+  async uploadProfileAvatar(file: File) {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await api.post('/auth/profile/avatar', formData)
+    return response.data
   },
 }

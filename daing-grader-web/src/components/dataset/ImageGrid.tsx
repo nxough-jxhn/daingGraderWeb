@@ -29,7 +29,7 @@ export default function ImageGrid({ images, showAnnotations, selectedIds, onSele
         return (
           <div
             key={image.id}
-            className="group relative bg-white rounded-lg border border-slate-200 overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-purple-300"
+            className="group relative bg-white rounded-lg border border-slate-200 overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] hover:border-purple-300"
             onMouseEnter={() => setHoveredId(image.id)}
             onMouseLeave={() => setHoveredId(null)}
             onClick={() => onImageClick?.(image.id)}
@@ -53,7 +53,7 @@ export default function ImageGrid({ images, showAnnotations, selectedIds, onSele
                 <img
                   src={image.url}
                   alt={image.filename}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover transition-all duration-200 group-hover:scale-105 group-hover:shadow-md"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">

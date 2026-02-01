@@ -9,6 +9,7 @@ import ProfilePage from './pages/ProfilePage'
 import AboutUsPage from './pages/AboutUsPage'
 import AboutDaingTypePage from './pages/AboutDaingTypePage'
 import GradePage from './pages/GradePage'
+import HistoryPage from './pages/HistoryPage'
 import ContactPage from './pages/ContactPage'
 import PublicationsPage from './pages/PublicationsPage'
 
@@ -17,6 +18,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Layout><HomePage /></Layout>} />
       <Route path="/grade" element={<Layout><GradePage /></Layout>} />
+      <Route path="/history" element={<Layout><HistoryPage /></Layout>} />
       <Route path="/dataset" element={<Layout><DatasetPage /></Layout>} />
       <Route path="/dataset/:id" element={<Layout><DatasetImageDetailPage /></Layout>} />
       <Route path="/login" element={<Layout><LoginPage /></Layout>} />

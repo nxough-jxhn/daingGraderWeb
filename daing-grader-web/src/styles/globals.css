@@ -26,12 +26,48 @@ html, body, #root {
 .text-sidebar-active { color: var(--sidebar-active); }
 .shadow-soft { box-shadow: 0 2px 8px rgba(2, 6, 23, 0.06); }
 .shadow-card { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08); }
+/* Dark blue accent shadow for cards/sections (sidebar color) */
+.shadow-sidebar-subtle { box-shadow: 0 2px 8px rgba(30, 58, 95, 0.12); }
+.shadow-sidebar-md { box-shadow: 0 4px 12px rgba(30, 58, 95, 0.15); }
+.border-sidebar-subtle { border-color: rgba(30, 58, 95, 0.2); }
 
 /* Basic utility to mimic Monday.com-like card style */
 .card {
-  @apply bg-white rounded-xl shadow-card p-6 transition-shadow duration-200 hover:shadow-soft;
+  @apply bg-white rounded-xl shadow-card p-6 transition-all duration-200 hover:shadow-lg hover:shadow-slate-200/50;
+}
+
+/* Subtle hover: cursor pointer + slight scale + shadow for buttons, images, clickable elements */
+.hover-lift {
+  @apply transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 cursor-pointer;
+}
+.hover-shadow-subtle {
+  @apply transition-all duration-200 hover:shadow-lg hover:scale-[1.02] cursor-pointer;
+}
+.hover-scale-subtle {
+  @apply transition-transform duration-200 hover:scale-[1.02] cursor-pointer;
+}
+/* Buttons and clickable: pointer cursor + subtle enlarge + shadow */
+button:not(:disabled),
+a[href],
+[role="button"],
+input[type="submit"],
+input[type="button"] {
+  @apply cursor-pointer;
+}
+button:not(:disabled):hover,
+a[href]:hover,
+.btn-hover {
+  @apply transition-all duration-200 hover:scale-[1.02] hover:shadow-md;
+}
+img.hover-zoom {
+  @apply transition-all duration-200 hover:scale-[1.03] hover:shadow-lg cursor-pointer;
 }
 
 .header-shadow {
   box-shadow: 0 2px 8px rgba(2,6,23,0.06);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translate(-50%, 4px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
 }

@@ -3,6 +3,9 @@ module.exports = {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      fontFamily: {
+        display: ['Source Serif 4', 'Georgia', 'serif'],
+      },
       colors: {
         primary: '#0ea5e9',
         accent: '#10b981',

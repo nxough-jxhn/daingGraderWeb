@@ -29,7 +29,7 @@ export default function HomePage() {
             <Link
               key={img.id}
               to={`/dataset/${img.id}`}
-              className="group block rounded-lg border border-slate-200 overflow-hidden bg-slate-100 hover:shadow-lg hover:border-primary/30 transition-all"
+              className="group block rounded-lg border border-sidebar-subtle overflow-hidden bg-white shadow-sidebar-subtle hover:shadow-sidebar-md hover:border-slate-300 transition-all"
             >
               <div className="aspect-square flex items-center justify-center bg-slate-200">
                 {img.url ? (
@@ -93,13 +93,13 @@ export default function HomePage() {
       </section>
 
       <section className="grid md:grid-cols-3 gap-6">
-        <div className="card">
+        <div className="card border border-sidebar-subtle shadow-sidebar-subtle hover:shadow-sidebar-md">
           <h3 className="text-lg font-semibold">About DaingGrader</h3>
           <p className="text-sm text-muted mt-2">
             An educational UI demonstrating fish grading workflows and dataset management.
           </p>
         </div>
-        <div className="card">
+        <div className="card border border-sidebar-subtle shadow-sidebar-subtle hover:shadow-sidebar-md">
           <h3 className="text-lg font-semibold">Key Features</h3>
           <ul className="mt-3 space-y-2 text-sm text-muted">
             <li>• Clean, Monday.com-inspired layout</li>
@@ -107,18 +107,20 @@ export default function HomePage() {
             <li>• Cloud-ready API integration</li>
           </ul>
         </div>
-        <div className="card">
+        <div className="card border border-sidebar-subtle shadow-sidebar-subtle hover:shadow-sidebar-md">
           <h3 className="text-lg font-semibold">Quick Stats</h3>
           <div className="mt-4 grid grid-cols-2 gap-4">
-            <div className="p-3 bg-gray-50 rounded-lg">
+            <div className="p-3 bg-slate-50 rounded-lg border border-sidebar-subtle shadow-sidebar-subtle">
               Images<br /><strong>{datasetImages.length}</strong>
             </div>
-            <div className="p-3 bg-gray-50 rounded-lg">Classes<br /><strong>5</strong></div>
+            <div className="p-3 bg-slate-50 rounded-lg border border-sidebar-subtle shadow-sidebar-subtle">
+              Classes<br /><strong>5</strong>
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="card">
+      <section className="card border border-sidebar-subtle shadow-sidebar-subtle">
         <h3 className="text-lg font-semibold">Call to Action</h3>
         <p className="text-sm text-muted mt-2">
           Use this prototype to refine the visual language before connecting to the backend.

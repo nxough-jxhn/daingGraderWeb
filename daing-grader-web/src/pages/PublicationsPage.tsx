@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { ExternalLink, FileText } from 'lucide-react'
+import PageTitleHero from '../components/layout/PageTitleHero'
 import { getPublicationsByType, type Publication } from '../data/publications'
 
 interface Props {
@@ -17,10 +18,11 @@ export default function PublicationsPage({ type }: Props) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-slate-900">{title}</h1>
-        <p className="text-sm text-slate-500 mt-1">{subtitle}</p>
-      </div>
+      <PageTitleHero
+        title={title}
+        subtitle={subtitle}
+        backgroundImage="/assets/page-hero/publications.jpg"
+      />
 
       <div className="space-y-4">
         {items.length === 0 ? (
@@ -40,7 +42,7 @@ export default function PublicationsPage({ type }: Props) {
 
 function PublicationCard({ publication }: { publication: Publication }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-card hover:shadow-soft transition-shadow">
+    <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-card transition-all duration-200 hover:shadow-lg hover:border-slate-300">
       <h3 className="font-semibold text-slate-900 mb-1">{publication.title}</h3>
       {publication.authors && (
         <p className="text-sm text-slate-600 mb-1">{publication.authors}</p>

@@ -1,4 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, Form
+from fastapi.middleware.cors import CORSMiddleware  # for web backend (CORS so frontend can read responses)
 import cv2
 import numpy as np
 import io
@@ -24,6 +25,15 @@ cloudinary.config(
 ) 
 
 app = FastAPI()
+
+# --- for web backend: CORS so the frontend (localhost:5173) can read API responses ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- 🧠 LOAD YOUR AI MODEL HERE ---
 # We load it outside the function so it stays in memory (faster)
@@ -68,6 +78,15 @@ def remove_history_entry(entry_id: str):
   _write_history_entries(filtered)
   removed = next(e for e in entries if e.get("id") == entry_id)
   return removed
+
+@app.get("/")
+def root():
+  """Health/connection check for web and mobile clients."""
+  return {"status": "ok"}
+
+# --- for web backend: auth routes (signup/login) ---
+from auth_web import router as auth_router
+app.include_router(auth_router, prefix="/auth", tags=["auth"])
 
 @app.post("/analyze")
 async def analyze_fish(file: UploadFile = File(...)):

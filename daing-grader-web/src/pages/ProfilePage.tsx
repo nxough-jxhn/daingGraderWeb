@@ -1,33 +1,46 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
 import { authService } from '../services/auth.service'
+import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
+import { Camera } from 'lucide-react'
 
 interface User {
+  id?: string
   name: string
   email: string
+  avatar_url?: string | null
 }
 
 export default function ProfilePage() {
+  const { setUser: setAuthUser } = useAuth()
+  const { showToast, hideToast } = useToast()
   const [user, setUser] = useState<User>({ name: '', email: '' })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const loadUser = async () => {
+    try {
+      const currentUser = await authService.getCurrentUser()
+      setUser({
+        id: currentUser.id,
+        name: currentUser.name || '',
+        email: currentUser.email || '',
+        avatar_url: currentUser.avatar_url ?? null,
+      })
+    } catch {
+      setUser({ name: 'User', email: 'user@example.com' })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    // Load current user
-    const loadUser = async () => {
-      try {
-        const currentUser = await authService.getCurrentUser()
-        setUser({ name: currentUser.name || '', email: currentUser.email || '' })
-      } catch (err) {
-        // If not logged in, use placeholder
-        setUser({ name: 'User', email: 'user@example.com' })
-      } finally {
-        setLoading(false)
-      }
-    }
     loadUser()
   }, [])
 
@@ -36,28 +49,45 @@ export default function ProfilePage() {
     setError(null)
     setSuccess(false)
     setSaving(true)
-
+    showToast('Updating profile...')
     try {
-      // Frontend wiring - will call backend when /auth/profile endpoint is ready
-      // For now, just update local state
-      await new Promise(resolve => setTimeout(resolve, 500)) // Simulate API call
-      
-      // In real implementation:
-      // await api.put('/auth/profile', user)
-      
+      const updated = await authService.updateProfile({ name: user.name })
+      setUser((u) => ({ ...u, name: updated.name ?? u.name }))
+      setAuthUser((prev) => (prev ? { ...prev, name: updated.name ?? prev.name } : null))
+      hideToast()
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update profile')
+      hideToast()
+      setError(err.response?.data?.detail || err.response?.data?.message || 'Failed to update profile')
     } finally {
       setSaving(false)
     }
   }
 
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !file.type.startsWith('image/')) return
+    setError(null)
+    setUploadingAvatar(true)
+    showToast('Uploading image...')
+    try {
+      const data = await authService.uploadProfileAvatar(file)
+      const url = data.avatar_url || null
+      setUser((u) => ({ ...u, avatar_url: url }))
+      setAuthUser((prev) => (prev ? { ...prev, avatar_url: url } : null))
+      hideToast()
+    } catch (err: any) {
+      hideToast()
+      setError(err.response?.data?.detail || err.response?.data?.message || 'Failed to upload image')
+    } finally {
+      setUploadingAvatar(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
   const handlePasswordChange = async (oldPassword: string, newPassword: string) => {
     try {
-      // Frontend wiring - will call backend when endpoint is ready
-      // await api.put('/auth/password', { oldPassword, newPassword })
       alert('Password change feature will be available when backend is ready')
     } catch (err: any) {
       console.error('Password change error:', err)
@@ -77,18 +107,38 @@ export default function ProfilePage() {
       <div className="card">
         <h3 className="font-semibold text-lg mb-4">Profile</h3>
         <form onSubmit={handleSave} className="space-y-4">
-          <div className="flex justify-center">
-            <div className="w-28 h-28 bg-gradient-to-br from-primary to-accent rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg">
-              {user.name.charAt(0).toUpperCase()}
-            </div>
+          <div className="flex flex-col items-center gap-3">
+            <label className="relative cursor-pointer group">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={handleAvatarChange}
+                disabled={uploadingAvatar}
+              />
+              <div className="w-28 h-28 rounded-full border-4 border-slate-200 overflow-hidden bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-2xl font-bold shadow-lg transition-all duration-200 hover:shadow-xl hover:scale-105 cursor-pointer">
+                {user.avatar_url ? (
+                  <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  user.name.charAt(0).toUpperCase() || '?'
+                )}
+              </div>
+              <span className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center shadow border-2 border-white">
+                <Camera className="w-4 h-4" />
+              </span>
+            </label>
+            <span className="text-xs text-slate-500">
+              {uploadingAvatar ? 'Uploading…' : 'Click photo to upload (saved to backend)'}
+            </span>
           </div>
-          
+
           {success && (
             <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded-lg text-sm">
               Profile updated successfully!
             </div>
           )}
-          
+
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">
               {error}
@@ -109,16 +159,18 @@ export default function ProfilePage() {
             onChange={(e) => setUser({ ...user, email: e.target.value })}
             placeholder="you@school.edu"
             required
+            disabled
           />
-          
+
           <div className="flex gap-3 pt-2">
-            <Button type="submit" disabled={saving} className="flex-1">
+            <Button type="submit" disabled={saving} className="flex-1 cursor-pointer">
               {saving ? 'Saving...' : 'Save Changes'}
             </Button>
             <Button
               type="button"
               variant="ghost"
-              onClick={() => window.location.reload()}
+              onClick={() => loadUser()}
+              className="cursor-pointer"
             >
               Cancel
             </Button>
@@ -127,13 +179,11 @@ export default function ProfilePage() {
       </div>
 
       <div className="md:col-span-2 space-y-6">
-        {/* Password change section */}
         <div className="card">
           <h3 className="font-semibold text-lg mb-4">Change Password</h3>
           <PasswordChangeForm onSubmit={handlePasswordChange} />
         </div>
 
-        {/* Activity section */}
         <div className="card">
           <h3 className="font-semibold text-lg mb-4">Activity</h3>
           <div className="space-y-3">
@@ -159,7 +209,6 @@ function PasswordChangeForm({ onSubmit }: { onSubmit: (oldPassword: string, newP
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-
     if (newPassword !== confirmPassword) {
       setError('New passwords do not match')
       return
@@ -168,7 +217,6 @@ function PasswordChangeForm({ onSubmit }: { onSubmit: (oldPassword: string, newP
       setError('Password must be at least 6 characters')
       return
     }
-
     onSubmit(oldPassword, newPassword)
     setOldPassword('')
     setNewPassword('')
@@ -206,7 +254,7 @@ function PasswordChangeForm({ onSubmit }: { onSubmit: (oldPassword: string, newP
         placeholder="••••••"
         required
       />
-      <Button type="submit" variant="outline">
+      <Button type="submit" variant="outline" className="cursor-pointer">
         Update Password
       </Button>
     </form>

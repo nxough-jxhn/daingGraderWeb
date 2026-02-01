@@ -6,3 +6,7 @@ opencv-python
 cloudinary
 python-dotenv
 ultralytics
+# for web backend (signup/login)
+pymongo
+bcrypt
+python-jose[cryptography]
