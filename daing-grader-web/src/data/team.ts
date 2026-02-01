@@ -9,6 +9,7 @@
  * WHERE TO CHANGE MEMBER INFO:
  *   Edit the objects below: name, role, bio, age, contactNumber, image path, and social URLs/handles.
  *   For social: set URL (e.g. github) and display handle (e.g. githubHandle '@username') or '' to hide.
+ *   For Gmail: set gmail to the email address (e.g. 'john@gmail.com'); gmailHandle for custom display.
  */
 
 export interface TeamMember {
@@ -37,6 +38,10 @@ export interface TeamMember {
   instagram: string
   /** Change: display e.g. '@username' next to Instagram icon */
   instagramHandle?: string
+  /** Change: Gmail/email address or '' */
+  gmail?: string
+  /** Change: display e.g. 'john@gmail.com' next to Gmail icon */
+  gmailHandle?: string
 }
 
 export interface TUPInfo {
@@ -52,54 +57,60 @@ export interface TUPInfo {
 export const teamMembers: TeamMember[] = [
   {
     id: '1',
-    name: 'Member One',
-    role: 'Role / Position',
-    bio: 'Short bio for this team member. Edit in src/data/team.ts.',
-    age: undefined,
-    contactNumber: '',
-    image: '/assets/team/member1.jpg',
-    github: '',
+    name: 'John Neo Bagon',
+    role: '3rd-Year BS in Information Technology Student',
+    bio: 'BSIT student focused on turning ideas into functional technology.',
+    age: 20,
+    contactNumber: '09611676764',
+    image: '/assets/team/member1.jfif',
+    github: 'jxhnxugh',
     githubHandle: '',
-    facebook: '',
+    facebook: 'John Neo Bagon',
     facebookHandle: '',
-    instagram: '',
+    instagram: 'nxogh.13',
     instagramHandle: '',
+    gmail: 'johnbagon4@gmail.com',
+    gmailHandle: '',
   },
   {
     id: '2',
-    name: 'Member Two',
-    role: 'Role / Position',
-    bio: 'Short bio for this team member. Edit in src/data/team.ts.',
-    age: undefined,
-    contactNumber: '',
+    name: 'Ernz Llabore Jumoc',
+    role: '3rd-Year BS in Information Technology Student',
+    bio: 'BSIT student exploring code, systems, and real-world tech solutions.',
+    age: 20,
+    contactNumber: '09611676764',
     image: '/assets/team/member2.jpg',
-    github: '',
+    github: 'ernzjumoc',
     githubHandle: '',
-    facebook: '',
+    facebook: 'Ernz Llabore Jumoc',
     facebookHandle: '',
-    instagram: '',
+    instagram: 'ernzjumoc',
     instagramHandle: '',
+    gmail: 'ernzjumoc@gmail.com',
+    gmailHandle: '',
   },
   {
     id: '3',
-    name: 'Member Three',
-    role: 'Role / Position',
-    bio: 'Short bio for this team member. Edit in src/data/team.ts.',
-    age: undefined,
-    contactNumber: '',
-    image: '/assets/team/member3.jpg',
-    github: '',
+    name: 'Sharwin John Marbella',
+    role: '3rd-Year BS in Information Technology Student',
+    bio: 'BSIT student with a passion for building practical, efficient software solutions.',
+    age: 20,
+    contactNumber: '09611676764',
+    image: '/assets/team/member3.png',
+    github: 'sharwinjohnmarbella',
     githubHandle: '',
-    facebook: '',
+    facebook: 'Sharwin John Marbella',
     facebookHandle: '',
-    instagram: '',
+    instagram: 'sharwinjohnmarbella',
     instagramHandle: '',
+    gmail: 'sjmarbella@gmail.com',
+    gmailHandle: '',
   },
 ]
 
 /** Change: TUP name and description in src/data/team.ts */
 export const tupInfo: TUPInfo = {
   name: 'Technological University of the Philippines - Taguig',
-  description: 'Brief description of TUP-T. Edit this text in src/data/team.ts.',
+  description: 'A premier state university with recognized excellence in engineering and technology education at par with leading universities in the ASEAN region.',
   logo: '/assets/logos/tup-t-logo.png',
 }

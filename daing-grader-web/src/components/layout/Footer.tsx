@@ -22,7 +22,7 @@ export default function Footer() {
               <Link to="/grade" className="hover:text-white transition-colors duration-200">Grade</Link>
             </li>
             <li>
-              <Link to="/dataset" className="hover:text-white transition-colors duration-200">Dataset</Link>
+              <Link to="/history" className="hover:text-white transition-colors duration-200">History</Link>
             </li>
             <li>
               <Link to="/about" className="hover:text-white transition-colors duration-200">About Us</Link>
@@ -38,6 +38,9 @@ export default function Footer() {
             </li>
             <li>
               <Link to="/publications/foreign" className="hover:text-white transition-colors duration-200">Publications (Foreign)</Link>
+            </li>
+            <li>
+              <Link to="/analytics" className="hover:text-white transition-colors duration-200">Analytics</Link>
             </li>
           </ul>
         </div>
@@ -60,7 +63,7 @@ export default function Footer() {
         </div>
       </div>
       <div className="border-t border-white/10 text-center text-sm py-4 text-white/60">
-        © {new Date().getFullYear()} DaingGrader — University Project
+        © {new Date().getFullYear()} DaingGrader — Technological University of the Philippines - Taguig
       </div>
     </footer>
   )

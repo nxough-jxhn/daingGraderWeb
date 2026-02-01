@@ -28,25 +28,24 @@ const slides: CarouselSlide[] = [
     description: 'Dried fish (daing) — commonly used in Philippine cuisine and grading studies.',
     placeholderColor: '#dc2626', // red
     imageSrc: '/assets/carousel/slide1.jpg',
-    // imageSrc: '/assets/carousel/slide1.jpg', // Optional: add image to public/assets/carousel/slide1.jpg
   },
   {
     title: 'Fish Grading',
     description: 'Quality classification and grading criteria for dried fish products.',
-    placeholderColor: '#2563eb', // blue
-    // imageSrc: '/assets/carousel/slide2.jpg',
+    placeholderColor: '#2563eb',
+    imageSrc: '/assets/carousel/slide2.jpg',
   },
   {
     title: 'Dataset',
     description: 'Curated image dataset for training and evaluating grading models.',
-    placeholderColor: '#16a34a', // green
-    // imageSrc: '/assets/carousel/slide3.jpg',
+    placeholderColor: '#16a34a',
+    imageSrc: '/assets/carousel/slide3.jpg',
   },
   {
     title: 'DaingGrader',
     description: 'Educational system for fish grading and classification.',
-    placeholderColor: '#ca8a04', // yellow/amber
-    // imageSrc: '/assets/carousel/slide4.jpg',
+    placeholderColor: '#ca8a04',
+    imageSrc: '/assets/carousel/slide4.jpg',
   },
 ]
 

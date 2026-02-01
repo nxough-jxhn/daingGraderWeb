@@ -10,3 +10,5 @@ ultralytics
 pymongo
 bcrypt
 python-jose[cryptography]
+# for web backend (contact form - EmailStr validation)
+email-validator

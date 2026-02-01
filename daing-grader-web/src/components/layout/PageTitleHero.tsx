@@ -28,13 +28,13 @@ export default function PageTitleHero({ title, subtitle, backgroundImage }: Page
       className="relative w-screen left-1/2 -translate-x-1/2 overflow-hidden mb-8"
       style={{ minHeight: '180px' }}
     >
-      {/* Full-width background image with low opacity */}
+      {/* Full-width background image - higher opacity so pattern shows through */}
       {backgroundImage && (
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{
             backgroundImage: `url(${backgroundImage})`,
-            opacity: 0.4,
+            opacity: 0.65,
           }}
         />
       )}
@@ -42,14 +42,14 @@ export default function PageTitleHero({ title, subtitle, backgroundImage }: Page
         <div className="absolute inset-0 bg-slate-700" style={{ opacity: 0.9 }} />
       )}
 
-      {/* Dark overlay so text is readable */}
-      <div className="absolute inset-0 bg-slate-900/50" />
+      {/* Lighter overlay so bg image shows through more */}
+      <div className="absolute inset-0 bg-slate-900/35" />
 
-      {/* Text box: low-opacity black shadow-like highlight (white text stays readable) */}
+      {/* Text box: lower opacity so bg image visible behind it */}
       <div className="relative z-10 flex items-center justify-center min-h-[180px] p-8">
         <div
-          className="bg-black/40 backdrop-blur-sm rounded-xl px-8 py-6 shadow-xl text-center max-w-2xl transition-all duration-300 hover:bg-black/50 hover:shadow-2xl"
-          style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.25)' }}
+          className="bg-black/25 backdrop-blur-sm rounded-xl px-8 py-6 shadow-xl text-center max-w-2xl transition-all duration-300 hover:bg-black/35 hover:shadow-2xl"
+          style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.2)' }}
         >
           <h1 className="text-2xl md:text-4xl font-display font-semibold text-white tracking-tight">
             {title}

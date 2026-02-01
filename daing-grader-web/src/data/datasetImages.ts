@@ -14,10 +14,12 @@ export interface DatasetImage {
   description?: string
 }
 
-// NOTE: Currently limited to 50 placeholder images for UI demo.
+// NOTE: Put dataset images in public/assets/dataset/img-1.jpg ... img-50.jpg
+// Display uses object-cover; any size will scale. Suggested: 600×600 or square.
 export const datasetImages: DatasetImage[] = Array.from({ length: 50 }, (_, i) => ({
   id: `img-${i + 1}`,
   filename: `PXL_20260125_163309686_${String(i + 1).padStart(3, '0')}.jpg`,
+  url: `/assets/dataset/img-${i + 1}.jpg`,
   hasAnnotations: i % 3 !== 0,
   annotations: i % 3 !== 0
     ? [

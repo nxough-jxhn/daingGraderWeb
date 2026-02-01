@@ -32,7 +32,21 @@ export default function LoginPage() {
         <div className="card transition-all duration-200 hover:shadow-lg">
           <h3 className="font-semibold">Why join?</h3>
           <p className="text-sm text-muted mt-2">Access dataset, contribute images, and view analytics for research.</p>
-          <div className="mt-4 bg-gray-50 rounded-md p-4 text-center text-muted">Insert image here — 800x600</div>
+          <div className="relative mt-4 rounded-md overflow-hidden bg-slate-100" style={{ aspectRatio: '4/3', minHeight: 200 }}>
+            <img
+              src="/assets/login/why-join.png"
+              alt="Why join DaingGrader"
+              className="absolute inset-0 w-full h-full object-cover"
+              onError={(e) => {
+                const t = e.target as HTMLImageElement
+                t.style.display = 'none'
+                t.nextElementSibling?.classList.remove('hidden')
+              }}
+            />
+            <div className="hidden absolute inset-0 flex items-center justify-center text-slate-400 text-sm p-4 text-center">
+              Add <code className="mx-1">public/assets/login/why-join.jpg</code> (suggested 800×600)
+            </div>
+          </div>
         </div>
       </div>
       </div>

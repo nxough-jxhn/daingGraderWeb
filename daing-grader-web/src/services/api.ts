@@ -50,6 +50,21 @@ export async function getHistory(): Promise<HistoryEntry[]> {
   return response.data.entries
 }
 
+/** Contact form payload - used by Contact page. */
+export interface ContactPayload {
+  name: string
+  email: string
+  contact_number?: string
+  subject: string
+  message: string
+}
+
+/** POST contact form; sends email to CONTACT_EMAIL (shathesisgroup@gmail.com). */
+export async function sendContactMessage(payload: ContactPayload): Promise<{ status: string; message: string }> {
+  const response = await api.post<{ status: string; message: string }>('/contact', payload)
+  return response.data
+}
+
 /** POST image to /analyze; returns blob (image/jpeg). Used by Grade page. */
 export async function analyzeImage(file: File): Promise<Blob> {
   const formData = new FormData()

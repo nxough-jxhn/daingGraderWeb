@@ -88,6 +88,10 @@ def root():
 from auth_web import router as auth_router
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 
+# --- for web backend: contact form (sends email to shathesisgroup@gmail.com) ---
+from contact_web import router as contact_router
+app.include_router(contact_router, tags=["contact"])
+
 @app.post("/analyze")
 async def analyze_fish(file: UploadFile = File(...)):
   print("Received an image for AI Analysis...") 

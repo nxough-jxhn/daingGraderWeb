@@ -57,7 +57,7 @@ export default function HistoryPage() {
     <div className="space-y-8">
       <PageTitleHero
         title="Scan History"
-        subtitle="Your saved analysis images from the cloud, organized by date. Same as mobile."
+        subtitle="Your saved analysis images from the cloud, organized by date."
         backgroundImage="/assets/page-hero/history.jpg"
       />
 

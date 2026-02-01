@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import { NavLink, Link, useNavigate } from 'react-router-dom'
 import {
   Home,
-  Database,
   Users,
   BookOpen,
   Mail,
@@ -12,6 +11,7 @@ import {
   FileText,
   ScanLine,
   History,
+  BarChart2,
   User,
   LogIn,
   LogOut,
@@ -24,7 +24,8 @@ const navItems = [
   { to: '/', label: 'Home', icon: Home },
   { to: '/grade', label: 'Grade', icon: ScanLine },
   { to: '/history', label: 'History', icon: History },
-  { to: '/dataset', label: 'Dataset', icon: Database },
+  { to: '/analytics', label: 'Analytics', icon: BarChart2 },
+  // Dataset hidden for now: { to: '/dataset', label: 'Dataset', icon: Database },
   { to: '/about', label: 'About Us', icon: Users },
   { to: '/contact', label: 'Contact Us', icon: Mail },
   { to: '/profile', label: 'Profile', icon: User },

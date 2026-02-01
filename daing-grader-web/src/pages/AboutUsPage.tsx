@@ -1,6 +1,6 @@
 import React from 'react'
 import { teamMembers, tupInfo } from '../data/team'
-import { Github, Facebook, Instagram, Phone, User } from 'lucide-react'
+import { Github, Facebook, Instagram, Mail, Phone, User } from 'lucide-react'
 
 export default function AboutUsPage() {
   return (
@@ -25,7 +25,7 @@ export default function AboutUsPage() {
         {teamMembers.map((member) => (
           <div
             key={member.id}
-            className="bg-white rounded-2xl shadow-card overflow-visible transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
+            className="bg-white rounded-2xl shadow-card overflow-visible border border-black transition-all duration-300 hover:shadow-xl hover:-translate-y-1"
           >
             {/* Image: circular placeholder (square/2x2 ratio), border */}
             <div className="relative w-36 h-36 -mt-8 mx-auto rounded-full overflow-hidden border-4 border-white shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105">
@@ -110,6 +110,16 @@ export default function AboutUsPage() {
                   >
                     <Instagram className="w-4 h-4 shrink-0" />
                     <span>{member.instagramHandle || 'Instagram'}</span>
+                  </a>
+                )}
+                {member.gmail && (
+                  <a
+                    href={`mailto:${member.gmail}`}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 hover:shadow-md transition-all duration-200 text-sm"
+                    aria-label="Gmail"
+                  >
+                    <Mail className="w-4 h-4 shrink-0" />
+                    <span>{member.gmailHandle || member.gmail}</span>
                   </a>
                 )}
               </div>
