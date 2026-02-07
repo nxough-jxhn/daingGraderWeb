@@ -116,18 +116,25 @@ export default function RegisterForm() {
         <input
           type="checkbox"
           checked={isSeller}
-          onChange={(e) => setIsSeller(e.target.checked)}
+          onChange={(e) => {
+            setIsSeller(e.target.checked)
+            // Clear admin code when registering as seller
+            if (e.target.checked) setAdminCode('')
+          }}
           className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
         />
         Register as Seller
       </label>
-      <Input
-        label="Admin Code (admins only)"
-        type="password"
-        value={adminCode}
-        onChange={(e) => setAdminCode(e.target.value)}
-        placeholder="Enter admin code if applicable"
-      />
+      {/* Admin code field - only shown when NOT registering as seller */}
+      {!isSeller && (
+        <Input
+          label="Admin Code (admins only)"
+          type="password"
+          value={adminCode}
+          onChange={(e) => setAdminCode(e.target.value)}
+          placeholder="Enter admin code if applicable"
+        />
+      )}
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? 'Creating account...' : 'Create account'}
       </Button>
