@@ -11,6 +11,7 @@ interface User {
   name: string
   email: string
   avatar_url?: string | null
+  role?: 'user' | 'seller' | 'admin'
 }
 
 export default function ProfilePage() {
@@ -32,6 +33,7 @@ export default function ProfilePage() {
         name: currentUser.name || '',
         email: currentUser.email || '',
         avatar_url: currentUser.avatar_url ?? null,
+        role: currentUser.role ?? 'user',
       })
     } catch {
       setUser({ name: 'User', email: 'user@example.com' })
@@ -161,6 +163,12 @@ export default function ProfilePage() {
             required
             disabled
           />
+          <div className="text-sm text-slate-600">
+            <span className="font-medium text-slate-800">Role:</span>{' '}
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 capitalize">
+              {user.role || 'user'}
+            </span>
+          </div>
 
           <div className="flex gap-3 pt-2">
             <Button type="submit" disabled={saving} className="flex-1 cursor-pointer">

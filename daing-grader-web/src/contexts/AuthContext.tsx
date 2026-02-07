@@ -6,10 +6,12 @@ export interface AuthUser {
   name: string
   email: string
   avatar_url?: string | null
+  role?: 'user' | 'seller' | 'admin'
 }
 
 interface AuthContextType {
   isLoggedIn: boolean
+  isLoading: boolean
   user: AuthUser | null
   login: (token: string, user?: AuthUser) => void
   logout: () => void
@@ -21,22 +23,26 @@ const AuthContext = createContext<AuthContextType | null>(null)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setTokenState] = useState<string | null>(() => localStorage.getItem('token'))
   const [user, setUser] = useState<AuthUser | null>(null)
+  const [isLoading, setIsLoading] = useState<boolean>(true)
 
   useEffect(() => {
     const t = localStorage.getItem('token')
     setTokenState(t)
     if (!t) {
       setUser(null)
+      setIsLoading(false)
       return
     }
+    setIsLoading(true)
     authService.getCurrentUser().then((u) => {
       setUser({
         id: u.id,
         name: u.name || '',
         email: u.email || '',
         avatar_url: u.avatar_url ?? null,
+        role: u.role ?? 'user',
       })
-    }).catch(() => setUser(null))
+    }).catch(() => setUser(null)).finally(() => setIsLoading(false))
   }, [token])
 
   const login = useCallback((t: string, u?: AuthUser) => {
@@ -54,6 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value: AuthContextType = {
     isLoggedIn: !!token,
+    isLoading,
     user,
     login,
     logout,

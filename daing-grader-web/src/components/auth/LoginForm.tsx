@@ -14,6 +14,8 @@ export default function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
+  const [loginAsAdmin, setLoginAsAdmin] = useState(false)
+  const [adminCode, setAdminCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -24,7 +26,7 @@ export default function LoginForm() {
     showToast('Logging in...')
 
     try {
-      const response = await authService.login(email, password)
+      const response = await authService.login(email, password, loginAsAdmin ? adminCode.trim() : undefined)
 
       if (response.token) {
         localStorage.setItem('token', response.token)
@@ -36,11 +38,14 @@ export default function LoginForm() {
           name: response.user?.name || email.split('@')[0],
           email: response.user?.email || email,
           avatar_url: response.user?.avatar_url ?? null,
+          role: response.user?.role || 'user',
         })
       }
 
       hideToast()
-      navigate('/profile')
+      // Redirect admin to dashboard, others to profile
+      const userRole = response.user?.role || 'user'
+      navigate(userRole === 'admin' ? '/admin' : '/profile')
     } catch (err: any) {
       hideToast()
       setError(err.response?.data?.detail || err.response?.data?.message || 'Login failed. Please check your credentials.')
@@ -73,6 +78,25 @@ export default function LoginForm() {
         required
         error={error && password === '' ? 'Password is required' : null}
       />
+      <label className="flex items-center gap-2 text-sm text-slate-700">
+        <input
+          type="checkbox"
+          checked={loginAsAdmin}
+          onChange={(e) => setLoginAsAdmin(e.target.checked)}
+          className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+        />
+        Login as Admin
+      </label>
+      {loginAsAdmin && (
+        <Input
+          label="Admin Code"
+          type="password"
+          value={adminCode}
+          onChange={(e) => setAdminCode(e.target.value)}
+          placeholder="Enter admin code"
+          required
+        />
+      )}
       <div className="flex items-center justify-between">
         <label className="flex items-center gap-2 cursor-pointer">
           <input

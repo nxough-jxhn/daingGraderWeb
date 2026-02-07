@@ -38,6 +38,8 @@ BCRYPT_MAX_PASSWORD_BYTES = 72  # bcrypt limit; truncate to avoid ValueError
 JWT_SECRET = os.getenv("JWT_SECRET", "dainggrader-web-secret-change-in-production")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 24 * 7  # 7 days
+ADMIN_CODE = os.getenv("ADMIN_CODE", "DaingAdmin2026")  # for web backend: admin registration/login code
+ALLOWED_ROLES = {"user", "seller", "admin"}
 
 # for web backend: Cloudinary config for profile avatars (same as server.py)
 if cloudinary and os.getenv("CLOUDINARY_CLOUD_NAME"):
@@ -75,11 +77,14 @@ class RegisterBody(BaseModel):
     name: str
     email: str
     password: str
+    role: Optional[str] = None
+    admin_code: Optional[str] = None
 
 
 class LoginBody(BaseModel):
     email: str
     password: str
+    admin_code: Optional[str] = None
 
 
 class ProfileUpdateBody(BaseModel):
@@ -129,6 +134,8 @@ async def register(body: RegisterBody):
     name = (body.name or "").strip()
     email = (body.email or "").strip().lower()
     password = body.password or ""
+    requested_role = (body.role or "user").strip().lower() if body.role else "user"
+    admin_code = (body.admin_code or "").strip()
 
     if not name or len(name) < 2:
         raise HTTPException(status_code=400, detail="Name must be at least 2 characters")
@@ -138,6 +145,16 @@ async def register(body: RegisterBody):
         raise HTTPException(status_code=400, detail="Invalid email format")
     if not password or len(password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+
+    if admin_code:
+        if admin_code != ADMIN_CODE:
+            raise HTTPException(status_code=401, detail="Invalid admin code")
+        requested_role = "admin"
+
+    if requested_role not in ALLOWED_ROLES:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    if requested_role == "admin" and not admin_code:
+        raise HTTPException(status_code=401, detail="Admin code is required")
 
     db = get_db()
     users = db["users"]
@@ -152,6 +169,7 @@ async def register(body: RegisterBody):
         "email": email,
         "password_hash": hashed,
         "created_at": datetime.utcnow().isoformat(),
+        "role": requested_role,
     }
     result = users.insert_one(doc)
     user_id = str(result.inserted_id)
@@ -168,6 +186,7 @@ async def login(body: LoginBody):
     """Web backend: login user. Verifies password against MongoDB users collection."""
     email = (body.email or "").strip().lower()
     password = body.password or ""
+    admin_code = (body.admin_code or "").strip()
 
     if not email:
         raise HTTPException(status_code=400, detail="Email is required")
@@ -185,12 +204,16 @@ async def login(body: LoginBody):
     if not stored_hash or not _verify_password(password, stored_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
+    role = (user.get("role") or "user").strip().lower()
+    if role == "admin" and admin_code != ADMIN_CODE:
+        raise HTTPException(status_code=401, detail="Admin code is required")
+
     user_id = str(user["_id"])
     name = user.get("name") or email.split("@")[0]
     token = _create_token(user_id, email)
     return {
         "token": token,
-        "user": {"id": user_id, "name": name, "email": email},
+        "user": {"id": user_id, "name": name, "email": email, "role": role},
     }
 
 
@@ -203,6 +226,7 @@ async def get_me(user=Depends(_get_current_user)):
         "name": user.get("name") or "",
         "email": user.get("email") or "",
         "avatar_url": user.get("avatar_url") or None,
+        "role": (user.get("role") or "user").strip().lower(),
     }
 
 

@@ -15,6 +15,8 @@ export default function RegisterForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [isSeller, setIsSeller] = useState(false)
+  const [adminCode, setAdminCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -35,10 +37,14 @@ export default function RegisterForm() {
     showToast('Creating account...')
 
     try {
+      // Admin code overrides role; seller checkbox is used when no admin code is provided.
+      const role = adminCode.trim() ? 'admin' : (isSeller ? 'seller' : 'user')
       const response = await authService.register({
         name,
         email,
         password,
+        role,
+        admin_code: adminCode.trim() || undefined,
       })
 
       if (response.token) {
@@ -48,9 +54,12 @@ export default function RegisterForm() {
           name: response.user?.name || name,
           email: response.user?.email || email,
           avatar_url: response.user?.avatar_url ?? null,
+          role: response.user?.role || role,
         })
         hideToast()
-        navigate('/profile')
+        // Redirect admin to dashboard, others to profile
+        const userRole = response.user?.role || role
+        navigate(userRole === 'admin' ? '/admin' : '/profile')
       } else {
         hideToast()
         navigate('/login')
@@ -102,6 +111,22 @@ export default function RegisterForm() {
         placeholder="••••••"
         required
         error={error && confirmPassword === '' ? 'Please confirm your password' : null}
+      />
+      <label className="flex items-center gap-2 text-sm text-slate-700">
+        <input
+          type="checkbox"
+          checked={isSeller}
+          onChange={(e) => setIsSeller(e.target.checked)}
+          className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+        />
+        Register as Seller
+      </label>
+      <Input
+        label="Admin Code (admins only)"
+        type="password"
+        value={adminCode}
+        onChange={(e) => setAdminCode(e.target.value)}
+        placeholder="Enter admin code if applicable"
       />
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? 'Creating account...' : 'Create account'}

@@ -15,16 +15,22 @@ import {
   User,
   LogIn,
   LogOut,
+  MessageCircle,
+  ShoppingBag,
+  LayoutDashboard,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
 const SIDEBAR_LOGO_SRC = '/assets/logos/dainggrader-logo.png'
 
 const navItems = [
+  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin'] },
   { to: '/', label: 'Home', icon: Home },
   { to: '/grade', label: 'Grade', icon: ScanLine },
   { to: '/history', label: 'History', icon: History },
-  { to: '/analytics', label: 'Analytics', icon: BarChart2 },
+  { to: '/analytics', label: 'Analytics', icon: BarChart2, roles: ['admin'] },
+  { to: '/forum', label: 'Community Forum', icon: MessageCircle },
+  { to: '/shop', label: 'E-commerce', icon: ShoppingBag, roles: ['seller', 'admin'] },
   // Dataset hidden for now: { to: '/dataset', label: 'Dataset', icon: Database },
   { to: '/about', label: 'About Us', icon: Users },
   { to: '/contact', label: 'Contact Us', icon: Mail },
@@ -50,10 +56,12 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ open, onOpenChange }: SidebarProps) {
-  const { isLoggedIn, logout } = useAuth()
+  const { isLoggedIn, logout, user } = useAuth()
   const navigate = useNavigate()
   const [aboutDaingOpen, setAboutDaingOpen] = useState(false)
   const [publicationsOpen, setPublicationsOpen] = useState(false)
+  const role = user?.role ?? 'user'
+  const visibleNavItems = navItems.filter((item) => !item.roles || item.roles.includes(role))
 
   const handleLogout = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -122,7 +130,7 @@ export default function Sidebar({ open, onOpenChange }: SidebarProps) {
           {open && (
             <nav className="flex-1 overflow-y-auto py-4 overflow-x-hidden" onClick={(e) => e.stopPropagation()}>
               <div className="px-3 space-y-0.5">
-                {navItems.map(({ to, label, icon: Icon }) => (
+                {visibleNavItems.map(({ to, label, icon: Icon }) => (
                   <NavLink
                     key={to}
                     to={to}
@@ -201,7 +209,7 @@ export default function Sidebar({ open, onOpenChange }: SidebarProps) {
           {/* When closed (lg only): icon-only buttons that only open sidebar (no nav yet) */}
           {!open && (
             <nav className="hidden lg:flex flex-1 flex-col items-center py-4 gap-1">
-              {navItems.map(({ to, label, icon: Icon }) => (
+              {visibleNavItems.map(({ to, label, icon: Icon }) => (
                 <Link
                   key={to}
                   to={to}

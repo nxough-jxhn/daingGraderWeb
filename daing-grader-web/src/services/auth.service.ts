@@ -5,9 +5,9 @@ export const authService = {
    * Login user
    * Frontend wiring - will call backend when /auth/login endpoint is ready
    */
-  async login(email: string, password: string) {
+  async login(email: string, password: string, admin_code?: string) {
     try {
-      const response = await api.post('/auth/login', { email, password })
+      const response = await api.post('/auth/login', { email, password, admin_code })
       return response.data
     } catch (error: any) {
       // If backend endpoint doesn't exist yet, return mock response for development
@@ -16,7 +16,7 @@ export const authService = {
         // Mock successful login for frontend development
         return {
           token: 'mock-token-' + Date.now(),
-          user: { email, name: email.split('@')[0] },
+          user: { email, name: email.split('@')[0], role: 'user' },
         }
       }
       throw error
@@ -27,7 +27,7 @@ export const authService = {
    * Register new user
    * Frontend wiring - will call backend when /auth/register endpoint is ready
    */
-  async register(userData: { name: string; email: string; password: string }) {
+  async register(userData: { name: string; email: string; password: string; role?: string; admin_code?: string }) {
     try {
       const response = await api.post('/auth/register', userData)
       return response.data
@@ -38,7 +38,7 @@ export const authService = {
         // Mock successful registration for frontend development
         return {
           token: 'mock-token-' + Date.now(),
-          user: { email: userData.email, name: userData.name },
+          user: { email: userData.email, name: userData.name, role: userData.role ?? 'user' },
         }
       }
       throw error
@@ -64,7 +64,7 @@ export const authService = {
       if (error.response?.status === 404 || error.code === 'ECONNREFUSED') {
         const token = localStorage.getItem('token')
         if (token) {
-          return { email: 'user@example.com', name: 'User', avatar_url: null }
+          return { email: 'user@example.com', name: 'User', avatar_url: null, role: 'user' }
         }
       }
       throw error

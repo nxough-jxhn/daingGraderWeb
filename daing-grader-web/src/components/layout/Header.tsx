@@ -83,15 +83,27 @@ export default function Header() {
             <span className="hidden sm:inline">Profile</span>
           </NavLink>
 
-          <div
-            className="w-9 h-9 rounded-full bg-primary/20 text-primary flex items-center justify-center font-semibold text-sm border border-primary/30 overflow-hidden flex-shrink-0"
-            title="User avatar"
-          >
-            {isLoggedIn && user?.avatar_url ? (
-              <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-            ) : (
-              <span>{isLoggedIn ? (user?.name?.charAt(0)?.toUpperCase() || 'U') : '?'}</span>
+          <div className="flex items-center gap-2">
+            {/* Role badge - clean design with thin border */}
+            {isLoggedIn && user?.role && user.role !== 'user' && (
+              <span className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-lg border border-black/20 bg-white text-xs font-medium capitalize shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+                {user.role === 'admin' ? (
+                  <span className="text-red-600">👑 Admin</span>
+                ) : (
+                  <span className="text-blue-600">💼 Seller</span>
+                )}
+              </span>
             )}
+            <div
+              className="w-9 h-9 rounded-full bg-primary/20 text-primary flex items-center justify-center font-semibold text-sm border border-primary/30 overflow-hidden flex-shrink-0"
+              title="User avatar"
+            >
+              {isLoggedIn && user?.avatar_url ? (
+                <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <span>{isLoggedIn ? (user?.name?.charAt(0)?.toUpperCase() || 'U') : '?'}</span>
+              )}
+            </div>
           </div>
         </div>
       </div>
