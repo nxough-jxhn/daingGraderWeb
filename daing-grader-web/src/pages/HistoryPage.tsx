@@ -108,6 +108,7 @@ export default function HistoryPage() {
                       src={entry.url}
                       alt={`Scan ${formatTime(entry.timestamp)}`}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      referrerPolicy="no-referrer"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                     <span className="absolute bottom-2 left-2 right-2 text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity truncate">
@@ -146,6 +147,7 @@ export default function HistoryPage() {
               src={modalEntry.url}
               alt={`Scan ${formatTime(modalEntry.timestamp)}`}
               className="max-w-full max-h-[90vh] w-auto h-auto object-contain rounded-lg shadow-2xl"
+              referrerPolicy="no-referrer"
             />
             <p className="text-white/90 text-sm mt-2 text-center">{formatDateLabel(modalEntry.timestamp)} at {formatTime(modalEntry.timestamp)}</p>
           </div>
