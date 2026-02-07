@@ -46,8 +46,15 @@ export default function HistoryPage() {
 
   useEffect(() => {
     getHistory()
-      .then(setEntries)
-      .catch(() => setError('Could not load history. Is the backend running?'))
+      .then((data) => {
+        setEntries(data)
+        setError(null)
+      })
+      .catch((err) => {
+        // Ignore cancelled requests (e.g. React Strict Mode double-mount)
+        if ((err as { code?: string }).code === 'ERR_CANCELED') return
+        setError('Could not load history. Is the backend running?')
+      })
       .finally(() => setLoading(false))
   }, [])
 
