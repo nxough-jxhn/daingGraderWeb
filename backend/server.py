@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form, Request, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware  # for web backend (CORS so frontend can read responses)
 import cv2
 import numpy as np
@@ -8,11 +8,15 @@ import json
 from pathlib import Path
 from starlette.responses import StreamingResponse
 from datetime import datetime
+from typing import Optional
+from jose import jwt, JWTError
+from bson import ObjectId
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
 from dotenv import load_dotenv
 from ultralytics import YOLO  # <--- NEW IMPORT
+from mongodb import get_db
 
 # Load environment variables
 load_dotenv()
@@ -74,6 +78,58 @@ def add_history_entry(entry):
   entries.insert(0, entry)
   _write_history_entries(entries[:200])
 
+def _get_scan_collection():
+  """for web backend: return scan_history collection if MongoDB is configured."""
+  try:
+    return get_db()["scan_history"]
+  except Exception:
+    return None
+
+def _try_get_user_from_request(request: Request) -> Optional[dict]:
+  """for web backend: best-effort user lookup from JWT (optional)."""
+  auth_header = request.headers.get("Authorization", "")
+  if not auth_header.startswith("Bearer "):
+    return None
+  token = auth_header.replace("Bearer ", "").strip()
+  if not token:
+    return None
+  try:
+    payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+  except JWTError:
+    return None
+  user_id = payload.get("sub")
+  if not user_id:
+    return None
+  try:
+    db = get_db()
+    return db["users"].find_one({"_id": ObjectId(user_id)})
+  except Exception:
+    return None
+
+def _grade_from_score(score: float) -> str:
+  if score >= 0.9:
+    return "Export"
+  if score >= 0.8:
+    return "Local"
+  return "Reject"
+
+def _normalize_scan_entry(entry: dict) -> dict:
+  return {
+    "id": entry.get("id") or str(entry.get("_id")),
+    "timestamp": entry.get("timestamp") or "",
+    "url": entry.get("url") or None,
+    "fish_type": entry.get("fish_type") or "Unknown",
+    "grade": entry.get("grade") or "Unknown",
+    "score": entry.get("score") if entry.get("score") is not None else None,
+    "user_name": entry.get("user_name") or "Unknown",
+  }
+
+def _require_admin_user(user=Depends(_get_current_user)):
+  role = (user.get("role") or "user").strip().lower()
+  if role != "admin":
+    raise HTTPException(status_code=403, detail="Admins only")
+  return user
+
 def remove_history_entry(entry_id: str):
   entries = _read_history_entries()
   filtered = [e for e in entries if e.get("id") != entry_id]
@@ -89,7 +145,7 @@ def root():
   return {"status": "ok"}
 
 # --- for web backend: auth routes (signup/login) ---
-from auth_web import router as auth_router
+from auth_web import router as auth_router, _get_current_user, JWT_SECRET, JWT_ALGORITHM
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 
 # --- for web backend: contact form (sends email to shathesisgroup@gmail.com) ---
@@ -97,7 +153,7 @@ from contact_web import router as contact_router
 app.include_router(contact_router, tags=["contact"])
 
 @app.post("/analyze")
-async def analyze_fish(file: UploadFile = File(...)):
+async def analyze_fish(request: Request, file: UploadFile = File(...)):
   print("Received an image for AI Analysis...") 
   
   # 1. READ IMAGE
@@ -115,6 +171,16 @@ async def analyze_fish(file: UploadFile = File(...)):
   
   # Get the detection boxes from results
   boxes = results[0].boxes
+  fish_type = "Unknown"
+  best_score = 0.0
+  if boxes is not None and len(boxes) > 0:
+    confidences = boxes.conf.cpu().numpy()
+    best_idx = int(np.argmax(confidences))
+    best_score = float(confidences[best_idx])
+    class_id = int(boxes.cls[best_idx].cpu().numpy())
+    names = getattr(results[0], "names", {})
+    if isinstance(names, dict) and class_id in names:
+      fish_type = str(names[class_id]).replace("_", " ").title()
   
   # Filter detections based on confidence
   if boxes is not None and len(boxes) > 0:
@@ -200,6 +266,10 @@ async def analyze_fish(file: UploadFile = File(...)):
     date_folder = now.strftime("%Y-%m-%d")
     history_folder = f"daing-history/{date_folder}"
     history_id = f"scan_{now.strftime('%Y%m%d_%H%M%S_%f')}"
+    grade = _grade_from_score(best_score)
+    user = _try_get_user_from_request(request)
+    user_name = (user or {}).get("name") or "Unknown"
+    user_id = str(user["_id"]) if user and user.get("_id") else None
 
     # We upload the ANNOTATED image (with boxes) so you can see what the AI saw
     # Use io.BytesIO to create a file-like object from the JPEG encoded data
@@ -210,12 +280,22 @@ async def analyze_fish(file: UploadFile = File(...)):
       resource_type="image"
     )
 
-    add_history_entry({
+    entry = {
       "id": history_id,
       "timestamp": now.isoformat(),
       "url": upload_result.get("secure_url"),
-      "folder": history_folder
-    })
+      "folder": history_folder,
+      "fish_type": fish_type,
+      "grade": grade,
+      "score": round(best_score, 4),
+      "user_id": user_id,
+      "user_name": user_name,
+    }
+    add_history_entry(entry)
+    collection = _get_scan_collection()
+    if collection:
+      # for web backend: store full scan metadata for admin dashboard
+      collection.insert_one(entry)
     print(f"📚 History saved: {history_folder}/{history_id}")
   except Exception as history_error:
     print(f"⚠️ Failed to save history: {history_error}")
@@ -349,3 +429,66 @@ def delete_history(entry_id: str):
   except Exception as e:
     print(f"⚠️ Failed to delete: {e}")
     return {"status": "error", "message": str(e)}
+
+# --- for web backend: admin analytics (scan summary + paginated table) ---
+@app.get("/admin/scans")
+def get_admin_scans(page: int = 1, page_size: int = 10, user=Depends(_require_admin_user)):
+  page = max(page, 1)
+  page_size = min(max(page_size, 1), 50)
+  collection = _get_scan_collection()
+
+  if collection:
+    total = collection.count_documents({})
+    cursor = collection.find({}, sort=[("timestamp", -1)]).skip((page - 1) * page_size).limit(page_size)
+    entries = [_normalize_scan_entry(doc) for doc in cursor]
+  else:
+    all_entries = _read_history_entries()
+    total = len(all_entries)
+    start = (page - 1) * page_size
+    end = start + page_size
+    entries = [_normalize_scan_entry(e) for e in all_entries[start:end]]
+
+  return {
+    "status": "success",
+    "page": page,
+    "page_size": page_size,
+    "total": total,
+    "entries": entries,
+  }
+
+@app.get("/admin/scans/summary")
+def get_admin_scan_summary(year: int, user=Depends(_require_admin_user)):
+  collection = _get_scan_collection()
+  if collection:
+    entries = list(collection.find({}, {"timestamp": 1}))
+  else:
+    entries = _read_history_entries()
+
+  months = {f"{year}-{m:02d}": 0 for m in range(1, 13)}
+  for entry in entries:
+    ts = entry.get("timestamp") or ""
+    if ts.startswith(f"{year}-"):
+      key = ts[:7]
+      if key in months:
+        months[key] += 1
+
+  labels = [
+    {"key": f"{year}-01", "label": "Jan"},
+    {"key": f"{year}-02", "label": "Feb"},
+    {"key": f"{year}-03", "label": "Mar"},
+    {"key": f"{year}-04", "label": "Apr"},
+    {"key": f"{year}-05", "label": "May"},
+    {"key": f"{year}-06", "label": "Jun"},
+    {"key": f"{year}-07", "label": "Jul"},
+    {"key": f"{year}-08", "label": "Aug"},
+    {"key": f"{year}-09", "label": "Sep"},
+    {"key": f"{year}-10", "label": "Oct"},
+    {"key": f"{year}-11", "label": "Nov"},
+    {"key": f"{year}-12", "label": "Dec"},
+  ]
+
+  return {
+    "status": "success",
+    "year": year,
+    "months": [{"key": m["key"], "label": m["label"], "count": months[m["key"]]} for m in labels],
+  }

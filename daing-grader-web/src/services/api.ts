@@ -51,6 +51,45 @@ export async function getHistory(signal?: AbortSignal): Promise<HistoryEntry[]> 
   return response.data.entries
 }
 
+/** Admin scans (web backend): paginated table. */
+export interface AdminScanEntry {
+  id: string
+  timestamp: string
+  url?: string | null
+  fish_type: string
+  grade: string
+  score: number | null
+  user_name: string
+}
+
+export interface AdminScanPage {
+  status: string
+  page: number
+  page_size: number
+  total: number
+  entries: AdminScanEntry[]
+}
+
+export interface AdminScanMonthSummary {
+  key: string
+  label: string
+  count: number
+}
+
+export async function getAdminScanPage(page = 1, pageSize = 10): Promise<AdminScanPage> {
+  const response = await api.get<AdminScanPage>('/admin/scans', {
+    params: { page, page_size: pageSize },
+  })
+  return response.data
+}
+
+export async function getAdminScanSummary(year: number): Promise<{ status: string; year: number; months: AdminScanMonthSummary[] }> {
+  const response = await api.get<{ status: string; year: number; months: AdminScanMonthSummary[] }>('/admin/scans/summary', {
+    params: { year },
+  })
+  return response.data
+}
+
 /** Contact form payload - used by Contact page. */
 export interface ContactPayload {
   name: string
