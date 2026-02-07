@@ -45,17 +45,23 @@ export default function HistoryPage() {
   const [modalEntry, setModalEntry] = useState<HistoryEntry | null>(null)
 
   useEffect(() => {
-    getHistory()
+    // AbortController prevents "red canceled" requests in React Strict Mode (dev double-mount)
+    const controller = new AbortController()
+
+    getHistory(controller.signal)
       .then((data) => {
         setEntries(data)
         setError(null)
       })
       .catch((err) => {
-        // Ignore cancelled requests (e.g. React Strict Mode double-mount)
+        // Ignore cancelled requests (e.g. React Strict Mode double-mount or component unmount)
         if ((err as { code?: string }).code === 'ERR_CANCELED') return
         setError('Could not load history. Is the backend running?')
       })
       .finally(() => setLoading(false))
+
+    // Cleanup: cancel the request if component unmounts before response arrives
+    return () => controller.abort()
   }, [])
 
   const groups = groupByDate(entries)

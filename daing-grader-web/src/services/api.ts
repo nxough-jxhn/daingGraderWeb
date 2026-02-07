@@ -42,8 +42,9 @@ export interface HistoryEntry {
   folder: string
 }
 
-export async function getHistory(): Promise<HistoryEntry[]> {
-  const response = await api.get<{ status: string; entries: HistoryEntry[] }>('/history')
+export async function getHistory(signal?: AbortSignal): Promise<HistoryEntry[]> {
+  const response = await api.get<{ status: string; entries: HistoryEntry[] }>('/history', { signal })
+  // Backend returns { status: "success", entries: [...] } - parse accordingly
   if (response.data.status !== 'success' || !Array.isArray(response.data.entries)) {
     return []
   }

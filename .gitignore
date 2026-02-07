@@ -1,3 +1,4 @@
 __pycache__
 *.md
 .env
+node_modules/
