@@ -1,22 +1,45 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import HeroCarousel from '../components/home/HeroCarousel'
-import { getHistory, type HistoryEntry } from '../services/api'
+import { getHistory, getCommunityPosts, getCatalogProducts, type HistoryEntry, type CommunityPost, type SellerProduct } from '../services/api'
 import { publications } from '../data/publications'
-import { ExternalLink, Loader2 } from 'lucide-react'
+import { ExternalLink, Loader2, Heart, MessageCircle, ArrowRight, ShoppingBag, Image as ImageIcon } from 'lucide-react'
 
 const RECENT_SCANS_COUNT = 5
 const FEATURED_PUBLICATIONS_COUNT = 5
+const FEATURED_PRODUCTS_COUNT = 6
 
 export default function HomePage() {
   const [recentScans, setRecentScans] = useState<HistoryEntry[]>([])
   const [historyLoading, setHistoryLoading] = useState(true)
+  const [communityPosts, setCommunityPosts] = useState<CommunityPost[]>([])
+  const [postsLoading, setPostsLoading] = useState(true)
+  const [featuredProducts, setFeaturedProducts] = useState<SellerProduct[]>([])
+  const [productsLoading, setProductsLoading] = useState(true)
 
   useEffect(() => {
     getHistory()
       .then((entries) => setRecentScans(entries.slice(0, RECENT_SCANS_COUNT)))
       .catch(() => setRecentScans([]))
       .finally(() => setHistoryLoading(false))
+
+    getCommunityPosts(1, 3)
+      .then((res) => setCommunityPosts(res.posts || []))
+      .catch(() => setCommunityPosts([]))
+      .finally(() => setPostsLoading(false))
+
+    const loadProducts = async () => {
+      setProductsLoading(true)
+      try {
+        const res = await getCatalogProducts({ sort: 'latest', page: 1, page_size: FEATURED_PRODUCTS_COUNT })
+        setFeaturedProducts(res.products || [])
+      } catch {
+        setFeaturedProducts([])
+      } finally {
+        setProductsLoading(false)
+      }
+    }
+    loadProducts()
   }, [])
 
   const featuredPubs = publications.slice(0, FEATURED_PUBLICATIONS_COUNT)
@@ -47,12 +70,12 @@ export default function HomePage() {
                 <Link
                   key={entry.id}
                   to="/history"
-                  className="group block rounded-lg border border-sidebar-subtle overflow-hidden bg-white shadow-sidebar-subtle hover:shadow-sidebar-md hover:border-slate-300 transition-all"
+                  className="group block border border-blue-200 overflow-hidden bg-gradient-to-br from-white to-blue-50 shadow-md hover:shadow-lg hover:border-blue-400 transition-all rounded-lg"
                 >
-                  <div className="aspect-square flex items-center justify-center bg-slate-200">
+                  <div className="aspect-square flex items-center justify-center bg-blue-100">
                     <img src={entry.url} alt={`Scan ${entry.timestamp}`} className="w-full h-full object-cover" />
                   </div>
-                  <div className="p-2">
+                  <div className="p-2 bg-gradient-to-b from-white to-blue-50">
                     <p className="text-xs text-slate-600 truncate" title={new Date(entry.timestamp).toLocaleString()}>
                       {new Date(entry.timestamp).toLocaleDateString()}
                     </p>
@@ -108,36 +131,129 @@ export default function HomePage() {
         </p>
       </section>
 
-      <section className="grid md:grid-cols-2 gap-6">
-        <div className="card border border-sidebar-subtle shadow-sidebar-subtle hover:shadow-sidebar-md">
-          <h3 className="text-lg font-semibold">About DaingGrader</h3>
-          <p className="text-sm text-muted mt-2">
-            DaingGrader is an AI-powered system for assessing the quality of dried fish (daing). It helps processors, traders, and researchers classify dried fish into quality grades (Export, Local, or Reject) using image-based analysis. The system detects mold, surface defects, and color uniformity to support food safety and consistent grading.
-          </p>
+      {/* Community Posts - Last 3 */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-slate-900 border-b-2 border-primary pb-2">
+            Community Posts
+          </h2>
+          <Link to="/community" className="flex items-center gap-1 text-primary font-medium hover:underline text-sm">
+            View all <ArrowRight className="w-4 h-4" />
+          </Link>
         </div>
-        <div className="card border border-sidebar-subtle shadow-sidebar-subtle hover:shadow-sidebar-md">
-          <h3 className="text-lg font-semibold">Key Features</h3>
-          <ul className="mt-3 space-y-2 text-sm text-muted">
-            <li>• <strong>Image grading</strong> — Upload or capture daing images for AI analysis</li>
-            <li>• <strong>History & storage</strong> — Scans saved to the cloud with timestamps</li>
-            <li>• <strong>Multiple daing types</strong> — Espada, Danggit, Dalagang Bukid, Flying Fish, Bisugo</li>
-            <li>• <strong>Research references</strong> — Local and foreign publications on dried fish quality</li>
-          </ul>
-        </div>
+        {postsLoading ? (
+          <div className="flex items-center gap-2 text-slate-500 py-8">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            Loading…
+          </div>
+        ) : communityPosts.length === 0 ? (
+          <p className="text-slate-500 py-8">No community posts yet. Be the first to share!</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {communityPosts.map((post) => (
+              <Link
+                key={post.id}
+                to="/community"
+                className="group block border border-blue-200 overflow-hidden bg-gradient-to-br from-white to-blue-50 shadow-md hover:shadow-lg hover:border-blue-400 transition-all rounded-lg"
+              >
+                {/* Post Image */}
+                <div className="aspect-video bg-blue-100 overflow-hidden">
+                  {post.images && post.images.length > 0 ? (
+                    <img
+                      src={post.images[0]}
+                      alt={post.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <ImageIcon className="w-12 h-12 text-slate-300" />
+                    </div>
+                  )}
+                </div>
+                {/* Post Content */}
+                <div className="p-4 bg-gradient-to-b from-white to-blue-50">
+                  <span className="inline-block px-2 py-0.5 bg-blue-600 text-white text-xs font-semibold mb-2 rounded">
+                    {post.category}
+                  </span>
+                  <h3 className="font-semibold text-slate-900 text-sm line-clamp-1">{post.title}</h3>
+                  <p className="text-xs text-slate-600 mt-1 line-clamp-2">{post.description}</p>
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-blue-200">
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <span>{post.author_name}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <Heart className="w-3.5 h-3.5" /> {post.likes}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <MessageCircle className="w-3.5 h-3.5" /> {post.comments_count}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
 
-      <section className="grid md:grid-cols-1 gap-6">
-        <div className="card border border-sidebar-subtle shadow-sidebar-subtle hover:shadow-sidebar-md">
-          <h3 className="text-lg font-semibold">Quick Stats</h3>
-          <div className="mt-4 grid grid-cols-2 gap-4">
-            <div className="p-3 bg-slate-50 rounded-lg border border-sidebar-subtle shadow-sidebar-subtle">
-              Daing types<br /><strong>5</strong>
-            </div>
-            <div className="p-3 bg-slate-50 rounded-lg border border-sidebar-subtle shadow-sidebar-subtle">
-              Quality grades<br /><strong>3</strong>
-            </div>
-          </div>
+      {/* Products - Latest */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-slate-900 border-b-2 border-primary pb-2">
+            Marketplace Products
+          </h2>
+          <Link to="/catalog" className="flex items-center gap-1 text-primary font-medium hover:underline text-sm">
+            View all <ArrowRight className="w-4 h-4" />
+          </Link>
         </div>
+        {productsLoading ? (
+          <div className="flex items-center gap-2 text-slate-500 py-8">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            Loading products...
+          </div>
+        ) : featuredProducts.length === 0 ? (
+          <p className="text-slate-500 py-8">No products available yet.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {featuredProducts.map((product) => {
+              const mainImage = product.images?.[product.main_image_index]?.url || product.images?.[0]?.url || ''
+              return (
+                <Link
+                  key={product.id}
+                  to={`/catalog/${product.id}`}
+                  className="group block border border-blue-200 overflow-hidden bg-gradient-to-br from-white to-blue-50 shadow-md hover:shadow-lg hover:border-blue-400 transition-all rounded-lg"
+                >
+                  {/* Product Image */}
+                  <div className="aspect-square bg-blue-100 overflow-hidden">
+                    {mainImage ? (
+                      <img
+                        src={mainImage}
+                        alt={product.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-blue-200">
+                        <ShoppingBag className="w-16 h-16 text-blue-300" />
+                      </div>
+                    )}
+                  </div>
+                  {/* Product Content */}
+                  <div className="p-4 bg-gradient-to-b from-white to-blue-50">
+                    <h3 className="font-semibold text-slate-900 text-sm line-clamp-1">{product.name}</h3>
+                    <p className="text-lg font-bold text-primary mt-1">₱{product.price.toLocaleString()}</p>
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-blue-200">
+                      <span className="text-xs text-slate-500">{product.seller_name || 'Marketplace Seller'}</span>
+                      <span className="text-xs text-blue-600 font-medium">
+                        {product.stock_qty > 0 ? 'In stock' : 'Out of stock'}
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        )}
       </section>
     </div>
   )

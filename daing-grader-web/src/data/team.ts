@@ -2,14 +2,14 @@
  * About Us: 3 project members + TUP section.
  *
  * WHERE TO SAVE PROFILE IMAGES:
- *   Put member photos in:  public/assets/team/
- *   Filenames:  member1.jpg, member2.jpg, member3.jpg  (or .png)
- *   Recommended size: 400x400 px or square aspect ratio.
+ * Put member photos in:  public/assets/team/
+ * Filenames:  member1.jpg, member2.jpg, member3.jpg  (or .png)
+ * Recommended size: 400x400 px or square aspect ratio.
  *
  * WHERE TO CHANGE MEMBER INFO:
- *   Edit the objects below: name, role, bio, age, contactNumber, image path, and social URLs/handles.
- *   For social: set URL (e.g. github) and display handle (e.g. githubHandle '@username') or '' to hide.
- *   For Gmail: set gmail to the email address (e.g. 'john@gmail.com'); gmailHandle for custom display.
+ * Edit the objects below: name, role, bio, age, contactNumber, image path, and social URLs/handles.
+ * For social: set URL (e.g. github) and display handle (e.g. githubHandle '@username') or '' to hide.
+ * For Gmail: set gmail to the email address (e.g. 'john@gmail.com'); gmailHandle for custom display.
  */
 
 export interface TeamMember {
@@ -57,6 +57,23 @@ export interface TUPInfo {
 export const teamMembers: TeamMember[] = [
   {
     id: '1',
+    name: 'Pops V. Madriaga',
+    role: 'Research Advisor',
+    bio: 'Experienced Research Advisor providing technical guidance and mentoring to students, fostering academic excellence and innovation in IT.',
+    // age: left undefined as requested (unknown)
+    contactNumber: '09611676764',
+    image: '/assets/team/eaad_madriaga_p.jfif', // Ensure this file exists in your public folder
+    github: 'popsmadriaga',
+    githubHandle: '',
+    facebook: 'Pops V. Madriaga',
+    facebookHandle: '',
+    instagram: 'Pops V. Madriaga',
+    instagramHandle: '',
+    gmail: 'Pops@gmail.com',
+    gmailHandle: '',
+  },
+  {
+    id: '2',
     name: 'John Neo Bagon',
     role: '3rd-Year BS in Information Technology Student',
     bio: 'BSIT student focused on turning ideas into functional technology.',
@@ -73,7 +90,7 @@ export const teamMembers: TeamMember[] = [
     gmailHandle: '',
   },
   {
-    id: '2',
+    id: '3',
     name: 'Ernz Llabore Jumoc',
     role: '3rd-Year BS in Information Technology Student',
     bio: 'BSIT student exploring code, systems, and real-world tech solutions.',
@@ -90,7 +107,7 @@ export const teamMembers: TeamMember[] = [
     gmailHandle: '',
   },
   {
-    id: '3',
+    id: '4',
     name: 'Sharwin John Marbella',
     role: '3rd-Year BS in Information Technology Student',
     bio: 'BSIT student with a passion for building practical, efficient software solutions.',

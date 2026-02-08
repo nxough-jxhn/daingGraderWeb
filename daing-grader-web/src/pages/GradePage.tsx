@@ -3,12 +3,14 @@
  * Backend: POST /analyze (same as mobile, saves to Cloudinary + history) — no backend changes.
  */
 import React, { useState, useRef, useEffect } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
 import { analyzeImage } from '../services/api'
 import Button from '../components/ui/Button'
 import PageTitleHero from '../components/layout/PageTitleHero'
-import { Link } from 'react-router-dom'
-import { Upload, Camera, Loader2, Lightbulb, RotateCcw, X, History } from 'lucide-react'
+import { Upload, Camera, Loader2, Lightbulb, RotateCcw, X, History, AlertTriangle } from 'lucide-react'
 import { DAING_TYPES } from '../data/daingTypes'
+import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 
 const ACCEPT = '.png,.jpg,.jpeg'
 const MAX_FILE_MB = 10
@@ -23,6 +25,9 @@ const GRADE_CAROUSEL_SLIDES = DAING_TYPES.map((t) => ({
 const CAROUSEL_INTERVAL_MS = 4000
 
 export default function GradePage() {
+  const navigate = useNavigate()
+  const { user, loading: authLoading } = useAuth()
+  const { showToast } = useToast()
   const [capturedImageUrl, setCapturedImageUrl] = useState<string | null>(null)
   const [capturedFile, setCapturedFile] = useState<File | null>(null)
   const [resultUrl, setResultUrl] = useState<string | null>(null)
@@ -34,6 +39,14 @@ export default function GradePage() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Check if user is logged in
+  useEffect(() => {
+    if (!authLoading && !user) {
+      showToast('Please log in to use the AI Fish Scanner. Your scan history will be saved to your account.', 'warning')
+      navigate('/login', { state: { from: '/grade' } })
+    }
+  }, [user, authLoading, navigate, showToast])
 
   // Attach stream to video when video element is in DOM (fixes blank camera preview)
   useEffect(() => {
@@ -178,6 +191,31 @@ export default function GradePage() {
 
   const slide = GRADE_CAROUSEL_SLIDES[carouselIndex]
 
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    )
+  }
+
+  // Don't render if user is not logged in (redirect will happen via useEffect)
+  if (!user) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center gap-4">
+        <AlertTriangle className="w-12 h-12 text-amber-500" />
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-slate-900 mb-2">Login Required</h2>
+          <p className="text-slate-600 mb-4">Please log in to use the AI Fish Scanner.</p>
+          <Link to="/login" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            Go to Login
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-8">
       <PageTitleHero
@@ -189,7 +227,7 @@ export default function GradePage() {
       <div className="flex justify-end mb-4">
         <Link
           to="/history"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 hover:border-primary/40 hover:shadow-sidebar-md transition-all duration-200 text-slate-700 font-medium"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-blue-300 bg-white hover:bg-blue-50 hover:border-blue-400 shadow-md hover:shadow-lg transition-all duration-200 text-blue-700 font-semibold"
         >
           <History className="w-5 h-5" />
           History
@@ -197,9 +235,9 @@ export default function GradePage() {
       </div>
 
       {resultUrl && (
-        <div className="card max-w-2xl">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">Analysis Result</h2>
-          <img src={resultUrl} alt="Analysis result" className="w-full rounded-xl border border-slate-200" />
+        <div className="card max-w-2xl bg-gradient-to-b from-white to-blue-50 border border-blue-200 shadow-lg">
+          <h2 className="text-lg font-semibold text-blue-900 mb-4">Analysis Result</h2>
+          <img src={resultUrl} alt="Analysis result" className="w-full rounded-xl border border-blue-200 shadow-md" />
           <p className="text-sm text-slate-500 mt-2">Annotated image from backend (saved to Cloudinary + history).</p>
           <Button type="button" onClick={reset} className="mt-4">
             Scan Another
@@ -210,8 +248,8 @@ export default function GradePage() {
       {!resultUrl && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
           <div className="space-y-6">
-            <div className="card">
-              <h2 className="text-lg font-semibold text-slate-900 mb-4">Preview</h2>
+            <div className="card bg-gradient-to-b from-white to-blue-50 border border-blue-200 shadow-lg">
+              <h2 className="text-lg font-semibold text-blue-900 mb-4">Preview</h2>
 
               {/* Always show Choose file + Use camera (or Close camera when active) */}
               <div className="flex flex-wrap gap-2 mb-4">
@@ -242,7 +280,7 @@ export default function GradePage() {
               {/* Preview area: camera feed or uploaded/captured image */}
               {cameraActive ? (
                 <div className="space-y-3">
-                  <div className="relative aspect-video bg-slate-900 rounded-xl overflow-hidden min-h-[200px]">
+                  <div className="relative aspect-video bg-slate-900 rounded-xl overflow-hidden min-h-[200px] border border-blue-200 shadow-md">
                     <video
                       ref={videoRef}
                       autoPlay
@@ -259,7 +297,7 @@ export default function GradePage() {
                 </div>
               ) : capturedImageUrl ? (
                 <div className="space-y-3">
-                  <div className="relative aspect-video rounded-xl overflow-hidden bg-slate-100 border border-slate-200 min-h-[200px]">
+                  <div className="relative aspect-video rounded-xl overflow-hidden bg-blue-50 border border-blue-300 shadow-md min-h-[200px]">
                     <img
                       src={capturedImageUrl}
                       alt="Preview"
@@ -297,17 +335,17 @@ export default function GradePage() {
             </div>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              <div className="bg-red-50 border border-red-300 text-red-800 px-4 py-3 rounded-lg text-sm shadow-md">
                 {error}
               </div>
             )}
 
-            <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
-              <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-2 mb-2">
-                <Lightbulb className="w-4 h-4 text-primary shrink-0" />
+            <div className="bg-blue-50 border border-blue-300 rounded-xl p-4 shadow-md">
+              <h3 className="text-sm font-semibold text-blue-900 flex items-center gap-2 mb-2">
+                <Lightbulb className="w-4 h-4 text-blue-600 shrink-0" />
                 Tips for a clear photo
               </h3>
-              <ul className="text-sm text-slate-600 space-y-1 list-disc list-inside">
+              <ul className="text-sm text-slate-700 space-y-1 list-disc list-inside">
                 <li>Use <strong>good lighting</strong> (avoid shadows).</li>
                 <li>Place fish on a <strong>plain, contrasting background</strong>.</li>
                 <li>Capture the <strong>whole fish</strong> in frame when possible.</li>
@@ -315,17 +353,17 @@ export default function GradePage() {
             </div>
           </div>
 
-          <div className="card overflow-hidden">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Example: Daing types</h2>
+          <div className="card bg-gradient-to-b from-white to-blue-50 border border-blue-200 shadow-lg overflow-hidden">
+            <h2 className="text-lg font-semibold text-blue-900 mb-4">Example: Daing types</h2>
             <p className="text-sm text-slate-600 mb-4">Reference images for the types we grade.</p>
-            <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-slate-100">
+            <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-blue-100 border border-blue-300 shadow-md">
               {slide.imageSrc ? (
                 <img src={slide.imageSrc} alt={slide.alt} className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500" />
               ) : (
                 <div className="absolute inset-0 transition-opacity duration-500" style={{ backgroundColor: slide.placeholderColor }} />
               )}
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-4 py-3">
-                <span className="text-white font-medium text-sm">{slide.name}</span>
+                <span className="text-white font-semibold text-sm">{slide.name}</span>
               </div>
             </div>
             <div className="flex justify-center gap-1.5 mt-3">

@@ -16,6 +16,25 @@ import PublicationsPage from './pages/PublicationsPage'
 import CommunityForumPage from './pages/CommunityForumPage'
 import EcommercePage from './pages/EcommercePage'
 import AdminDashboardPage from './pages/AdminDashboardPage'
+import AdminUsersPage from './pages/AdminUsersPage'
+import AdminPostsPage from './pages/AdminPostsPage'
+import AdminScansPage from './pages/AdminScansPage'
+import AdminAuditLogsPage from './pages/AdminAuditLogsPage'
+import AdminOrdersPage from './pages/AdminOrdersPage'
+import SellerDashboardPage from './pages/seller/SellerDashboardPage'
+import SellerProductsPage from './pages/seller/SellerProductsPage'
+import SellerOrdersPage from './pages/seller/SellerOrdersPage'
+import SellerReviewsPage from './pages/seller/SellerReviewsPage'
+import ProductCatalogPage from './pages/ProductCatalogPage'
+import ProductDetailPage from './pages/ProductDetailPage'
+import WishlistPage from './pages/WishlistPage'
+import SellerListingPage from './pages/SellerListingPage'
+import StoreProfilePage from './pages/StoreProfilePage'
+import CartPage from './pages/CartPage'
+import OrdersPage from './pages/OrdersPage'
+import CheckoutAddressPage from './pages/CheckoutAddressPage'
+import CheckoutPaymentPage from './pages/CheckoutPaymentPage'
+import OrderConfirmedPage from './pages/OrderConfirmedPage'
 import { useAuth } from './contexts/AuthContext'
 import { useToast } from './contexts/ToastContext'
 
@@ -65,15 +84,35 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Layout><HomePage /></Layout>} />
       <Route path="/admin" element={<Layout><RoleRoute allowed={['admin']}><AdminDashboardPage /></RoleRoute></Layout>} />
+      <Route path="/admin/users" element={<Layout><RoleRoute allowed={['admin']}><AdminUsersPage /></RoleRoute></Layout>} />
+      <Route path="/admin/orders" element={<Layout><RoleRoute allowed={['admin']}><AdminOrdersPage /></RoleRoute></Layout>} />
+      <Route path="/admin/posts" element={<Layout><RoleRoute allowed={['admin']}><AdminPostsPage /></RoleRoute></Layout>} />
+      <Route path="/admin/scans" element={<Layout><RoleRoute allowed={['admin']}><AdminScansPage /></RoleRoute></Layout>} />
+      <Route path="/admin/audit-logs" element={<Layout><RoleRoute allowed={['admin']}><AdminAuditLogsPage /></RoleRoute></Layout>} />
       <Route path="/grade" element={<Layout><GradePage /></Layout>} />
       <Route path="/history" element={<Layout><HistoryPage /></Layout>} />
       <Route path="/analytics" element={<Layout><RoleRoute allowed={['admin']}><AnalyticsPage /></RoleRoute></Layout>} />
       <Route path="/forum" element={<Layout><CommunityForumPage /></Layout>} />
-      <Route path="/shop" element={<Layout><RoleRoute allowed={['seller', 'admin']}><EcommercePage /></RoleRoute></Layout>} />
+      <Route path="/catalog" element={<Layout><ProductCatalogPage /></Layout>} />
+      <Route path="/catalog/:id" element={<Layout><ProductDetailPage /></Layout>} />
+      <Route path="/sellers" element={<Layout><SellerListingPage /></Layout>} />
+      <Route path="/store/:sellerId" element={<Layout><StoreProfilePage /></Layout>} />
+      <Route path="/wishlist" element={<Layout><RoleRoute allowed={['user']}><WishlistPage /></RoleRoute></Layout>} />
+      <Route path="/cart" element={<Layout><RoleRoute allowed={['user']}><CartPage /></RoleRoute></Layout>} />
+      <Route path="/checkout/address" element={<Layout><RoleRoute allowed={['user']}><CheckoutAddressPage /></RoleRoute></Layout>} />
+      <Route path="/checkout/payment" element={<Layout><RoleRoute allowed={['user']}><CheckoutPaymentPage /></RoleRoute></Layout>} />
+      <Route path="/order-confirmed/:orderId" element={<Layout><RoleRoute allowed={['user']}><OrderConfirmedPage /></RoleRoute></Layout>} />
+      <Route path="/shop" element={<Layout><RoleRoute allowed={['user']}><EcommercePage /></RoleRoute></Layout>} />
+      <Route path="/seller" element={<Navigate to="/seller/dashboard" replace />} />
+      <Route path="/seller/dashboard" element={<Layout><RoleRoute allowed={['seller']}><SellerDashboardPage /></RoleRoute></Layout>} />
+      <Route path="/seller/products" element={<Layout><RoleRoute allowed={['seller']}><SellerProductsPage /></RoleRoute></Layout>} />
+      <Route path="/seller/orders" element={<Layout><RoleRoute allowed={['seller']}><SellerOrdersPage /></RoleRoute></Layout>} />
+      <Route path="/seller/reviews" element={<Layout><RoleRoute allowed={['seller']}><SellerReviewsPage /></RoleRoute></Layout>} />
       <Route path="/dataset" element={<Layout><DatasetPage /></Layout>} />
       <Route path="/dataset/:id" element={<Layout><DatasetImageDetailPage /></Layout>} />
       <Route path="/login" element={<Layout><LoginPage /></Layout>} />
       <Route path="/profile" element={<Layout><ProfilePage /></Layout>} />
+      <Route path="/orders" element={<Layout><RoleRoute allowed={['user']}><OrdersPage /></RoleRoute></Layout>} />
       <Route path="/about" element={<Layout><AboutUsPage /></Layout>} />
       <Route path="/about-daing" element={<Navigate to="/about-daing/espada" replace />} />
       <Route path="/about-daing/:slug" element={<Layout><AboutDaingTypePage /></Layout>} />

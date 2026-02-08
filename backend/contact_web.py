@@ -76,3 +76,34 @@ def send_contact_message(payload: ContactPayload):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
+
+
+def send_scan_disabled_email(user_email: str, user_name: str, scan_id: str, reason: str) -> None:
+    """Send notification email when a user's scan is disabled by admin."""
+    if not GMAIL_APP_PASSWORD:
+        raise ValueError("GMAIL_APP_PASSWORD is not set in .env")
+
+    msg = MIMEMultipart()
+    msg["From"] = CONTACT_RECIPIENT
+    msg["To"] = user_email
+    msg["Subject"] = "[DaingGrader] Your Scan Has Been Disabled"
+
+    body = f"""Hello {user_name},
+
+We wanted to let you know that one of your scans on DaingGrader has been disabled by an administrator.
+
+Scan ID: {scan_id}
+
+Reason for disabling:
+{reason}
+
+If you believe this was done in error or have any questions, please contact us by replying to this email.
+
+Best regards,
+The DaingGrader Team
+"""
+    msg.attach(MIMEText(body, "plain"))
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(CONTACT_RECIPIENT, GMAIL_APP_PASSWORD)
+        server.sendmail(CONTACT_RECIPIENT, user_email, msg.as_string())

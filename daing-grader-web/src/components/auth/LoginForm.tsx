@@ -43,9 +43,9 @@ export default function LoginForm() {
       }
 
       hideToast()
-      // Redirect admin to dashboard, others to profile
+      // Redirect admin to admin dashboard, seller to seller dashboard, others to profile
       const userRole = response.user?.role || 'user'
-      navigate(userRole === 'admin' ? '/admin' : '/profile')
+      navigate(userRole === 'admin' ? '/admin' : userRole === 'seller' ? '/seller/dashboard' : '/profile')
     } catch (err: any) {
       hideToast()
       setError(err.response?.data?.detail || err.response?.data?.message || 'Login failed. Please check your credentials.')

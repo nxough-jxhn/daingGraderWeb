@@ -11,13 +11,20 @@ import {
   FileText,
   ScanLine,
   History,
-  BarChart2,
   User,
   LogIn,
   LogOut,
   MessageCircle,
   ShoppingBag,
   LayoutDashboard,
+  Settings,
+  Package,
+  ClipboardList,
+  Star,
+  Store,
+  Grid,
+  Heart,
+  Truck,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -28,13 +35,23 @@ const navItems = [
   { to: '/', label: 'Home', icon: Home },
   { to: '/grade', label: 'Grade', icon: ScanLine },
   { to: '/history', label: 'History', icon: History },
-  { to: '/analytics', label: 'Analytics', icon: BarChart2, roles: ['admin'] },
   { to: '/forum', label: 'Community Forum', icon: MessageCircle },
-  { to: '/shop', label: 'E-commerce', icon: ShoppingBag, roles: ['seller', 'admin'] },
+  { to: '/catalog', label: 'Product Catalog', icon: Grid },
+  { to: '/sellers', label: 'Stores', icon: Store },
+  { to: '/wishlist', label: 'Wishlist', icon: Heart, roles: ['user'] },
+  { to: '/orders', label: 'Orders', icon: Truck, roles: ['user'] },
+  { to: '/cart', label: 'Cart', icon: ShoppingBag, roles: ['user'] },
   // Dataset hidden for now: { to: '/dataset', label: 'Dataset', icon: Database },
   { to: '/about', label: 'About Us', icon: Users },
   { to: '/contact', label: 'Contact Us', icon: Mail },
   { to: '/profile', label: 'Profile', icon: User },
+]
+
+const sellerPanelItems = [
+  { to: '/seller/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/seller/products', label: 'Products', icon: Package },
+  { to: '/seller/orders', label: 'Orders', icon: ClipboardList },
+  { to: '/seller/reviews', label: 'Reviews', icon: Star },
 ]
 
 const aboutDaingItems = [
@@ -50,6 +67,14 @@ const publicationItems = [
   { to: '/publications/foreign', label: 'Foreign' },
 ]
 
+const managementItems = [
+  { to: '/admin/users', label: 'Users' },
+  { to: '/admin/posts', label: 'Community Posts' },
+  { to: '/admin/scans', label: 'Scans' },
+  { to: '/admin/audit-logs', label: 'Audit Logs' },
+  { to: '/admin/orders', label: 'Orders' },
+]
+
 interface SidebarProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -60,6 +85,8 @@ export default function Sidebar({ open, onOpenChange }: SidebarProps) {
   const navigate = useNavigate()
   const [aboutDaingOpen, setAboutDaingOpen] = useState(false)
   const [publicationsOpen, setPublicationsOpen] = useState(false)
+  const [managementOpen, setManagementOpen] = useState(false)
+  const [sellerPanelOpen, setSellerPanelOpen] = useState(false)
   const role = user?.role ?? 'user'
   const visibleNavItems = navItems.filter((item) => !item.roles || item.roles.includes(role))
 
@@ -202,6 +229,69 @@ export default function Sidebar({ open, onOpenChange }: SidebarProps) {
                     </div>
                   )}
                 </div>
+
+                {/* Seller Panel dropdown - Seller only */}
+                {role === 'seller' && (
+                  <div className="pt-2">
+                    <button
+                      onClick={() => setSellerPanelOpen(!sellerPanelOpen)}
+                      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-white/90 hover:bg-sidebar-hover hover:text-white"
+                    >
+                      <LayoutDashboard className="w-5 h-5 shrink-0 opacity-90" />
+                      <span className="flex-1 text-left">Seller Panel</span>
+                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${sellerPanelOpen ? '' : '-rotate-90'}`} />
+                    </button>
+                    {sellerPanelOpen && (
+                      <div className="mt-1 ml-4 space-y-0.5 border-l border-white/20 pl-3">
+                        {sellerPanelItems.map(({ to, label, icon: Icon }) => (
+                          <NavLink
+                            key={to}
+                            to={to}
+                            onClick={() => onOpenChange(false)}
+                            className={({ isActive }) =>
+                              `flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-all duration-200
+                              ${isActive ? 'bg-sidebar-active-bg text-white' : 'text-white/85 hover:bg-sidebar-hover'}`
+                            }
+                          >
+                            <Icon className="w-4 h-4 shrink-0 opacity-90" />
+                            {label}
+                          </NavLink>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Management dropdown - Admin only */}
+                {role === 'admin' && (
+                  <div className="pt-2">
+                    <button
+                      onClick={() => setManagementOpen(!managementOpen)}
+                      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-white/90 hover:bg-sidebar-hover hover:text-white"
+                    >
+                      <Settings className="w-5 h-5 shrink-0 opacity-90" />
+                      <span className="flex-1 text-left">Management</span>
+                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${managementOpen ? '' : '-rotate-90'}`} />
+                    </button>
+                    {managementOpen && (
+                      <div className="mt-1 ml-4 space-y-0.5 border-l border-white/20 pl-3">
+                        {managementItems.map(({ to, label }) => (
+                          <NavLink
+                            key={to}
+                            to={to}
+                            onClick={() => onOpenChange(false)}
+                            className={({ isActive }) =>
+                              `flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-all duration-200
+                              ${isActive ? 'bg-sidebar-active-bg text-white' : 'text-white/85 hover:bg-sidebar-hover'}`
+                            }
+                          >
+                            {label}
+                          </NavLink>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </nav>
           )}
@@ -236,6 +326,16 @@ export default function Sidebar({ open, onOpenChange }: SidebarProps) {
               >
                 <FileText className="w-5 h-5 shrink-0 opacity-90" />
               </Link>
+              {role === 'admin' && (
+                <Link
+                  to="/admin/users"
+                  onClick={(e) => { e.stopPropagation(); onOpenChange(true); }}
+                  className="flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 text-white/90 hover:bg-sidebar-hover hover:text-white hover:scale-110"
+                  title="Management"
+                >
+                  <Settings className="w-5 h-5 shrink-0 opacity-90" />
+                </Link>
+              )}
             </nav>
           )}
 

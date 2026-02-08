@@ -40,6 +40,7 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 24 * 7  # 7 days
 ADMIN_CODE = os.getenv("ADMIN_CODE", "DaingAdmin2026")  # for web backend: admin registration/login code
 ALLOWED_ROLES = {"user", "seller", "admin"}
+ALLOWED_GENDERS = {"", "male", "female", "prefer_not_say"}
 
 # for web backend: Cloudinary config for profile avatars (same as server.py)
 if cloudinary and os.getenv("CLOUDINARY_CLOUD_NAME"):
@@ -75,8 +76,14 @@ def _get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depe
 
 class RegisterBody(BaseModel):
     name: str
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
     email: str
     password: str
+    city: Optional[str] = None
+    street_address: Optional[str] = None
+    province: Optional[str] = None
+    gender: Optional[str] = None
     role: Optional[str] = None
     admin_code: Optional[str] = None
 
@@ -89,6 +96,13 @@ class LoginBody(BaseModel):
 
 class ProfileUpdateBody(BaseModel):
     name: Optional[str] = None
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    city: Optional[str] = None
+    street_address: Optional[str] = None
+    province: Optional[str] = None
+    gender: Optional[str] = None
 
 
 def _password_bytes(password: str) -> bytes:
@@ -104,6 +118,11 @@ def _hash_password(password: str) -> str:
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(pw_bytes, salt)
     return hashed.decode("utf-8")
+
+
+def _validate_phone(phone: str) -> bool:
+    digits = re.sub(r"\D", "", phone or "")
+    return len(digits) >= 10
 
 
 def _verify_password(plain: str, hashed: str) -> bool:
@@ -166,11 +185,21 @@ async def register(body: RegisterBody):
     hashed = _hash_password(password)
     doc = {
         "name": name,
+        "full_name": (body.full_name or name).strip(),
         "email": email,
+        "phone": (body.phone or "").strip(),
+        "city": (body.city or "").strip(),
+        "street_address": (body.street_address or "").strip(),
+        "province": (body.province or "").strip(),
+        "gender": (body.gender or "").strip(),
         "password_hash": hashed,
         "created_at": datetime.utcnow().isoformat(),
         "role": requested_role,
     }
+    if doc["phone"] and not _validate_phone(doc["phone"]):
+        raise HTTPException(status_code=400, detail="Invalid phone number")
+    if doc["gender"] not in ALLOWED_GENDERS:
+        raise HTTPException(status_code=400, detail="Invalid gender value")
     result = users.insert_one(doc)
     user_id = str(result.inserted_id)
 
@@ -224,8 +253,14 @@ async def get_me(user=Depends(_get_current_user)):
     return {
         "id": uid,
         "name": user.get("name") or "",
+        "full_name": user.get("full_name") or user.get("name") or "",
         "email": user.get("email") or "",
         "avatar_url": user.get("avatar_url") or None,
+        "phone": user.get("phone") or "",
+        "city": user.get("city") or "",
+        "street_address": user.get("street_address") or "",
+        "province": user.get("province") or "",
+        "gender": user.get("gender") or "",
         "role": (user.get("role") or "user").strip().lower(),
     }
 
@@ -238,6 +273,34 @@ async def update_profile(body: ProfileUpdateBody, user=Depends(_get_current_user
     updates = {}
     if body.name is not None and len((body.name or "").strip()) >= 2:
         updates["name"] = body.name.strip()
+    if body.full_name is not None and len((body.full_name or "").strip()) >= 2:
+        updates["full_name"] = body.full_name.strip()
+        if "name" not in updates:
+            updates["name"] = body.full_name.strip()
+    if body.phone is not None:
+        phone = (body.phone or "").strip()
+        if phone and not _validate_phone(phone):
+            raise HTTPException(status_code=400, detail="Invalid phone number")
+        updates["phone"] = phone
+    if body.city is not None:
+        updates["city"] = (body.city or "").strip()
+    if body.street_address is not None:
+        updates["street_address"] = (body.street_address or "").strip()
+    if body.province is not None:
+        updates["province"] = (body.province or "").strip()
+    if body.gender is not None:
+        gender = (body.gender or "").strip()
+        if gender not in ALLOWED_GENDERS:
+            raise HTTPException(status_code=400, detail="Invalid gender value")
+        updates["gender"] = gender
+    if body.email is not None:
+        email = (body.email or "").strip().lower()
+        if not re.match(r"^[^@]+@[^@]+\.[^@]+$", email):
+            raise HTTPException(status_code=400, detail="Invalid email format")
+        existing = users.find_one({"email": email, "_id": {"$ne": user["_id"]}})
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        updates["email"] = email
     if updates:
         users.update_one({"_id": user["_id"]}, {"$set": updates})
     updated = users.find_one({"_id": user["_id"]})
@@ -245,8 +308,15 @@ async def update_profile(body: ProfileUpdateBody, user=Depends(_get_current_user
     return {
         "id": uid,
         "name": updated.get("name") or "",
+        "full_name": updated.get("full_name") or updated.get("name") or "",
         "email": updated.get("email") or "",
         "avatar_url": updated.get("avatar_url") or None,
+        "phone": updated.get("phone") or "",
+        "city": updated.get("city") or "",
+        "street_address": updated.get("street_address") or "",
+        "province": updated.get("province") or "",
+        "gender": updated.get("gender") or "",
+        "role": (updated.get("role") or "user").strip().lower(),
     }
 
 

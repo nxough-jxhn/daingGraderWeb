@@ -33,7 +33,7 @@ html, body, #root {
 
 /* Basic utility to mimic Monday.com-like card style */
 .card {
-  @apply bg-white rounded-xl shadow-card p-6 transition-all duration-200 hover:shadow-lg hover:shadow-slate-200/50;
+  @apply bg-white rounded-xl shadow-md border border-black p-6 transition-all duration-200 hover:shadow-lg hover:shadow-slate-200/50;
 }
 
 /* Subtle hover: cursor pointer + slight scale + shadow for buttons, images, clickable elements */
@@ -70,4 +70,13 @@ img.hover-zoom {
 @keyframes fadeIn {
   from { opacity: 0; transform: translate(-50%, 4px); }
   to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* Hide scrollbar for horizontal carousels */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }

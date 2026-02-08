@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { LogIn, User, UserPlus, LogOut } from 'lucide-react'
+import { LogIn, User, UserPlus, LogOut, ShoppingCart, Heart, Truck } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 
@@ -15,6 +15,7 @@ export default function Header() {
   const { isLoggedIn, user, logout } = useAuth()
   const { showToast } = useToast()
   const navigate = useNavigate()
+  const role = user?.role ?? 'user'
 
   const handleLogout = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -26,9 +27,20 @@ export default function Header() {
   return (
     <header className="bg-surface border-b border-slate-200/80 sticky top-0 z-20 shadow-soft">
       <div className="flex items-end justify-between h-14 pl-14 pr-4 lg:pl-6 pb-1">
-        <Link to="/" className="flex items-end gap-4 shrink-0 group">
-          <img src="/assets/logos/tup-t-logo.png" alt="TUP-T" className="h-10 w-auto transition-all duration-300 group-hover:scale-110 group-hover:drop-shadow-lg" />
-          <img src="/assets/logos/dainggrader-logo.png" alt="DaingGrader" className="h-10 w-auto transition-all duration-300 group-hover:scale-110 group-hover:drop-shadow-lg" />
+        {/* TUP Logo - Separate, links to external site */}
+        <a
+          href="https://www.tup.edu.ph"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-end shrink-0"
+          title="Visit TUP website"
+        >
+          <img src="/assets/logos/tup-t-logo.png" alt="TUP-T" className="h-10 w-auto" />
+        </a>
+
+        {/* DaingGrader Logo and branding */}
+        <Link to="/" className="flex items-end gap-4 shrink-0 ml-4">
+          <img src="/assets/logos/dainggrader-logo.png" alt="DaingGrader" className="h-10 w-auto" />
           <div className="hidden sm:block border-l border-slate-300 pl-4">
             <div className="text-lg font-semibold text-slate-800">DaingGrader</div>
             <div className="text-xs text-slate-500">Dried Fish Quality Grader</div>
@@ -43,8 +55,8 @@ export default function Header() {
               <NavLink
                 to="/login"
                 className={({ isActive }) =>
-                  `flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300
-                  ${isActive ? 'text-primary bg-primary/10' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 hover:shadow-md hover:-translate-y-0.5'}`
+                  `flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 border
+                  ${isActive ? 'text-white bg-blue-600 border-blue-600 shadow-md' : 'text-slate-600 border-slate-200 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 hover:shadow-sm'}`
                 }
               >
                 <LogIn className="w-4 h-4" />
@@ -53,8 +65,8 @@ export default function Header() {
               <NavLink
                 to="/login"
                 className={({ isActive }) =>
-                  `flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300
-                  ${isActive ? 'text-primary bg-primary/10' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 hover:shadow-md hover:-translate-y-0.5'}`
+                  `flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 border
+                  ${isActive ? 'text-white bg-blue-600 border-blue-600 shadow-md' : 'text-slate-600 border-slate-200 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 hover:shadow-sm'}`
                 }
               >
                 <UserPlus className="w-4 h-4" />
@@ -62,21 +74,60 @@ export default function Header() {
               </NavLink>
             </>
           ) : (
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 text-slate-600 hover:bg-slate-100 hover:text-slate-900 hover:shadow-md hover:-translate-y-0.5"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
+            <>
+              {role === 'user' && (
+                <>
+                  <NavLink
+                    to="/wishlist"
+                    className={({ isActive }) =>
+                      `flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 border
+                      ${isActive ? 'text-white bg-blue-600 border-blue-600 shadow-md' : 'text-slate-600 border-slate-200 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 hover:shadow-sm'}`
+                    }
+                    title="Wishlist"
+                  >
+                    <Heart className="w-4 h-4" />
+                    <span className="hidden sm:inline">Wishlist</span>
+                  </NavLink>
+                  <NavLink
+                    to="/orders"
+                    className={({ isActive }) =>
+                      `flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 border
+                      ${isActive ? 'text-white bg-blue-600 border-blue-600 shadow-md' : 'text-slate-600 border-slate-200 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 hover:shadow-sm'}`
+                    }
+                    title="My Orders"
+                  >
+                    <Truck className="w-4 h-4" />
+                    <span className="hidden sm:inline">Orders</span>
+                  </NavLink>
+                  <NavLink
+                    to="/cart"
+                    className={({ isActive }) =>
+                      `flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 border
+                      ${isActive ? 'text-white bg-blue-600 border-blue-600 shadow-md' : 'text-slate-600 border-slate-200 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 hover:shadow-sm'}`
+                    }
+                    title="Shopping cart"
+                  >
+                    <ShoppingCart className="w-4 h-4" />
+                    <span className="hidden sm:inline">Cart</span>
+                  </NavLink>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 border text-slate-600 border-slate-200 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 hover:shadow-sm"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Logout</span>
+              </button>
+            </>
           )}
 
           <NavLink
             to="/profile"
             className={({ isActive }) =>
-              `flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300
-              ${isActive ? 'text-primary bg-primary/10' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 hover:shadow-md hover:-translate-y-0.5'}`
+              `flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 border
+              ${isActive ? 'text-white bg-blue-600 border-blue-600 shadow-md' : 'text-slate-600 border-slate-200 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 hover:shadow-sm'}`
             }
           >
             <User className="w-4 h-4" />
@@ -84,13 +135,13 @@ export default function Header() {
           </NavLink>
 
           <div className="flex items-center gap-2">
-            {/* Role badge - clean design with thin border */}
+            {/* Role badge - sharp clean design */}
             {isLoggedIn && user?.role && user.role !== 'user' && (
-              <span className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-lg border border-black/20 bg-white text-xs font-medium capitalize shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+              <span className="hidden sm:inline-flex items-center px-2.5 py-1 border border-black/20 bg-white text-xs font-semibold uppercase tracking-wide shadow-sm">
                 {user.role === 'admin' ? (
-                  <span className="text-red-600">👑 Admin</span>
+                  <span className="text-red-600">Admin</span>
                 ) : (
-                  <span className="text-blue-600">💼 Seller</span>
+                  <span className="text-blue-600">Seller</span>
                 )}
               </span>
             )}

@@ -57,9 +57,9 @@ export default function RegisterForm() {
           role: response.user?.role || role,
         })
         hideToast()
-        // Redirect admin to dashboard, others to profile
+        // Redirect admin to admin dashboard, seller to seller dashboard, others to profile
         const userRole = response.user?.role || role
-        navigate(userRole === 'admin' ? '/admin' : '/profile')
+        navigate(userRole === 'admin' ? '/admin' : userRole === 'seller' ? '/seller/dashboard' : '/profile')
       } else {
         hideToast()
         navigate('/login')

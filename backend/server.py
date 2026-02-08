@@ -1,14 +1,17 @@
 from fastapi import FastAPI, UploadFile, File, Form, Request, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware  # for web backend (CORS so frontend can read responses)
+from pydantic import BaseModel
 import cv2
 import numpy as np
 import io
+import csv
 import os
 import json
+import re
 from pathlib import Path
 from starlette.responses import StreamingResponse
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from jose import jwt, JWTError
 from bson import ObjectId
 import cloudinary
@@ -32,16 +35,31 @@ app = FastAPI()
 
 # --- for web backend: CORS so the frontend (localhost + production) can read API responses ---
 # Add FRONTEND_URL env var in Render to your Vercel URL (e.g. https://dainggrader.vercel.app)
-_cors_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+_cors_origins = [
+    "http://localhost:5173", 
+    "http://127.0.0.1:5173",
+    "http://localhost:51732",  # Vite preview port
+]
 if _url := os.getenv("FRONTEND_URL", "").strip():
     _cors_origins.append(_url.rstrip("/"))
+
+# Allow any localhost port for development
+import re as _re
+def _is_localhost_origin(origin: str) -> bool:
+    return bool(_re.match(r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$", origin))
+
 app.add_middleware(
     CORSMiddleware,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- for web backend: auth routes (signup/login) ---
+from auth_web import router as auth_router, _get_current_user, JWT_SECRET, JWT_ALGORITHM
+app.include_router(auth_router, prefix="/auth", tags=["auth"])
 
 # --- 🧠 LOAD YOUR AI MODEL HERE ---
 # We load it outside the function so it stays in memory (faster)
@@ -85,6 +103,123 @@ def _get_scan_collection():
   except Exception:
     return None
 
+def _get_audit_collection():
+  """for web backend: return audit_logs collection if MongoDB is configured."""
+  try:
+    return get_db()["audit_logs"]
+  except Exception:
+    return None
+
+def _log_audit_event(actor: str, action: str, category: str, entity: str, entity_id: str, status: str = "success", details: str = "", role: str = "user", ip: str = "", actor_id: str = ""):
+  """Log an audit event to the audit_logs collection."""
+  try:
+    collection = _get_audit_collection()
+    if collection is None:
+      return
+    
+    import uuid
+    event = {
+      "id": f"AL-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{str(uuid.uuid4())[:8]}",
+      "timestamp": datetime.now().isoformat(),
+      "actor": actor,
+      "actor_id": actor_id,
+      "role": role,
+      "action": action,
+      "category": category,
+      "entity": entity,
+      "entity_id": entity_id,
+      "status": status,
+      "ip": ip,
+      "details": details,
+    }
+    collection.insert_one(event)
+  except Exception as e:
+    print(f"⚠️ Failed to log audit event: {e}")
+
+def _fetch_cloudinary_entries():
+  """Fetch all scan entries from Cloudinary (same as /history endpoint)."""
+  try:
+    result = cloudinary.api.resources(
+      type="upload",
+      prefix="daing-history/",
+      max_results=500,
+      resource_type="image"
+    )
+    entries = []
+    for resource in result.get("resources", []):
+      public_id = resource.get("public_id", "")
+      parts = public_id.split("/")
+      if len(parts) >= 3:
+        scan_id = parts[2]
+        try:
+          timestamp_str = scan_id.replace("scan_", "")
+          date_part = timestamp_str[:8]
+          time_part = timestamp_str[9:15]
+          micro_part = timestamp_str[16:]
+          iso_timestamp = f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:8]}T{time_part[:2]}:{time_part[2:4]}:{time_part[4:6]}.{micro_part}"
+        except:
+          iso_timestamp = resource.get("created_at", "")
+        entries.append({
+          "id": scan_id,
+          "timestamp": iso_timestamp,
+          "url": resource.get("secure_url"),
+        })
+    entries.sort(key=lambda x: x["timestamp"], reverse=True)
+    return entries
+  except Exception as e:
+    print(f"⚠️ Failed to fetch from Cloudinary: {e}")
+    return []
+
+def _fetch_scan_entries_from_db():
+  """Fetch scan entries by merging MongoDB scan_history (full data) with Cloudinary (for older scans)."""
+  try:
+    # First get all Cloudinary entries (includes old scans)
+    cloudinary_entries = _fetch_cloudinary_entries()
+    
+    collection = _get_scan_collection()
+    if collection is None:
+      # No MongoDB, return Cloudinary entries as-is
+      return cloudinary_entries
+    
+    # Get all entries from MongoDB (has full scan data)
+    mongo_entries = {}
+    cursor = collection.find().limit(500)
+    for doc in cursor:
+      entry_id = doc.get("id") or str(doc.get("_id"))
+      mongo_entries[entry_id] = {
+        "id": entry_id,
+        "timestamp": doc.get("timestamp") or "",
+        "url": doc.get("url") or None,
+        "fish_type": doc.get("fish_type") or "Unknown",
+        "grade": doc.get("grade") or "Unknown",
+        "score": doc.get("score"),
+        "user_name": doc.get("user_name") or "Unknown",
+        "user_id": doc.get("user_id") or None,
+      }
+    
+    # Merge: prefer MongoDB data if available, otherwise use Cloudinary data
+    merged = {}
+    
+    # Add all Cloudinary entries first (basic data)
+    for entry in cloudinary_entries:
+      entry_id = entry.get("id")
+      if entry_id:
+        merged[entry_id] = entry
+    
+    # Override with MongoDB data (full data) where available
+    for entry_id, entry in mongo_entries.items():
+      merged[entry_id] = entry
+    
+    # Sort by timestamp descending
+    result = list(merged.values())
+    result.sort(key=lambda x: x.get("timestamp") or "", reverse=True)
+    return result
+    
+  except Exception as e:
+    print(f"⚠️ Failed to fetch scan entries: {e}")
+    # Fallback to Cloudinary only
+    return _fetch_cloudinary_entries()
+
 def _try_get_user_from_request(request: Request) -> Optional[dict]:
   """for web backend: best-effort user lookup from JWT (optional)."""
   auth_header = request.headers.get("Authorization", "")
@@ -114,14 +249,20 @@ def _grade_from_score(score: float) -> str:
   return "Reject"
 
 def _normalize_scan_entry(entry: dict) -> dict:
+  score = entry.get("score")
+  fish_type = entry.get("fish_type") or "Unknown"
+  # Detection status: detected if score >= threshold OR fish_type is not Unknown
+  detected = (score is not None and score >= 0.8) or (fish_type != "Unknown" and fish_type != "")
   return {
     "id": entry.get("id") or str(entry.get("_id")),
     "timestamp": entry.get("timestamp") or "",
     "url": entry.get("url") or None,
-    "fish_type": entry.get("fish_type") or "Unknown",
+    "fish_type": fish_type,
     "grade": entry.get("grade") or "Unknown",
-    "score": entry.get("score") if entry.get("score") is not None else None,
+    "score": score if score is not None else None,
     "user_name": entry.get("user_name") or "Unknown",
+    "user_id": entry.get("user_id") or None,
+    "detected": detected,
   }
 
 def _require_admin_user(user=Depends(_get_current_user)):
@@ -129,6 +270,33 @@ def _require_admin_user(user=Depends(_get_current_user)):
   if role != "admin":
     raise HTTPException(status_code=403, detail="Admins only")
   return user
+
+def _require_seller_user(user=Depends(_get_current_user)):
+  role = (user.get("role") or "user").strip().lower()
+  if role != "seller":
+    raise HTTPException(status_code=403, detail="Sellers only")
+  return user
+
+def _get_products_collection():
+  """Return products collection from MongoDB."""
+  try:
+    return get_db()["products"]
+  except Exception:
+    return None
+
+def _get_categories_collection():
+  """Return product_categories collection from MongoDB."""
+  try:
+    return get_db()["product_categories"]
+  except Exception:
+    return None
+
+def _get_reviews_collection():
+  """Return product_reviews collection from MongoDB."""
+  try:
+    return get_db()["product_reviews"]
+  except Exception:
+    return None
 
 def remove_history_entry(entry_id: str):
   entries = _read_history_entries()
@@ -143,10 +311,6 @@ def remove_history_entry(entry_id: str):
 def root():
   """Health/connection check for web and mobile clients."""
   return {"status": "ok"}
-
-# --- for web backend: auth routes (signup/login) ---
-from auth_web import router as auth_router, _get_current_user, JWT_SECRET, JWT_ALGORITHM
-app.include_router(auth_router, prefix="/auth", tags=["auth"])
 
 # --- for web backend: contact form (sends email to shathesisgroup@gmail.com) ---
 from contact_web import router as contact_router
@@ -293,9 +457,22 @@ async def analyze_fish(request: Request, file: UploadFile = File(...)):
     }
     add_history_entry(entry)
     collection = _get_scan_collection()
-    if collection:
+    if collection is not None:
       # for web backend: store full scan metadata for admin dashboard
       collection.insert_one(entry)
+    
+    # Log audit event for scan
+    _log_audit_event(
+      actor=user_name,
+      role=user.get("role", "user") if user else "user",
+      action="Created fish scan",
+      category="Scans",
+      entity="Scan",
+      entity_id=history_id,
+      status="success",
+      details=f"Fish: {fish_type}, Grade: {grade}, Score: {best_score:.2%}"
+    )
+    
     print(f"📚 History saved: {history_folder}/{history_id}")
   except Exception as history_error:
     print(f"⚠️ Failed to save history: {history_error}")
@@ -394,6 +571,85 @@ def get_history():
     # Fallback to JSON file if Cloudinary fails
     return {"status": "success", "entries": _read_history_entries()}
 
+@app.get("/history/detailed")
+def get_history_detailed(user=Depends(_get_current_user)):
+  """Fetch history with fish_type, grade, score from Cloudinary + MongoDB metadata."""
+  try:
+    # First, fetch all resources from Cloudinary (same as /history endpoint)
+    result = cloudinary.api.resources(
+      type="upload",
+      prefix="daing-history/",
+      max_results=500,
+      resource_type="image"
+    )
+    
+    # Try to get MongoDB collection for metadata
+    collection = _get_scan_collection()
+    mongo_data = {}
+    if collection is not None:
+      try:
+        # Index MongoDB data by scan_id for quick lookup
+        for doc in collection.find({}):
+          scan_id = doc.get("id") or str(doc.get("_id", ""))
+          mongo_data[scan_id] = {
+            "fish_type": doc.get("fish_type", "Unknown"),
+            "grade": doc.get("grade", "Unknown"),
+            "score": doc.get("score"),
+          }
+      except Exception as mongo_err:
+        print(f"⚠️ MongoDB lookup failed, will use defaults: {mongo_err}")
+    
+    entries = []
+    fish_types_set = set()
+    
+    for resource in result.get("resources", []):
+      public_id = resource.get("public_id", "")
+      # public_id format: "daing-history/2026-01-30/scan_20260130_123456_789012"
+      parts = public_id.split("/")
+      if len(parts) >= 3:
+        scan_id = parts[2]  # "scan_20260130_123456_789012"
+        
+        # Parse timestamp from scan_id (scan_YYYYMMDD_HHMMSS_ffffff)
+        try:
+          timestamp_str = scan_id.replace("scan_", "")
+          date_part = timestamp_str[:8]  # 20260130
+          time_part = timestamp_str[9:15]  # 123456
+          micro_part = timestamp_str[16:]  # 789012
+          iso_timestamp = f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:8]}T{time_part[:2]}:{time_part[2:4]}:{time_part[4:6]}.{micro_part}"
+        except:
+          iso_timestamp = resource.get("created_at", "")
+        
+        # Get metadata from MongoDB if available, otherwise use defaults
+        mongo_meta = mongo_data.get(scan_id, {})
+        fish_type = mongo_meta.get("fish_type", "Unknown")
+        grade = mongo_meta.get("grade", "Unknown")
+        score = mongo_meta.get("score")
+        
+        fish_types_set.add(fish_type)
+        entries.append({
+          "id": scan_id,
+          "timestamp": iso_timestamp,
+          "url": resource.get("secure_url"),
+          "fish_type": fish_type,
+          "grade": grade,
+          "score": score,
+        })
+    
+    # Sort by timestamp descending (newest first)
+    entries.sort(key=lambda x: x["timestamp"], reverse=True)
+    
+    return {
+      "status": "success",
+      "entries": entries,
+      "fish_types": sorted(list(fish_types_set)),
+    }
+  except Exception as e:
+    print(f"⚠️ Failed to fetch detailed history: {e}")
+    import traceback
+    traceback.print_exc()
+    # Fallback to basic history if Cloudinary fails
+    return {"status": "success", "entries": [], "fish_types": []}
+
 @app.delete("/history/{entry_id}")
 def delete_history(entry_id: str):
   """Delete from both Cloudinary and local JSON"""
@@ -431,22 +687,99 @@ def delete_history(entry_id: str):
     return {"status": "error", "message": str(e)}
 
 # --- for web backend: admin analytics (scan summary + paginated table) ---
+@app.get("/admin/audit-logs")
+def get_admin_audit_logs(
+  category: Optional[str] = None,
+  status: Optional[str] = None,
+  actor: Optional[str] = None,
+  limit: int = 200,
+  user=Depends(_require_admin_user)
+):
+  collection = _get_audit_collection()
+  if collection is None:
+    return {"status": "success", "entries": []}
+
+  query = {}
+  if category and category != "All":
+    query["category"] = category
+  if status and status != "All":
+    query["status"] = status
+  if actor:
+    query["actor"] = {"$regex": re.escape(actor), "$options": "i"}
+
+  safe_limit = min(max(limit, 1), 500)
+  cursor = collection.find(query).sort("timestamp", -1).limit(safe_limit)
+  entries = []
+  for doc in cursor:
+    entries.append({
+      "id": doc.get("id") or str(doc.get("_id")),
+      "timestamp": doc.get("timestamp") or "",
+      "actor": doc.get("actor") or "System",
+      "role": doc.get("role") or "system",
+      "action": doc.get("action") or "Unknown",
+      "category": doc.get("category") or "General",
+      "entity": doc.get("entity") or "",
+      "entity_id": doc.get("entity_id") or "",
+      "status": doc.get("status") or "success",
+      "ip": doc.get("ip") or "",
+      "details": doc.get("details") or "",
+    })
+
+  return {"status": "success", "entries": entries}
+
+
+@app.get("/activity/me")
+def get_my_activity_logs(page: int = 1, page_size: int = 10, user=Depends(_get_current_user)):
+  """Return current user's activity logs (from audit_logs)."""
+  collection = _get_audit_collection()
+  if collection is None:
+    return {"status": "success", "entries": [], "total": 0}
+
+  page = max(page, 1)
+  page_size = min(max(page_size, 1), 50)
+
+  user_id = str(user.get("_id"))
+  user_name = user.get("name") or ""
+  query = {"$or": [
+    {"actor_id": user_id},
+    {"actor": user_name},
+  ]}
+
+  total = collection.count_documents(query)
+  docs = list(
+    collection.find(query)
+    .sort("timestamp", -1)
+    .skip((page - 1) * page_size)
+    .limit(page_size)
+  )
+  entries = []
+  for doc in docs:
+    entries.append({
+      "id": doc.get("id") or str(doc.get("_id")),
+      "timestamp": doc.get("timestamp") or "",
+      "actor": doc.get("actor") or "System",
+      "role": doc.get("role") or "user",
+      "action": doc.get("action") or "Unknown",
+      "category": doc.get("category") or "General",
+      "entity": doc.get("entity") or "",
+      "entity_id": doc.get("entity_id") or "",
+      "status": doc.get("status") or "success",
+      "details": doc.get("details") or "",
+    })
+
+  return {"status": "success", "entries": entries, "total": total}
+
 @app.get("/admin/scans")
 def get_admin_scans(page: int = 1, page_size: int = 10, user=Depends(_require_admin_user)):
   page = max(page, 1)
   page_size = min(max(page_size, 1), 50)
-  collection = _get_scan_collection()
-
-  if collection:
-    total = collection.count_documents({})
-    cursor = collection.find({}, sort=[("timestamp", -1)]).skip((page - 1) * page_size).limit(page_size)
-    entries = [_normalize_scan_entry(doc) for doc in cursor]
-  else:
-    all_entries = _read_history_entries()
-    total = len(all_entries)
-    start = (page - 1) * page_size
-    end = start + page_size
-    entries = [_normalize_scan_entry(e) for e in all_entries[start:end]]
+  
+  # Fetch from MongoDB scan_history (has full scan data)
+  all_entries = _fetch_scan_entries_from_db()
+  total = len(all_entries)
+  start = (page - 1) * page_size
+  end = start + page_size
+  entries = [_normalize_scan_entry(e) for e in all_entries[start:end]]
 
   return {
     "status": "success",
@@ -458,11 +791,8 @@ def get_admin_scans(page: int = 1, page_size: int = 10, user=Depends(_require_ad
 
 @app.get("/admin/scans/summary")
 def get_admin_scan_summary(year: int, user=Depends(_require_admin_user)):
-  collection = _get_scan_collection()
-  if collection:
-    entries = list(collection.find({}, {"timestamp": 1}))
-  else:
-    entries = _read_history_entries()
+  # Fetch from MongoDB scan_history
+  entries = _fetch_scan_entries_from_db()
 
   months = {f"{year}-{m:02d}": 0 for m in range(1, 13)}
   for entry in entries:
@@ -492,3 +822,3519 @@ def get_admin_scan_summary(year: int, user=Depends(_require_admin_user)):
     "year": year,
     "months": [{"key": m["key"], "label": m["label"], "count": months[m["key"]]} for m in labels],
   }
+
+@app.get("/admin/scans/stats")
+def get_admin_scan_stats(user=Depends(_require_admin_user)):
+  """Get quick stats for admin scans dashboard."""
+  entries = _fetch_scan_entries_from_db()
+  total = len(entries)
+  
+  # Count grades (from normalized entries or estimate)
+  export_count = 0
+  local_count = 0
+  reject_count = 0
+  disabled_count = 0
+  user_ids = set()
+  scores = []
+  
+  for entry in entries:
+    normalized = _normalize_scan_entry(entry)
+    grade = normalized.get("grade", "Unknown")
+    if grade == "Export":
+      export_count += 1
+    elif grade == "Local":
+      local_count += 1
+    elif grade == "Reject":
+      reject_count += 1
+    
+    if normalized.get("is_disabled"):
+      disabled_count += 1
+    
+    user_name = normalized.get("user_name", "Unknown")
+    if user_name and user_name != "Unknown":
+      user_ids.add(user_name)
+    
+    score = normalized.get("score")
+    if score is not None:
+      scores.append(score)
+  
+  avg_score = sum(scores) / len(scores) if scores else 0
+  
+  return {
+    "status": "success",
+    "stats": {
+      "total_scans": total,
+      "export_count": export_count,
+      "local_count": local_count,
+      "reject_count": reject_count,
+      "disabled_count": disabled_count,
+      "unique_users": len(user_ids),
+      "avg_score": round(avg_score, 4),
+    }
+  }
+
+@app.post("/admin/scans/{scan_id}/disable")
+def disable_admin_scan(scan_id: str, reason: str = "", user=Depends(_require_admin_user)):
+  """Disable/deactivate a scan (soft delete). Sends email to user if they have one."""
+  from datetime import datetime
+  
+  # Find the scan in MongoDB
+  collection = _get_scan_collection()
+  if not collection:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  
+  scan = collection.find_one({"id": scan_id})
+  if not scan:
+    raise HTTPException(status_code=404, detail="Scan not found")
+  
+  now = datetime.now().isoformat()
+  is_disabled = scan.get("is_disabled", False)
+  
+  # Toggle disable status
+  update_data = {
+    "is_disabled": not is_disabled,
+    "disable_reason": reason if not is_disabled else None,
+    "disabled_at": now if not is_disabled else None,
+    "disabled_by": str(user.get("_id")) if not is_disabled else None,
+  }
+  
+  collection.update_one({"id": scan_id}, {"$set": update_data})
+  
+  # Send email to user if disabling and user has an email
+  if not is_disabled and reason:
+    user_id = scan.get("user_id")
+    if user_id:
+      try:
+        users_collection = get_db()["users"]
+        scan_user = users_collection.find_one({"_id": ObjectId(user_id)})
+        if scan_user and scan_user.get("email"):
+          # Import email sending
+          from contact_web import send_scan_disabled_email
+          send_scan_disabled_email(
+            user_email=scan_user.get("email"),
+            user_name=scan_user.get("displayName") or scan_user.get("email"),
+            scan_id=scan_id,
+            reason=reason
+          )
+      except Exception as email_error:
+        print(f"⚠️ Failed to send disable email: {email_error}")
+  
+  # Log audit event
+  _log_audit_event(
+    actor=user.get("name", "Admin"),
+    role=user.get("role", "admin"),
+    action="Toggle scan status" if is_disabled else "Disabled scan",
+    category="Scans",
+    entity="Scan",
+    entity_id=scan_id,
+    status="success",
+    details=f"New status: {'Enabled' if is_disabled else 'Disabled'}, Reason: {reason}"
+  )
+  
+  return {
+    "status": "success",
+    "message": "Scan enabled" if is_disabled else "Scan disabled",
+    "is_disabled": not is_disabled
+  }
+
+@app.delete("/admin/scans/{scan_id}")
+def delete_admin_scan(scan_id: str, user=Depends(_require_admin_user)):
+  """Permanently delete a scan from Cloudinary and MongoDB."""
+  # Get scan info before deleting for audit log
+  collection = _get_scan_collection()
+  scan_info = None
+  if collection:
+    scan_info = collection.find_one({"id": scan_id})
+    collection.delete_one({"id": scan_id})
+  
+  # Remove from Cloudinary
+  try:
+    result = cloudinary.api.resources(
+      type="upload",
+      prefix="daing-history/",
+      max_results=500,
+      resource_type="image"
+    )
+    for resource in result.get("resources", []):
+      public_id = resource.get("public_id", "")
+      if scan_id in public_id:
+        cloudinary.uploader.destroy(public_id, resource_type="image")
+        break
+  except Exception as e:
+    print(f"⚠️ Failed to delete from Cloudinary: {e}")
+  
+  # Also remove from local JSON history
+  remove_history_entry(scan_id)
+  
+  # Log audit event
+  _log_audit_event(
+    actor=user.get("name", "Admin"),
+    role=user.get("role", "admin"),
+    action="Permanently deleted scan",
+    category="Scans",
+    entity="Scan",
+    entity_id=scan_id,
+    status="success",
+    details="Scan removed from Cloudinary and MongoDB"
+  )
+  
+  return {"status": "success", "message": "Scan permanently deleted"}
+
+# --- Community Posts ---
+def _get_community_collection():
+  """Return community_posts collection from MongoDB."""
+  try:
+    return get_db()["community_posts"]
+  except Exception:
+    return None
+
+def _get_comments_collection():
+  """Return community_comments collection from MongoDB."""
+  try:
+    return get_db()["community_comments"]
+  except Exception:
+    return None
+
+# Bad words filter - censors explicit words with asterisks
+BAD_WORDS = [
+  "fuck", "shit", "ass", "bitch", "damn", "crap", "bastard", "dick", "pussy",
+  "cock", "whore", "slut", "fag", "nigger", "nigga", "retard", "idiot", "stupid",
+  "puta", "gago", "tangina", "bobo", "tanga", "putangina", "leche", "tarantado"
+]
+
+def _censor_bad_words(text: str) -> str:
+  """Replace bad words with asterisks."""
+  if not text:
+    return text
+  result = text
+  for word in BAD_WORDS:
+    pattern = re.compile(re.escape(word), re.IGNORECASE)
+    result = pattern.sub("*" * len(word), result)
+  return result
+
+def _normalize_community_post(doc):
+  """Normalize a community post document to a standard format."""
+  return {
+    "id": str(doc["_id"]),
+    "title": doc.get("title", ""),
+    "description": doc.get("description", ""),
+    "images": doc.get("images", []),
+    "category": doc.get("category", "Discussion"),
+    "likes": doc.get("likes", 0),
+    "comments_count": doc.get("comments_count", 0),
+    "shares": doc.get("shares", 0),
+    "author_id": doc.get("author_id", ""),
+    "author_name": doc.get("author_name", "Anonymous"),
+    "created_at": doc.get("created_at", ""),
+    "liked_by": doc.get("liked_by", []),
+  }
+
+@app.get("/community/posts")
+def get_community_posts(page: int = 1, page_size: int = 12, category: str = "All", search: str = ""):
+  """Get paginated community posts (excludes deleted posts)."""
+  page = max(page, 1)
+  page_size = min(max(page_size, 1), 50)
+  
+  collection = _get_community_collection()
+  if collection is None:
+    return {"status": "error", "message": "Database not available"}
+  
+  # Build query filter - exclude deleted and disabled posts for public view
+  query = {"$and": [
+    {"$or": [{"is_deleted": {"$ne": True}}, {"is_deleted": {"$exists": False}}]},
+    {"$or": [{"is_disabled": {"$ne": True}}, {"is_disabled": {"$exists": False}}]}
+  ]}
+  if category and category != "All":
+    query["category"] = category
+  if search:
+    query["$or"] = [
+      {"title": {"$regex": search, "$options": "i"}},
+      {"description": {"$regex": search, "$options": "i"}},
+    ]
+  
+  total = collection.count_documents(query)
+  cursor = collection.find(query).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size)
+  
+  posts = []
+  for doc in cursor:
+    posts.append({
+      "id": str(doc["_id"]),
+      "title": doc.get("title", ""),
+      "description": doc.get("description", ""),
+      "images": doc.get("images", []),
+      "category": doc.get("category", "Discussion"),
+      "author_id": doc.get("author_id", ""),
+      "author_name": doc.get("author_name", "Anonymous"),
+      "author_avatar": doc.get("author_avatar", ""),
+      "likes": doc.get("likes", 0),
+      "liked_by": doc.get("liked_by", []),
+      "comments_count": doc.get("comments_count", 0),
+      "shares": doc.get("shares", 0),
+      "created_at": doc.get("created_at", ""),
+    })
+  
+  return {
+    "status": "success",
+    "page": page,
+    "page_size": page_size,
+    "total": total,
+    "posts": posts,
+  }
+
+
+@app.get("/community/posts/me")
+def get_my_community_posts(page: int = 1, page_size: int = 10, user=Depends(_get_current_user)):
+  """Get current user's community posts, including deleted/disabled status."""
+  page = max(page, 1)
+  page_size = min(max(page_size, 1), 50)
+
+  collection = _get_community_collection()
+  if collection is None:
+    return {"status": "success", "page": page, "page_size": page_size, "total": 0, "posts": []}
+
+  user_id = str(user.get("_id", user.get("id", "")))
+  query = {"author_id": user_id}
+
+  total = collection.count_documents(query)
+  cursor = collection.find(query).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size)
+  posts = []
+  for doc in cursor:
+    is_deleted = doc.get("is_deleted", False)
+    is_disabled = doc.get("is_disabled", False)
+    status = "deleted" if is_deleted else "draft" if is_disabled else "published"
+    posts.append({
+      "id": str(doc.get("_id")),
+      "title": doc.get("title", ""),
+      "description": doc.get("description", ""),
+      "images": doc.get("images", []),
+      "category": doc.get("category", "Discussion"),
+      "author_id": doc.get("author_id", ""),
+      "author_name": doc.get("author_name", "Anonymous"),
+      "comments_count": doc.get("comments_count", 0),
+      "likes": doc.get("likes", 0),
+      "created_at": doc.get("created_at", ""),
+      "status": status,
+    })
+
+  return {
+    "status": "success",
+    "page": page,
+    "page_size": page_size,
+    "total": total,
+    "posts": posts,
+  }
+
+@app.post("/community/posts")
+def create_community_post(
+  title: str = Form(...),
+  description: str = Form(...),
+  category: str = Form("Discussion"),
+  images: list[UploadFile] = File(default=[]),
+  user=Depends(_get_current_user),
+):
+  """Create a new community post with up to 3 images."""
+  collection = _get_community_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not available")
+  
+  # Validate max 3 images
+  if len(images) > 3:
+    raise HTTPException(status_code=400, detail="Maximum 3 images allowed per post")
+  
+  # Upload images to Cloudinary
+  image_urls = []
+  for img in images:
+    if img.filename:
+      try:
+        contents = img.file.read()
+        result = cloudinary.uploader.upload(
+          contents,
+          folder="community-posts",
+          resource_type="image",
+        )
+        image_urls.append(result.get("secure_url"))
+      except Exception as e:
+        print(f"Failed to upload image: {e}")
+  
+  # Create post document
+  now = datetime.now().isoformat()
+  post_doc = {
+    "title": _censor_bad_words(title.strip()),
+    "description": _censor_bad_words(description.strip()),
+    "category": category,
+    "images": image_urls,
+    "author_id": str(user.get("_id", user.get("id", ""))),
+    "author_name": user.get("name", "Anonymous"),
+    "author_avatar": user.get("avatar", ""),
+    "likes": 0,
+    "liked_by": [],
+    "comments_count": 0,
+    "shares": 0,
+    "created_at": now,
+  }
+  
+  result = collection.insert_one(post_doc)
+  post_doc["id"] = str(result.inserted_id)
+  if "_id" in post_doc:
+    del post_doc["_id"]
+  
+  # Log audit event
+  user_name = user.get("name", "Unknown")
+  user_role = user.get("role", "user")
+  _log_audit_event(
+    actor=user_name,
+    actor_id=str(user.get("_id", "")),
+    role=user_role,
+    action="Created community post",
+    category="Community",
+    entity="Post",
+    entity_id=post_doc["id"],
+    status="success",
+    details=f"Title: {post_doc['title']}, Category: {category}"
+  )
+  
+  return {"status": "success", "post": post_doc}
+
+@app.post("/community/posts/{post_id}/like")
+def toggle_like_post(post_id: str, user=Depends(_get_current_user)):
+  """Toggle like on a post."""
+  collection = _get_community_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not available")
+  
+  try:
+    oid = ObjectId(post_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid post ID")
+  
+  post = collection.find_one({"_id": oid})
+  if not post:
+    raise HTTPException(status_code=404, detail="Post not found")
+  
+  user_id = str(user.get("_id", user.get("id", "")))
+  liked_by = post.get("liked_by", [])
+  
+  if user_id in liked_by:
+    # Unlike
+    collection.update_one(
+      {"_id": oid},
+      {"$pull": {"liked_by": user_id}, "$inc": {"likes": -1}}
+    )
+    liked = False
+  else:
+    # Like
+    collection.update_one(
+      {"_id": oid},
+      {"$push": {"liked_by": user_id}, "$inc": {"likes": 1}}
+    )
+    liked = True
+  
+  updated = collection.find_one({"_id": oid})
+  
+  # Log audit event
+  _log_audit_event(
+    actor=user.get("name", "Anonymous"),
+    actor_id=str(user.get("_id", "")),
+    role=user.get("role", "user"),
+    action="Liked post" if liked else "Unliked post",
+    category="Community",
+    entity="Post",
+    entity_id=post_id,
+    status="success",
+    details=f"Total likes: {updated.get('likes', 0)}"
+  )
+  
+  return {"status": "success", "liked": liked, "likes": updated.get("likes", 0)}
+
+@app.delete("/community/posts/{post_id}")
+def delete_community_post(post_id: str, user=Depends(_get_current_user)):
+  """Soft delete own post or admin can delete any - marks as deleted instead of removing."""
+  collection = _get_community_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not available")
+  
+  try:
+    oid = ObjectId(post_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid post ID")
+  
+  post = collection.find_one({"_id": oid})
+  if not post:
+    raise HTTPException(status_code=404, detail="Post not found")
+  
+  user_id = str(user.get("_id", user.get("id", "")))
+  user_role = (user.get("role") or "user").strip().lower()
+  
+  # Check ownership or admin
+  if post.get("author_id") != user_id and user_role != "admin":
+    raise HTTPException(status_code=403, detail="Not authorized to delete this post")
+  
+  # Soft delete - mark as deleted instead of removing
+  now = datetime.now().isoformat()
+  collection.update_one({"_id": oid}, {"$set": {
+    "is_deleted": True,
+    "deleted_at": now,
+    "updated_at": now,
+  }})
+
+  _log_audit_event(
+    actor=user.get("name", "Anonymous"),
+    actor_id=str(user.get("_id", "")),
+    role=user.get("role", "user"),
+    action="Deleted community post",
+    category="Community",
+    entity="Post",
+    entity_id=post_id,
+    status="success",
+    details="",
+  )
+  
+  return {"status": "success", "message": "Post deleted"}
+
+@app.put("/community/posts/{post_id}")
+def edit_community_post(
+  post_id: str,
+  title: str = Form(...),
+  description: str = Form(...),
+  category: str = Form("Discussion"),
+  user=Depends(_get_current_user),
+):
+  """Edit own post - only the post owner can edit."""
+  collection = _get_community_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not available")
+  
+  try:
+    oid = ObjectId(post_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid post ID")
+  
+  post = collection.find_one({"_id": oid})
+  if not post:
+    raise HTTPException(status_code=404, detail="Post not found")
+  
+  user_id = str(user.get("_id", user.get("id", "")))
+  
+  # Only owner can edit
+  if post.get("author_id") != user_id:
+    raise HTTPException(status_code=403, detail="Not authorized to edit this post")
+  
+  # Censor bad words
+  censored_title = _censor_bad_words(title.strip())
+  censored_description = _censor_bad_words(description.strip())
+  
+  collection.update_one(
+    {"_id": oid},
+    {"$set": {
+      "title": censored_title,
+      "description": censored_description,
+      "category": category,
+      "updated_at": datetime.now().isoformat(),
+    }}
+  )
+  
+  updated = collection.find_one({"_id": oid})
+  return {
+    "status": "success",
+    "post": {
+      "id": str(updated["_id"]),
+      "title": updated.get("title", ""),
+      "description": updated.get("description", ""),
+      "category": updated.get("category", "Discussion"),
+    }
+  }
+
+# NOTE: Static routes must be defined BEFORE dynamic {post_id} route
+@app.get("/community/posts/featured")
+def get_featured_posts(limit: int = 6):
+  """Get featured posts for community forum carousels: top, trending, showcase, tips."""
+  collection = _get_community_collection()
+  if collection is None:
+    return {"status": "success", "top": [], "trending": [], "showcase": [], "tips": []}
+  
+  # Only get active posts
+  base_query = {
+    "$and": [
+      {"$or": [{"is_deleted": {"$ne": True}}, {"is_deleted": {"$exists": False}}]},
+      {"$or": [{"is_disabled": {"$ne": True}}, {"is_disabled": {"$exists": False}}]}
+    ]
+  }
+  
+  # Top Posts: Most liked overall
+  top_posts = list(collection.find(base_query).sort("likes", -1).limit(limit))
+  
+  # Trending: Recent posts with high engagement (combined likes + comments in last 7 days)
+  from datetime import timedelta
+  week_ago = (datetime.now() - timedelta(days=7)).isoformat()
+  trending_query = {**base_query, "created_at": {"$gte": week_ago}}
+  trending_posts = list(collection.find(trending_query).sort([("likes", -1), ("comments_count", -1)]).limit(limit))
+  
+  # Showcase: Category = Showcase
+  showcase_query = {**base_query, "category": "Showcase"}
+  showcase_posts = list(collection.find(showcase_query).sort("created_at", -1).limit(limit))
+  
+  # Tips: Category = Tips
+  tips_query = {**base_query, "category": "Tips"}
+  tips_posts = list(collection.find(tips_query).sort("created_at", -1).limit(limit))
+  
+  return {
+    "status": "success",
+    "top": [_normalize_community_post(p) for p in top_posts],
+    "trending": [_normalize_community_post(p) for p in trending_posts],
+    "showcase": [_normalize_community_post(p) for p in showcase_posts],
+    "tips": [_normalize_community_post(p) for p in tips_posts],
+  }
+
+@app.get("/community/posts/top/liked")
+def get_most_liked_posts(limit: int = 7):
+  """Get most liked community posts (excludes deleted/disabled). Default 7 for carousel."""
+  collection = _get_community_collection()
+  if collection is None:
+    return {"status": "success", "posts": []}
+  
+  # Only get active posts
+  query = {
+    "$and": [
+      {"$or": [{"is_deleted": {"$ne": True}}, {"is_deleted": {"$exists": False}}]},
+      {"$or": [{"is_disabled": {"$ne": True}}, {"is_disabled": {"$exists": False}}]}
+    ]
+  }
+  cursor = collection.find(query).sort("likes", -1).limit(limit)
+  posts = [_normalize_community_post(doc) for doc in cursor]
+  return {"status": "success", "posts": posts}
+
+@app.get("/community/posts/by-category/{category}")
+def get_posts_by_category(category: str, limit: int = 7):
+  """Get posts filtered by category for horizontal carousel."""
+  collection = _get_community_collection()
+  if collection is None:
+    return {"status": "success", "posts": []}
+  
+  base_query = {
+    "$and": [
+      {"$or": [{"is_deleted": {"$ne": True}}, {"is_deleted": {"$exists": False}}]},
+      {"$or": [{"is_disabled": {"$ne": True}}, {"is_disabled": {"$exists": False}}]}
+    ]
+  }
+  
+  if category and category != "All":
+    base_query["category"] = category
+  
+  cursor = collection.find(base_query).sort("created_at", -1).limit(limit)
+  posts = [_normalize_community_post(doc) for doc in cursor]
+  return {"status": "success", "posts": posts}
+
+@app.get("/community/posts/{post_id}")
+def get_community_post(post_id: str):
+  """Get a single post with its comments."""
+  collection = _get_community_collection()
+  comments_collection = _get_comments_collection()
+  
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not available")
+  
+  try:
+    oid = ObjectId(post_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid post ID")
+  
+  post = collection.find_one({"_id": oid})
+  if not post:
+    raise HTTPException(status_code=404, detail="Post not found")
+  
+  # Check if post is deleted or disabled - still show for backward compatibility
+  # but regular users won't see it in the list anymore
+  
+  # Get comments - exclude deleted and disabled for public view
+  comments = []
+  if comments_collection is not None:
+    comment_query = {
+      "post_id": post_id,
+      "$or": [{"is_deleted": {"$ne": True}}, {"is_deleted": {"$exists": False}}],
+    }
+    # Also exclude disabled comments
+    comment_query["$and"] = [
+      {"$or": [{"is_disabled": {"$ne": True}}, {"is_disabled": {"$exists": False}}]}
+    ]
+    cursor = comments_collection.find({
+      "post_id": post_id,
+      "$and": [
+        {"$or": [{"is_deleted": {"$ne": True}}, {"is_deleted": {"$exists": False}}]},
+        {"$or": [{"is_disabled": {"$ne": True}}, {"is_disabled": {"$exists": False}}]}
+      ]
+    }).sort("created_at", 1)
+    for doc in cursor:
+      comments.append({
+        "id": str(doc["_id"]),
+        "post_id": doc.get("post_id", ""),
+        "author_id": doc.get("author_id", ""),
+        "author_name": doc.get("author_name", "Anonymous"),
+        "text": doc.get("text", ""),
+        "created_at": doc.get("created_at", ""),
+      })
+  
+  return {
+    "status": "success",
+    "post": {
+      "id": str(post["_id"]),
+      "title": post.get("title", ""),
+      "description": post.get("description", ""),
+      "images": post.get("images", []),
+      "category": post.get("category", "Discussion"),
+      "author_id": post.get("author_id", ""),
+      "author_name": post.get("author_name", "Anonymous"),
+      "author_avatar": post.get("author_avatar", ""),
+      "likes": post.get("likes", 0),
+      "liked_by": post.get("liked_by", []),
+      "comments_count": len(comments),
+      "shares": post.get("shares", 0),
+      "created_at": post.get("created_at", ""),
+    },
+    "comments": comments,
+  }
+
+@app.post("/community/posts/{post_id}/comments")
+def add_comment(post_id: str, text: str = Form(...), user=Depends(_get_current_user)):
+  """Add a comment to a post."""
+  collection = _get_community_collection()
+  comments_collection = _get_comments_collection()
+  
+  if collection is None or comments_collection is None:
+    raise HTTPException(status_code=500, detail="Database not available")
+  
+  try:
+    oid = ObjectId(post_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid post ID")
+  
+  post = collection.find_one({"_id": oid})
+  if not post:
+    raise HTTPException(status_code=404, detail="Post not found")
+  
+  # Censor bad words
+  censored_text = _censor_bad_words(text.strip())
+  
+  comment_doc = {
+    "post_id": post_id,
+    "author_id": str(user.get("_id", user.get("id", ""))),
+    "author_name": user.get("name", "Anonymous"),
+    "text": censored_text,
+    "created_at": datetime.now().isoformat(),
+  }
+  
+  result = comments_collection.insert_one(comment_doc)
+  
+  # Update comments count on post
+  collection.update_one({"_id": oid}, {"$inc": {"comments_count": 1}})
+  
+  comment_doc["id"] = str(result.inserted_id)
+  if "_id" in comment_doc:
+    del comment_doc["_id"]
+  
+  # Log audit event
+  _log_audit_event(
+    actor=user.get("name", "Anonymous"),
+    role=user.get("role", "user"),
+    action="Created comment",
+    category="Community",
+    entity="Comment",
+    entity_id=comment_doc["id"],
+    status="success",
+    details=f"Commented on post {post_id}"
+  )
+  
+  return {"status": "success", "comment": comment_doc}
+
+@app.delete("/community/comments/{comment_id}")
+def delete_comment(comment_id: str, user=Depends(_get_current_user)):
+  """Soft delete own comment or admin can delete any - marks as deleted instead of removing."""
+  comments_collection = _get_comments_collection()
+  
+  if comments_collection is None:
+    raise HTTPException(status_code=500, detail="Database not available")
+  
+  try:
+    oid = ObjectId(comment_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid comment ID")
+  
+  comment = comments_collection.find_one({"_id": oid})
+  if not comment:
+    raise HTTPException(status_code=404, detail="Comment not found")
+  
+  user_id = str(user.get("_id", user.get("id", "")))
+  user_role = (user.get("role") or "user").strip().lower()
+  
+  if comment.get("author_id") != user_id and user_role != "admin":
+    raise HTTPException(status_code=403, detail="Not authorized to delete this comment")
+  
+  # Soft delete - mark as deleted instead of removing
+  now = datetime.now().isoformat()
+  comments_collection.update_one({"_id": oid}, {"$set": {
+    "is_deleted": True,
+    "deleted_at": now,
+  }})
+  
+  return {"status": "success", "message": "Comment deleted"}
+
+def _get_users_collection():
+  """Return users collection from MongoDB."""
+  try:
+    return get_db()["users"]
+  except Exception:
+    return None
+
+@app.get("/community/stats")
+def get_community_stats():
+  """Get community statistics for sidebar (total users, posts, comments)."""
+  users_collection = _get_users_collection()
+  posts_collection = _get_community_collection()
+  comments_collection = _get_comments_collection()
+  
+  total_users = 0
+  total_posts = 0
+  total_comments = 0
+  
+  if users_collection is not None:
+    total_users = users_collection.count_documents({})
+  
+  if posts_collection is not None:
+    total_posts = posts_collection.count_documents({
+      "$and": [
+        {"$or": [{"is_deleted": {"$ne": True}}, {"is_deleted": {"$exists": False}}]},
+        {"$or": [{"is_disabled": {"$ne": True}}, {"is_disabled": {"$exists": False}}]}
+      ]
+    })
+  
+  if comments_collection is not None:
+    total_comments = comments_collection.count_documents({
+      "$and": [
+        {"$or": [{"is_deleted": {"$ne": True}}, {"is_deleted": {"$exists": False}}]},
+        {"$or": [{"is_disabled": {"$ne": True}}, {"is_disabled": {"$exists": False}}]}
+      ]
+    })
+  
+  return {
+    "status": "success",
+    "total_users": total_users,
+    "total_posts": total_posts,
+    "total_comments": total_comments
+  }
+
+# --- Admin Community Posts Management ---
+
+class TogglePostStatusBody(BaseModel):
+  reason: str = ""
+
+class ToggleCommentStatusBody(BaseModel):
+  reason: str = ""
+
+@app.get("/admin/posts")
+def get_admin_posts(
+  page: int = 1,
+  page_size: int = 20,
+  status: str = "all",
+  search: str = "",
+  category: str = "all",
+  user=Depends(_require_admin_user)
+):
+  """Get all community posts for admin management (including deleted/disabled)."""
+  collection = _get_community_collection()
+  if collection is None:
+    return {"status": "error", "message": "Database not available"}
+  
+  page = max(page, 1)
+  page_size = min(max(page_size, 1), 50)
+  
+  # Build query - admin sees ALL posts
+  query = {}
+  if status == "active":
+    query["$and"] = [
+      {"$or": [{"is_deleted": {"$ne": True}}, {"is_deleted": {"$exists": False}}]},
+      {"$or": [{"is_disabled": {"$ne": True}}, {"is_disabled": {"$exists": False}}]}
+    ]
+  elif status == "deleted":
+    query["is_deleted"] = True
+  elif status == "disabled":
+    query["is_disabled"] = True
+  
+  if category and category != "all":
+    query["category"] = category
+  
+  if search:
+    search_query = {"$or": [
+      {"title": {"$regex": search, "$options": "i"}},
+      {"description": {"$regex": search, "$options": "i"}},
+      {"author_name": {"$regex": search, "$options": "i"}},
+    ]}
+    if query:
+      query = {"$and": [query, search_query]}
+    else:
+      query = search_query
+  
+  total = collection.count_documents(query)
+  skip = (page - 1) * page_size
+  cursor = collection.find(query).sort("created_at", -1).skip(skip).limit(page_size)
+  
+  # Get user info for posts
+  db = get_db()
+  users_collection = db["users"]
+  
+  posts = []
+  for doc in cursor:
+    # Determine status
+    post_status = "active"
+    if doc.get("is_disabled"):
+      post_status = "disabled"
+    elif doc.get("is_deleted"):
+      post_status = "deleted"
+    
+    # Get actual comments count (including deleted for admin)
+    comments_collection = _get_comments_collection()
+    total_comments = 0
+    if comments_collection is not None:
+      total_comments = comments_collection.count_documents({"post_id": str(doc["_id"])})
+    
+    posts.append({
+      "id": str(doc["_id"]),
+      "title": doc.get("title", ""),
+      "description": doc.get("description", ""),
+      "images": doc.get("images", []),
+      "category": doc.get("category", "Discussion"),
+      "author_id": doc.get("author_id", ""),
+      "author_name": doc.get("author_name", "Anonymous"),
+      "author_avatar": doc.get("author_avatar", ""),
+      "likes": doc.get("likes", 0),
+      "comments_count": total_comments,
+      "status": post_status,
+      "created_at": doc.get("created_at", ""),
+      "updated_at": doc.get("updated_at", doc.get("deleted_at", "")),
+      "disable_reason": doc.get("disable_reason", ""),
+    })
+  
+  return {
+    "status": "success",
+    "page": page,
+    "page_size": page_size,
+    "total": total,
+    "posts": posts,
+  }
+
+@app.get("/admin/posts/stats")
+def get_admin_posts_stats(user=Depends(_require_admin_user)):
+  """Get community posts statistics for admin dashboard."""
+  collection = _get_community_collection()
+  if collection is None:
+    return {"status": "error", "message": "Database not available"}
+  
+  total = collection.count_documents({})
+  active = collection.count_documents({
+    "$and": [
+      {"$or": [{"is_deleted": {"$ne": True}}, {"is_deleted": {"$exists": False}}]},
+      {"$or": [{"is_disabled": {"$ne": True}}, {"is_disabled": {"$exists": False}}]}
+    ]
+  })
+  deleted = collection.count_documents({"is_deleted": True})
+  disabled = collection.count_documents({"is_disabled": True})
+  
+  # Get comments stats
+  comments_collection = _get_comments_collection()
+  total_comments = 0
+  active_comments = 0
+  deleted_comments = 0
+  disabled_comments = 0
+  if comments_collection is not None:
+    total_comments = comments_collection.count_documents({})
+    active_comments = comments_collection.count_documents({
+      "$and": [
+        {"$or": [{"is_deleted": {"$ne": True}}, {"is_deleted": {"$exists": False}}]},
+        {"$or": [{"is_disabled": {"$ne": True}}, {"is_disabled": {"$exists": False}}]}
+      ]
+    })
+    deleted_comments = comments_collection.count_documents({"is_deleted": True})
+    disabled_comments = comments_collection.count_documents({"is_disabled": True})
+  
+  return {
+    "status": "success",
+    "stats": {
+      "total_posts": total,
+      "active_posts": active,
+      "deleted_posts": deleted,
+      "disabled_posts": disabled,
+      "total_comments": total_comments,
+      "active_comments": active_comments,
+      "deleted_comments": deleted_comments,
+      "disabled_comments": disabled_comments,
+    }
+  }
+
+@app.put("/admin/posts/{post_id}/toggle-status")
+def toggle_post_status(post_id: str, body: TogglePostStatusBody, user=Depends(_require_admin_user)):
+  """Toggle post disabled status (admin only)."""
+  collection = _get_community_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not available")
+  
+  try:
+    oid = ObjectId(post_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid post ID")
+  
+  post = collection.find_one({"_id": oid})
+  if not post:
+    raise HTTPException(status_code=404, detail="Post not found")
+  
+  is_disabled = post.get("is_disabled", False)
+  new_status = not is_disabled
+  now = datetime.now().isoformat()
+  
+  update_data = {
+    "is_disabled": new_status,
+    "updated_at": now,
+  }
+  
+  if new_status:
+    update_data["disable_reason"] = body.reason or "Disabled by admin"
+    update_data["disabled_at"] = now
+    update_data["disabled_by"] = str(user.get("_id", user.get("id", "")))
+  else:
+    update_data["disable_reason"] = ""
+    update_data["enabled_at"] = now
+  
+  collection.update_one({"_id": oid}, {"$set": update_data})
+  
+  # TODO: Send email notification to post author
+  
+  return {
+    "status": "success",
+    "post_id": post_id,
+    "new_status": "disabled" if new_status else "active",
+    "message": f"Post {'disabled' if new_status else 'enabled'} successfully",
+  }
+
+@app.get("/admin/posts/{post_id}/comments")
+def get_admin_post_comments(post_id: str, user=Depends(_require_admin_user)):
+  """Get all comments for a post (including deleted/disabled) - admin only."""
+  collection = _get_community_collection()
+  comments_collection = _get_comments_collection()
+  
+  if collection is None or comments_collection is None:
+    raise HTTPException(status_code=500, detail="Database not available")
+  
+  try:
+    oid = ObjectId(post_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid post ID")
+  
+  post = collection.find_one({"_id": oid})
+  if not post:
+    raise HTTPException(status_code=404, detail="Post not found")
+  
+  # Get ALL comments including deleted and disabled
+  cursor = comments_collection.find({"post_id": post_id}).sort("created_at", 1)
+  
+  comments = []
+  for doc in cursor:
+    # Determine status
+    comment_status = "active"
+    if doc.get("is_disabled"):
+      comment_status = "disabled"
+    elif doc.get("is_deleted"):
+      comment_status = "deleted"
+    
+    comments.append({
+      "id": str(doc["_id"]),
+      "post_id": doc.get("post_id", ""),
+      "author_id": doc.get("author_id", ""),
+      "author_name": doc.get("author_name", "Anonymous"),
+      "text": doc.get("text", ""),
+      "status": comment_status,
+      "created_at": doc.get("created_at", ""),
+      "deleted_at": doc.get("deleted_at", ""),
+      "disable_reason": doc.get("disable_reason", ""),
+    })
+  
+  # Determine post status
+  post_status = "active"
+  if post.get("is_disabled"):
+    post_status = "disabled"
+  elif post.get("is_deleted"):
+    post_status = "deleted"
+  
+  return {
+    "status": "success",
+    "post": {
+      "id": str(post["_id"]),
+      "title": post.get("title", ""),
+      "description": post.get("description", ""),
+      "images": post.get("images", []),
+      "category": post.get("category", "Discussion"),
+      "author_id": post.get("author_id", ""),
+      "author_name": post.get("author_name", "Anonymous"),
+      "author_avatar": post.get("author_avatar", ""),
+      "likes": post.get("likes", 0),
+      "status": post_status,
+      "created_at": post.get("created_at", ""),
+      "disable_reason": post.get("disable_reason", ""),
+    },
+    "comments": comments,
+    "total_comments": len(comments),
+  }
+
+@app.put("/admin/comments/{comment_id}/toggle-status")
+def toggle_comment_status(comment_id: str, body: ToggleCommentStatusBody, user=Depends(_require_admin_user)):
+  """Toggle comment disabled status (admin only)."""
+  comments_collection = _get_comments_collection()
+  if comments_collection is None:
+    raise HTTPException(status_code=500, detail="Database not available")
+  
+  try:
+    oid = ObjectId(comment_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid comment ID")
+  
+  comment = comments_collection.find_one({"_id": oid})
+  if not comment:
+    raise HTTPException(status_code=404, detail="Comment not found")
+  
+  is_disabled = comment.get("is_disabled", False)
+  new_status = not is_disabled
+  now = datetime.now().isoformat()
+  
+  update_data = {
+    "is_disabled": new_status,
+  }
+  
+  if new_status:
+    update_data["disable_reason"] = body.reason or "Disabled by admin"
+    update_data["disabled_at"] = now
+    update_data["disabled_by"] = str(user.get("_id", user.get("id", "")))
+  else:
+    update_data["disable_reason"] = ""
+    update_data["enabled_at"] = now
+  
+  comments_collection.update_one({"_id": oid}, {"$set": update_data})
+  
+  # TODO: Send email notification to comment author
+  # Get author email
+  db = get_db()
+  author_id = comment.get("author_id")
+  if author_id and new_status:
+    try:
+      author = db["users"].find_one({"_id": ObjectId(author_id)})
+      if author and author.get("email"):
+        # TODO: Implement actual email sending
+        print(f"Would send email to {author.get('email')} about disabled comment")
+    except:
+      pass
+  
+  return {
+    "status": "success",
+    "comment_id": comment_id,
+    "new_status": "disabled" if new_status else "active",
+    "message": f"Comment {'disabled' if new_status else 'enabled'} successfully",
+  }
+
+# --- Admin Users Management ---
+@app.get("/admin/users")
+def get_admin_users(
+  page: int = 1,
+  page_size: int = 20,
+  role: str = "all",
+  status: str = "all",
+  search: str = "",
+  user=Depends(_require_admin_user)
+):
+  """Get all users for admin management with filters."""
+  db = get_db()
+  users_collection = db["users"]
+  
+  query = {}
+  if role != "all" and role in ["admin", "seller", "user"]:
+    query["role"] = role
+  if status != "all" and status in ["active", "inactive"]:
+    query["status"] = status
+  if search:
+    query["$or"] = [
+      {"name": {"$regex": search, "$options": "i"}},
+      {"email": {"$regex": search, "$options": "i"}},
+    ]
+  
+  total = users_collection.count_documents(query)
+  skip = (max(page, 1) - 1) * page_size
+  cursor = users_collection.find(query).skip(skip).limit(page_size).sort("created_at", -1)
+  
+  users_list = []
+  for doc in cursor:
+    user_id = str(doc["_id"])
+    
+    # Get order count for this user (from scan_history in Cloudinary - approximate)
+    orders_count = 0
+    products_count = 0
+    
+    # For now, use placeholder counts - can add real logic later
+    user_role = doc.get("role", "user")
+    if user_role == "seller":
+      products_count = 0  # Placeholder - would fetch from products collection
+    
+    users_list.append({
+      "id": user_id,
+      "name": doc.get("name", ""),
+      "email": doc.get("email", ""),
+      "role": user_role,
+      "status": doc.get("status", "active"),
+      "avatar": doc.get("avatar", ""),
+      "joined_at": doc.get("created_at", ""),
+      "orders_count": orders_count,
+      "products_count": products_count,
+      "deactivation_reason": doc.get("deactivation_reason", ""),
+    })
+  
+  return {
+    "status": "success",
+    "page": page,
+    "page_size": page_size,
+    "total": total,
+    "users": users_list,
+  }
+
+@app.get("/admin/users/stats")
+def get_admin_users_stats(user=Depends(_require_admin_user)):
+  """Get user statistics for admin dashboard."""
+  db = get_db()
+  users_collection = db["users"]
+  
+  total = users_collection.count_documents({})
+  admins = users_collection.count_documents({"role": "admin"})
+  sellers = users_collection.count_documents({"role": "seller"})
+  users_count = users_collection.count_documents({"role": "user"})
+  active = users_collection.count_documents({"status": {"$ne": "inactive"}})
+  inactive = users_collection.count_documents({"status": "inactive"})
+  
+  return {
+    "status": "success",
+    "stats": {
+      "total": total,
+      "admins": admins,
+      "sellers": sellers,
+      "users": users_count,
+      "active": active,
+      "inactive": inactive,
+    }
+  }
+
+class ToggleUserStatusBody(BaseModel):
+  reason: str = ""
+
+@app.put("/admin/users/{user_id}/toggle-status")
+def toggle_user_status(user_id: str, body: ToggleUserStatusBody, user=Depends(_require_admin_user)):
+  """Toggle user active/inactive status."""
+  db = get_db()
+  users_collection = db["users"]
+  
+  try:
+    oid = ObjectId(user_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid user ID")
+  
+  target_user = users_collection.find_one({"_id": oid})
+  if not target_user:
+    raise HTTPException(status_code=404, detail="User not found")
+  
+  current_status = target_user.get("status", "active")
+  new_status = "inactive" if current_status == "active" else "active"
+  
+  update_data = {"status": new_status}
+  if new_status == "inactive":
+    update_data["deactivation_reason"] = body.reason or "No reason provided"
+    update_data["deactivated_at"] = datetime.utcnow().isoformat()
+  else:
+    update_data["deactivation_reason"] = ""
+    update_data["reactivated_at"] = datetime.utcnow().isoformat()
+  
+  users_collection.update_one({"_id": oid}, {"$set": update_data})
+  
+  # TODO: Send email notification to user (implement with SMTP or email service)
+  # For now, just return success
+  
+  return {
+    "status": "success",
+    "new_status": new_status,
+    "user_id": user_id,
+    "message": f"User {'deactivated' if new_status == 'inactive' else 'activated'} successfully",
+  }
+
+@app.get("/admin/users/{user_id}")
+def get_admin_user_detail(user_id: str, user=Depends(_require_admin_user)):
+  """Get detailed user information for admin view."""
+  db = get_db()
+  users_collection = db["users"]
+  
+  try:
+    oid = ObjectId(user_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid user ID")
+  
+  target_user = users_collection.find_one({"_id": oid})
+  if not target_user:
+    raise HTTPException(status_code=404, detail="User not found")
+  
+  user_role = target_user.get("role", "user")
+  
+  # Get scan history count for this user
+  scans_count = 0
+  orders_count = 0
+  products_count = 0
+  
+  # TODO: Add real counts from respective collections
+  
+  return {
+    "status": "success",
+    "user": {
+      "id": str(target_user["_id"]),
+      "name": target_user.get("name", ""),
+      "email": target_user.get("email", ""),
+      "role": user_role,
+      "status": target_user.get("status", "active"),
+      "avatar": target_user.get("avatar", ""),
+      "joined_at": target_user.get("created_at", ""),
+      "deactivation_reason": target_user.get("deactivation_reason", ""),
+      "deactivated_at": target_user.get("deactivated_at", ""),
+      "reactivated_at": target_user.get("reactivated_at", ""),
+      "scans_count": scans_count,
+      "orders_count": orders_count,
+      "products_count": products_count,
+    }
+  }
+
+# --- Seller Products & Categories ---
+
+# --- Admin Orders Management ---
+@app.get("/admin/orders/stats")
+def get_admin_orders_stats(user=Depends(_require_admin_user)):
+  """Get quick stats for admin orders dashboard."""
+  db = get_db()
+  orders_collection = _get_orders_collection()
+  
+  if orders_collection is None:
+    return {
+      "status": "success",
+      "stats": {
+        "total_orders": 0,
+        "pending_orders": 0,
+        "confirmed_orders": 0,
+        "shipped_orders": 0,
+        "delivered_orders": 0,
+        "cancelled_orders": 0,
+        "total_revenue": 0,
+        "total_sales": 0,
+        "avg_order_value": 0,
+      }
+    }
+  
+  total_orders = orders_collection.count_documents({})
+  pending_orders = orders_collection.count_documents({"status": "pending"})
+  confirmed_orders = orders_collection.count_documents({"status": "confirmed"})
+  shipped_orders = orders_collection.count_documents({"status": "shipped"})
+  delivered_orders = orders_collection.count_documents({"status": "delivered"})
+  cancelled_orders = orders_collection.count_documents({"status": "cancelled"})
+  
+  # Calculate total revenue (only from delivered orders for accuracy)
+  revenue_docs = list(orders_collection.find({"status": "delivered"}, {"total": 1}))
+  total_revenue = sum(float(doc.get("total", 0)) for doc in revenue_docs)
+  
+  # Calculate total sales (all orders regardless of status - this includes all seller transactions)
+  all_orders = list(orders_collection.find({}, {"total": 1}))
+  total_sales = sum(float(doc.get("total", 0)) for doc in all_orders)
+  
+  # Calculate average order value
+  avg_order_value = total_sales / total_orders if total_orders > 0 else 0
+  
+  return {
+    "status": "success",
+    "stats": {
+      "total_orders": total_orders,
+      "pending_orders": pending_orders,
+      "confirmed_orders": confirmed_orders,
+      "shipped_orders": shipped_orders,
+      "delivered_orders": delivered_orders,
+      "cancelled_orders": cancelled_orders,
+      "total_revenue": total_revenue,
+      "total_sales": total_sales,
+      "avg_order_value": round(avg_order_value, 2),
+    }
+  }
+
+@app.get("/admin/orders/by-time")
+def get_admin_orders_by_time(
+  year: int = None,
+  month: int = None,
+  user=Depends(_require_admin_user)
+):
+  """Get orders grouped by day for heat map visualization."""
+  from datetime import datetime
+  import calendar
+  
+  orders_collection = _get_orders_collection()
+  
+  if orders_collection is None:
+    return {"status": "success", "data": [], "year": year, "month": month}
+  
+  # Default to current year/month if not specified
+  now = datetime.now()
+  if year is None:
+    year = now.year
+  if month is None:
+    month = now.month
+  
+  # Get first and last day of the month
+  first_day = datetime(year, month, 1)
+  last_day_num = calendar.monthrange(year, month)[1]
+  last_day = datetime(year, month, last_day_num, 23, 59, 59)
+  
+  # Query orders in the date range
+  query = {
+    "created_at": {
+      "$gte": first_day.isoformat(),
+      "$lte": last_day.isoformat()
+    }
+  }
+  
+  orders = list(orders_collection.find(query))
+  
+  # Group by day of week and day of month
+  day_counts = {}
+  for order in orders:
+    created_at = order.get("created_at", "")
+    if created_at:
+      try:
+        dt = datetime.fromisoformat(created_at.replace("Z", "+00:00").replace("+00:00", ""))
+        day_of_month = dt.day
+        day_of_week = dt.weekday()  # 0 = Monday, 6 = Sunday
+        key = f"{day_of_month}"
+        if key not in day_counts:
+          day_counts[key] = {"day": day_of_month, "weekday": day_of_week, "count": 0, "total": 0}
+        day_counts[key]["count"] += 1
+        day_counts[key]["total"] += float(order.get("total", 0))
+      except:
+        pass
+  
+  # Build calendar grid (weeks x days)
+  first_weekday = first_day.weekday()  # 0 = Monday
+  weeks = []
+  current_day = 1
+  
+  for week_idx in range(6):  # Max 6 weeks in a month view
+    week = []
+    for day_idx in range(7):
+      if week_idx == 0 and day_idx < first_weekday:
+        week.append({"day": None, "count": 0, "total": 0})
+      elif current_day > last_day_num:
+        week.append({"day": None, "count": 0, "total": 0})
+      else:
+        key = f"{current_day}"
+        data = day_counts.get(key, {"day": current_day, "weekday": day_idx, "count": 0, "total": 0})
+        week.append({
+          "day": current_day,
+          "count": data["count"],
+          "total": round(data["total"], 2)
+        })
+        current_day += 1
+    weeks.append(week)
+    if current_day > last_day_num:
+      break
+  
+  return {
+    "status": "success",
+    "year": year,
+    "month": month,
+    "month_name": calendar.month_name[month],
+    "weeks": weeks,
+    "max_count": max([d["count"] for w in weeks for d in w if d["day"] is not None], default=0)
+  }
+
+@app.get("/admin/orders")
+def get_admin_orders(
+  page: int = 1,
+  page_size: int = 20,
+  status: str = "all",
+  seller: str = "all",
+  category: str = "all",
+  search: str = "",
+  user=Depends(_require_admin_user)
+):
+  """Get all orders for admin management with filters."""
+  db = get_db()
+  orders_collection = _get_orders_collection()
+  products_collection = _get_products_collection()
+  users_collection = _get_users_collection()
+  
+  if orders_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  
+  page = max(page, 1)
+  page_size = min(max(page_size, 1), 50)
+  
+  # Build query
+  query = {}
+  if status != "all":
+    query["status"] = status
+  
+  # Get all orders and filter in app for seller/category (requires product lookup)
+  docs = list(orders_collection.find(query).sort("created_at", -1))
+  
+  filtered_orders = []
+  
+  for doc in docs:
+    order_id = str(doc.get("_id"))
+    user_id = doc.get("user_id")
+    items = doc.get("items", [])
+    
+    # Get buyer name
+    buyer_name = "Unknown"
+    if user_id:
+      try:
+        buyer_user = users_collection.find_one({"_id": ObjectId(user_id)})
+        if buyer_user:
+          buyer_name = buyer_user.get("name", "Unknown")
+      except:
+        pass
+    
+    # Get seller and category from first product in order
+    seller_name = "Unknown"
+    order_category = ""
+    
+    if items:
+      first_item = items[0]
+      product_id = first_item.get("product_id")
+      
+      if product_id:
+        try:
+          product = products_collection.find_one({"_id": ObjectId(product_id)})
+          if product:
+            seller_id = product.get("seller_id")
+            if seller_id:
+              try:
+                seller_user = users_collection.find_one({"_id": ObjectId(seller_id)})
+                if seller_user:
+                  seller_name = seller_user.get("name", "Unknown")
+              except:
+                pass
+            
+            order_category = product.get("category", "")
+        except:
+          pass
+    
+    # Apply filters
+    if seller != "all" and seller_name != seller:
+      continue
+    if category != "all" and order_category != category:
+      continue
+    if search and not (
+      order_id.lower().find(search.lower()) >= 0 or
+      buyer_name.lower().find(search.lower()) >= 0 or
+      seller_name.lower().find(search.lower()) >= 0
+    ):
+      continue
+    
+    filtered_orders.append({
+      "id": order_id,
+      "order_number": doc.get("order_number", order_id[:8]),
+      "buyer_id": user_id or "",
+      "buyer_name": buyer_name,
+      "seller_id": "",  # Can enhance later
+      "seller_name": seller_name,
+      "category": order_category,
+      "status": doc.get("status", "pending"),
+      "total": float(doc.get("total", 0)),
+      "total_items": len(items),
+      "created_at": doc.get("created_at", ""),
+      "updated_at": doc.get("updated_at", ""),
+    })
+  
+  total = len(filtered_orders)
+  start = (page - 1) * page_size
+  end = start + page_size
+  paginated_orders = filtered_orders[start:end]
+  
+  return {
+    "status": "success",
+    "page": page,
+    "page_size": page_size,
+    "total": total,
+    "orders": paginated_orders,
+  }
+
+@app.get("/admin/orders/{order_id}")
+def get_admin_order_detail(order_id: str, user=Depends(_require_admin_user)):
+  """Get detailed order information for admin view."""
+  db = get_db()
+  orders_collection = _get_orders_collection()
+  users_collection = _get_users_collection()
+  
+  if orders_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  
+  try:
+    oid = ObjectId(order_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid order ID")
+  
+  order_doc = orders_collection.find_one({"_id": oid})
+  if not order_doc:
+    raise HTTPException(status_code=404, detail="Order not found")
+  
+  user_id = order_doc.get("user_id")
+  buyer_name = "Unknown"
+  
+  if user_id:
+    try:
+      buyer_user = users_collection.find_one({"_id": ObjectId(user_id)})
+      if buyer_user:
+        buyer_name = buyer_user.get("name", "Unknown")
+    except:
+      pass
+  
+  # Get seller name from products
+  seller_name = "Unknown"
+  category = "General"
+  items = order_doc.get("items", [])
+  
+  if items:
+    products_collection = _get_products_collection()
+    first_item = items[0]
+    product_id = first_item.get("product_id")
+    
+    if product_id:
+      try:
+        product = products_collection.find_one({"_id": ObjectId(product_id)})
+        if product:
+          category = product.get("category", "General")
+          seller_id = product.get("seller_id")
+          if seller_id:
+            try:
+              seller_user = users_collection.find_one({"_id": ObjectId(seller_id)})
+              if seller_user:
+                seller_name = seller_user.get("name", "Unknown")
+            except:
+              pass
+      except:
+        pass
+  
+  return {
+    "status": "success",
+    "order": {
+      "id": str(order_doc["_id"]),
+      "order_number": order_doc.get("order_number", str(order_doc["_id"])[:8]),
+      "buyer_id": user_id or "",
+      "buyer_name": buyer_name,
+      "seller_id": "",
+      "seller_name": seller_name,
+      "category": category,
+      "status": order_doc.get("status", "pending"),
+      "total": float(order_doc.get("total", 0)),
+      "total_items": len(items),
+      "payment_method": order_doc.get("payment_method", ""),
+      "address": order_doc.get("address", {}),
+      "items": items,
+      "created_at": order_doc.get("created_at", ""),
+      "updated_at": order_doc.get("updated_at", ""),
+    }
+  }
+
+class OrderStatusUpdateBody(BaseModel):
+  status: str
+
+@app.put("/admin/orders/{order_id}/status")
+def update_admin_order_status(order_id: str, body: OrderStatusUpdateBody, user=Depends(_require_admin_user)):
+  """Update order status (admin only)."""
+  db = get_db()
+  orders_collection = _get_orders_collection()
+  
+  if orders_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  
+  try:
+    oid = ObjectId(order_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid order ID")
+  
+  order_doc = orders_collection.find_one({"_id": oid})
+  if not order_doc:
+    raise HTTPException(status_code=404, detail="Order not found")
+  
+  new_status = body.status
+  valid_statuses = ["pending", "confirmed", "shipped", "delivered", "cancelled"]
+  
+  if new_status not in valid_statuses:
+    raise HTTPException(status_code=400, detail="Invalid status")
+  
+  update_data = {
+    "status": new_status,
+    "updated_at": datetime.utcnow().isoformat(),
+  }
+  
+  orders_collection.update_one({"_id": oid}, {"$set": update_data})
+  
+  return {
+    "status": "success",
+    "new_status": new_status,
+    "message": f"Order status updated to {new_status}",
+    "order": _normalize_order(orders_collection.find_one({"_id": oid}))
+  }
+
+class CategoryCreateBody(BaseModel):
+  name: str
+  description: Optional[str] = None
+
+class CategoryUpdateBody(BaseModel):
+  name: Optional[str] = None
+  description: Optional[str] = None
+
+class ProductCreateBody(BaseModel):
+  name: str
+  description: Optional[str] = None
+  price: float
+  category_id: Optional[str] = None
+  stock_qty: int = 0
+  status: Optional[str] = None
+
+class ProductUpdateBody(BaseModel):
+  name: Optional[str] = None
+  description: Optional[str] = None
+  price: Optional[float] = None
+  category_id: Optional[str] = None
+  stock_qty: Optional[int] = None
+  status: Optional[str] = None
+  main_image_index: Optional[int] = None
+
+class ProductDisableBody(BaseModel):
+  disabled: Optional[bool] = None
+
+class ReviewCreateBody(BaseModel):
+  rating: int
+  comment: str
+
+class ReviewUpdateBody(BaseModel):
+  rating: Optional[int] = None
+  comment: Optional[str] = None
+
+REVIEW_COMMENT_REGEX = re.compile(r"^[A-Za-z0-9\s.,!?'\"-]{5,500}$")
+
+def _validate_review_comment(comment: str):
+  cleaned = (comment or "").strip()
+  if not cleaned:
+    raise HTTPException(status_code=400, detail="Comment is required")
+  if not REVIEW_COMMENT_REGEX.fullmatch(cleaned):
+    raise HTTPException(status_code=400, detail="Comment must be 5-500 chars and use letters, numbers, and basic punctuation")
+  return cleaned
+
+def _user_has_ordered_product(orders_collection, user_id: str, product_id: str) -> bool:
+  """Check if user has ordered and received (delivered/shipped) a product."""
+  if orders_collection is None:
+    return False
+  # Only allow reviews if order is shipped or delivered
+  match = orders_collection.find_one({
+    "user_id": user_id,
+    "items.product_id": product_id,
+    "status": {"$in": ["shipped", "delivered"]}
+  })
+  return bool(match)
+
+def _normalize_review(doc: dict) -> dict:
+  return {
+    "id": str(doc.get("_id")),
+    "product_id": str(doc.get("product_id")) if doc.get("product_id") else "",
+    "seller_id": doc.get("seller_id", ""),
+    "user_id": doc.get("user_id", ""),
+    "user_name": doc.get("user_name", ""),
+    "rating": doc.get("rating", 0),
+    "comment": doc.get("comment", ""),
+    "created_at": doc.get("created_at", ""),
+    "updated_at": doc.get("updated_at", ""),
+  }
+
+def _normalize_category(doc: dict) -> dict:
+  return {
+    "id": str(doc.get("_id")),
+    "name": doc.get("name", ""),
+    "description": doc.get("description", ""),
+    "created_at": doc.get("created_at", ""),
+    "updated_at": doc.get("updated_at", ""),
+  }
+
+def _normalize_product(doc: dict) -> dict:
+  return {
+    "id": str(doc.get("_id")),
+    "seller_id": doc.get("seller_id", ""),
+    "seller_name": doc.get("seller_name", ""),
+    "name": doc.get("name", ""),
+    "description": doc.get("description", ""),
+    "price": doc.get("price", 0),
+    "category_id": str(doc.get("category_id")) if doc.get("category_id") else None,
+    "category_name": doc.get("category_name", ""),
+    "stock_qty": doc.get("stock_qty", 0),
+    "status": doc.get("status", "available"),
+    "images": doc.get("images", []),
+    "main_image_index": doc.get("main_image_index", 0),
+    "is_disabled": doc.get("is_disabled", False),
+    "sold_count": doc.get("sold_count", 0),
+    "created_at": doc.get("created_at", ""),
+    "updated_at": doc.get("updated_at", ""),
+  }
+
+@app.get("/categories")
+def get_categories(user=Depends(_require_seller_user)):
+  collection = _get_categories_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  docs = list(collection.find({}).sort("name", 1))
+  return {"status": "success", "categories": [_normalize_category(d) for d in docs]}
+
+@app.post("/categories")
+def create_category(body: CategoryCreateBody, user=Depends(_require_seller_user)):
+  collection = _get_categories_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  name = (body.name or "").strip()
+  if not name:
+    raise HTTPException(status_code=400, detail="Category name is required")
+  existing = collection.find_one({"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}})
+  if existing:
+    raise HTTPException(status_code=400, detail="Category already exists")
+  now = datetime.utcnow().isoformat()
+  doc = {
+    "name": name,
+    "description": (body.description or "").strip(),
+    "created_at": now,
+    "updated_at": now,
+    "created_by": str(user.get("_id")),
+  }
+  result = collection.insert_one(doc)
+  doc["_id"] = result.inserted_id
+  return {"status": "success", "category": _normalize_category(doc)}
+
+@app.patch("/categories/{category_id}")
+def update_category(category_id: str, body: CategoryUpdateBody, user=Depends(_require_seller_user)):
+  collection = _get_categories_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  try:
+    oid = ObjectId(category_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid category ID")
+  updates: Dict[str, Any] = {"updated_at": datetime.utcnow().isoformat()}
+  if body.name is not None:
+    name = body.name.strip()
+    if not name:
+      raise HTTPException(status_code=400, detail="Category name is required")
+    updates["name"] = name
+  if body.description is not None:
+    updates["description"] = body.description.strip()
+  result = collection.update_one({"_id": oid}, {"$set": updates})
+  if result.matched_count == 0:
+    raise HTTPException(status_code=404, detail="Category not found")
+  doc = collection.find_one({"_id": oid})
+  return {"status": "success", "category": _normalize_category(doc)}
+
+@app.delete("/categories/{category_id}")
+def delete_category(category_id: str, user=Depends(_require_seller_user)):
+  collection = _get_categories_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  try:
+    oid = ObjectId(category_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid category ID")
+  result = collection.delete_one({"_id": oid})
+  if result.deleted_count == 0:
+    raise HTTPException(status_code=404, detail="Category not found")
+  return {"status": "success"}
+
+@app.get("/catalog/categories")
+def get_catalog_categories():
+  collection = _get_categories_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  docs = list(collection.find({}).sort("name", 1))
+  return {"status": "success", "categories": [_normalize_category(d) for d in docs]}
+
+@app.get("/catalog/sellers")
+def get_catalog_sellers():
+  collection = _get_products_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  pipeline = [
+    {"$match": {"is_disabled": {"$ne": True}, "status": "available"}},
+    {"$group": {
+      "_id": "$seller_id",
+      "name": {"$first": "$seller_name"},
+      "product_count": {"$sum": 1},
+      "total_sold": {"$sum": {"$ifNull": ["$sold_count", 0]}},
+    }},
+    {"$sort": {"name": 1}},
+  ]
+  sellers = []
+  for item in collection.aggregate(pipeline):
+    sellers.append({
+      "id": item.get("_id", ""),
+      "name": item.get("name", ""),
+      "product_count": item.get("product_count", 0),
+      "total_sold": item.get("total_sold", 0),
+    })
+  return {"status": "success", "sellers": sellers}
+
+@app.get("/catalog/sellers/{seller_id}")
+def get_seller_store_profile(seller_id: str):
+  """Get seller store profile with stats."""
+  try:
+    products_collection = _get_products_collection()
+    db = get_db()
+    if products_collection is None or db is None:
+      raise HTTPException(status_code=500, detail="Database not configured")
+    
+    users_collection = db["users"]
+    
+    # Try to find seller user
+    seller_user = None
+    try:
+      seller_user = users_collection.find_one({"_id": ObjectId(seller_id), "role": "seller"})
+    except Exception as e:
+      print(f"⚠️ Could not find seller user by ObjectId: {e}")
+      pass
+    
+    # Get seller stats from products
+    pipeline = [
+      {"$match": {"seller_id": seller_id, "is_disabled": {"$ne": True}, "status": "available"}},
+      {"$group": {
+        "_id": "$seller_id",
+        "name": {"$first": "$seller_name"},
+        "product_count": {"$sum": 1},
+        "total_sold": {"$sum": {"$ifNull": ["$sold_count", 0]}},
+      }},
+    ]
+    stats = list(products_collection.aggregate(pipeline))
+    
+    if not stats:
+      raise HTTPException(status_code=404, detail="Seller not found or has no products")
+    
+    seller_stats = stats[0]
+    
+    # Get average rating from reviews (optional, don't crash if fails)
+    avg_rating = None
+    total_reviews = 0
+    try:
+      reviews_collection = db["product_reviews"]
+      seller_products = list(products_collection.find({"seller_id": seller_id}, {"_id": 1}))
+      product_ids = [str(p["_id"]) for p in seller_products]
+      if product_ids and reviews_collection is not None:
+        rating_pipeline = [
+          {"$match": {"product_id": {"$in": product_ids}}},
+          {"$group": {"_id": None, "avg": {"$avg": "$rating"}, "count": {"$sum": 1}}},
+        ]
+        rating_result = list(reviews_collection.aggregate(rating_pipeline))
+        if rating_result:
+          avg_rating = round(rating_result[0].get("avg", 0), 1)
+          total_reviews = rating_result[0].get("count", 0)
+    except Exception as e:
+      print(f"⚠️ Could not calculate reviews: {e}")
+      pass
+    
+    # Prepare joined_at safely (created_at may already be an ISO string)
+    joined_at = None
+    if seller_user and seller_user.get("created_at"):
+      created_val = seller_user.get("created_at")
+      try:
+        if isinstance(created_val, datetime):
+          joined_at = created_val.isoformat()
+        else:
+          joined_at = str(created_val)
+      except Exception:
+        joined_at = str(created_val)
+
+    return {
+      "status": "success",
+      "seller": {
+        "id": seller_id,
+        "name": seller_stats.get("name", "Unknown Seller"),
+        "avatar_url": seller_user.get("avatar_url") if seller_user else None,
+        "bio": seller_user.get("bio") if seller_user else None,
+        "joined_at": joined_at,
+        "product_count": seller_stats.get("product_count", 0),
+        "total_sold": seller_stats.get("total_sold", 0),
+        "avg_rating": avg_rating,
+        "total_reviews": total_reviews,
+      }
+    }
+  except HTTPException:
+    raise
+  except Exception as e:
+    print(f"❌ Error in get_seller_store_profile: {e}")
+    import traceback
+    traceback.print_exc()
+    raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+@app.get("/catalog/products")
+def get_catalog_products(
+  search: str = "",
+  category_id: str = "",
+  seller_id: str = "",
+  sort: str = "latest",
+  page: int = 1,
+  page_size: int = 12,
+):
+  collection = _get_products_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  if page < 1 or page_size < 1 or page_size > 50:
+    raise HTTPException(status_code=400, detail="Invalid pagination parameters")
+
+  query: Dict[str, Any] = {"is_disabled": {"$ne": True}, "status": "available"}
+  if search:
+    query["name"] = {"$regex": re.escape(search), "$options": "i"}
+  if category_id:
+    try:
+      query["category_id"] = ObjectId(category_id)
+    except:
+      raise HTTPException(status_code=400, detail="Invalid category ID")
+  if seller_id:
+    query["seller_id"] = seller_id
+
+  sort_fields = [("created_at", -1)]
+  if sort == "most_sold":
+    sort_fields = [("sold_count", -1), ("created_at", -1)]
+  elif sort == "price_low":
+    sort_fields = [("price", 1)]
+  elif sort == "price_high":
+    sort_fields = [("price", -1)]
+
+  total = collection.count_documents(query)
+  docs = list(
+    collection.find(query)
+    .sort(sort_fields)
+    .skip((page - 1) * page_size)
+    .limit(page_size)
+  )
+  return {
+    "status": "success",
+    "products": [_normalize_product(d) for d in docs],
+    "total": total,
+    "page": page,
+    "page_size": page_size,
+  }
+
+# --- Catalog Product Detail ---
+@app.get("/catalog/products/{product_id}")
+def get_catalog_product_detail(product_id: str):
+  """Get detailed product information including reviews for the catalog."""
+  collection = _get_products_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  try:
+    doc = collection.find_one({"_id": ObjectId(product_id), "is_disabled": {"$ne": True}, "status": "available"})
+  except:
+    raise HTTPException(status_code=400, detail="Invalid product ID")
+  if not doc:
+    raise HTTPException(status_code=404, detail="Product not found")
+  return {"status": "success", "product": _normalize_product(doc)}
+
+# --- Wishlist Endpoints ---
+def _get_wishlist_collection():
+  """Return wishlists collection if MongoDB is configured."""
+  try:
+    return get_db()["wishlists"]
+  except Exception:
+    return None
+
+
+def _get_cart_collection():
+  """Return carts collection if MongoDB is configured."""
+  try:
+    return get_db()["carts"]
+  except Exception:
+    return None
+
+def _get_orders_collection():
+  """Return orders collection if MongoDB is configured."""
+  try:
+    return get_db()["orders"]
+  except Exception:
+    return None
+
+@app.get("/wishlist")
+def get_user_wishlist(user=Depends(_get_current_user)):
+  """Get the current user's wishlist with product details."""
+  wishlist_collection = _get_wishlist_collection()
+  products_collection = _get_products_collection()
+  if wishlist_collection is None or products_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  
+  user_id = str(user.get("_id"))
+  wishlist_doc = wishlist_collection.find_one({"user_id": user_id})
+  
+  if not wishlist_doc or not wishlist_doc.get("product_ids"):
+    return {"status": "success", "products": [], "total": 0}
+  
+  # Get all products in wishlist
+  product_ids = []
+  for pid in wishlist_doc.get("product_ids", []):
+    try:
+      product_ids.append(ObjectId(pid))
+    except:
+      pass
+  
+  products = list(products_collection.find({
+    "_id": {"$in": product_ids},
+    "is_disabled": {"$ne": True},
+    "status": "available"
+  }))
+  
+  return {
+    "status": "success",
+    "products": [_normalize_product(p) for p in products],
+    "total": len(products),
+  }
+
+@app.post("/wishlist/{product_id}")
+def toggle_wishlist(product_id: str, user=Depends(_get_current_user)):
+  """Add or remove a product from the user's wishlist."""
+  wishlist_collection = _get_wishlist_collection()
+  products_collection = _get_products_collection()
+  if wishlist_collection is None or products_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  
+  # Verify product exists
+  try:
+    product = products_collection.find_one({"_id": ObjectId(product_id)})
+  except:
+    raise HTTPException(status_code=400, detail="Invalid product ID")
+  if not product:
+    raise HTTPException(status_code=404, detail="Product not found")
+  
+  user_id = str(user.get("_id"))
+  wishlist_doc = wishlist_collection.find_one({"user_id": user_id})
+  
+  if not wishlist_doc:
+    # Create wishlist with this product
+    wishlist_collection.insert_one({
+      "user_id": user_id,
+      "product_ids": [product_id],
+      "created_at": datetime.now().isoformat(),
+      "updated_at": datetime.now().isoformat(),
+    })
+    return {"status": "success", "in_wishlist": True, "message": "Added to wishlist"}
+  
+  product_ids = wishlist_doc.get("product_ids", [])
+  
+  if product_id in product_ids:
+    # Remove from wishlist
+    product_ids.remove(product_id)
+    wishlist_collection.update_one(
+      {"user_id": user_id},
+      {"$set": {"product_ids": product_ids, "updated_at": datetime.now().isoformat()}}
+    )
+    return {"status": "success", "in_wishlist": False, "message": "Removed from wishlist"}
+  else:
+    # Add to wishlist
+    product_ids.append(product_id)
+    wishlist_collection.update_one(
+      {"user_id": user_id},
+      {"$set": {"product_ids": product_ids, "updated_at": datetime.now().isoformat()}}
+    )
+    return {"status": "success", "in_wishlist": True, "message": "Added to wishlist"}
+
+@app.get("/wishlist/check/{product_id}")
+def check_wishlist(product_id: str, user=Depends(_get_current_user)):
+  """Check if a product is in the user's wishlist."""
+  wishlist_collection = _get_wishlist_collection()
+  if wishlist_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  
+  user_id = str(user.get("_id"))
+  wishlist_doc = wishlist_collection.find_one({"user_id": user_id})
+  
+  in_wishlist = wishlist_doc and product_id in wishlist_doc.get("product_ids", [])
+  return {"status": "success", "in_wishlist": in_wishlist}
+
+@app.get("/wishlist/ids")
+def get_wishlist_ids(user=Depends(_get_current_user)):
+  """Get just the product IDs in the user's wishlist (for efficient checking)."""
+  wishlist_collection = _get_wishlist_collection()
+  if wishlist_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  
+  user_id = str(user.get("_id"))
+  wishlist_doc = wishlist_collection.find_one({"user_id": user_id})
+  
+  product_ids = wishlist_doc.get("product_ids", []) if wishlist_doc else []
+  return {"status": "success", "product_ids": product_ids}
+
+
+# --- Cart Endpoints ---
+class AddToCartBody(BaseModel):
+  product_id: str
+  qty: int = 1
+
+
+class OrderAddressBody(BaseModel):
+  full_name: str
+  phone: str
+  address_line: str
+  city: str
+  province: str
+  postal_code: str
+  notes: Optional[str] = ""
+
+
+class OrderCreateBody(BaseModel):
+  address: OrderAddressBody
+  payment_method: str
+
+
+@app.get("/cart")
+def get_cart(user=Depends(_get_current_user)):
+  """Return the current user's cart with product details."""
+  cart_collection = _get_cart_collection()
+  products_collection = _get_products_collection()
+  if cart_collection is None or products_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+
+  user_id = str(user.get("_id"))
+  cart_doc = cart_collection.find_one({"user_id": user_id})
+  if not cart_doc or not cart_doc.get("items"):
+    return {"status": "success", "items": [], "total_items": 0}
+
+  items = []
+  product_ids = []
+  for it in cart_doc.get("items", []):
+    try:
+      product_ids.append(ObjectId(it.get("product_id")))
+    except:
+      pass
+
+  products = list(products_collection.find({"_id": {"$in": product_ids}}))
+  products_map = {str(p.get("_id")): p for p in products}
+
+  for it in cart_doc.get("items", []):
+    pid = it.get("product_id")
+    prod = products_map.get(pid)
+    if not prod:
+      continue
+    items.append({
+      "product": _normalize_product(prod),
+      "qty": int(it.get("qty", 1)),
+    })
+
+  total_items = sum(i.get("qty", 1) for i in cart_doc.get("items", []))
+  return {"status": "success", "items": items, "total_items": total_items}
+
+
+@app.post("/cart/add")
+def add_to_cart(body: AddToCartBody, user=Depends(_get_current_user)):
+  """Add a product to the user's cart (or update quantity).
+
+  Only users with role 'user' may add to cart.
+  """
+  role = (user.get("role") or "user").strip().lower()
+  if role != "user":
+    raise HTTPException(status_code=403, detail="Only regular users can create orders or add to cart")
+
+  cart_collection = _get_cart_collection()
+  products_collection = _get_products_collection()
+  if cart_collection is None or products_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+
+  # Validate product
+  try:
+    product = products_collection.find_one({"_id": ObjectId(body.product_id), "is_disabled": {"$ne": True}, "status": "available"})
+  except:
+    raise HTTPException(status_code=400, detail="Invalid product ID")
+  if not product:
+    raise HTTPException(status_code=404, detail="Product not found")
+
+  if body.qty < 1:
+    raise HTTPException(status_code=400, detail="Quantity must be at least 1")
+
+  user_id = str(user.get("_id"))
+  cart_doc = cart_collection.find_one({"user_id": user_id})
+  if not cart_doc:
+    # create cart
+    cart_collection.insert_one({
+      "user_id": user_id,
+      "items": [{"product_id": body.product_id, "qty": int(body.qty), "added_at": datetime.now().isoformat()}],
+      "created_at": datetime.now().isoformat(),
+      "updated_at": datetime.now().isoformat(),
+    })
+    return {"status": "success", "message": "Added to cart", "in_cart": True}
+
+  items = cart_doc.get("items", [])
+  found = False
+  for it in items:
+    if it.get("product_id") == body.product_id:
+      it["qty"] = int(it.get("qty", 1)) + int(body.qty)
+      found = True
+      break
+
+  if not found:
+    items.append({"product_id": body.product_id, "qty": int(body.qty), "added_at": datetime.now().isoformat()})
+
+  cart_collection.update_one({"user_id": user_id}, {"$set": {"items": items, "updated_at": datetime.now().isoformat()}})
+
+  _log_audit_event(
+    actor=user.get("name", "User"),
+    actor_id=str(user.get("_id")),
+    role=user.get("role", "user"),
+    action="Added item to cart",
+    category="Cart",
+    entity="Product",
+    entity_id=body.product_id,
+    status="success",
+    details=f"Qty: {body.qty}",
+  )
+  return {"status": "success", "message": "Added to cart", "in_cart": True}
+
+@app.patch("/cart/{product_id}")
+def update_cart_item(product_id: str, body: dict, user=Depends(_get_current_user)):
+  """Update the quantity of an item in the cart."""
+  cart_collection = _get_cart_collection()
+  if cart_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+
+  qty = body.get("qty")
+  if qty is None or not isinstance(qty, int) or qty < 1:
+    raise HTTPException(status_code=400, detail="Quantity must be at least 1")
+
+  user_id = str(user.get("_id"))
+  cart_doc = cart_collection.find_one({"user_id": user_id})
+  if not cart_doc:
+    raise HTTPException(status_code=404, detail="Cart not found")
+
+  items = cart_doc.get("items", [])
+  found = False
+  for it in items:
+    if it.get("product_id") == product_id:
+      it["qty"] = int(qty)
+      found = True
+      break
+
+  if not found:
+    raise HTTPException(status_code=404, detail="Product not found in cart")
+
+  cart_collection.update_one({"user_id": user_id}, {"$set": {"items": items, "updated_at": datetime.now().isoformat()}})
+
+  _log_audit_event(
+    actor=user.get("name", "User"),
+    actor_id=str(user.get("_id")),
+    role=user.get("role", "user"),
+    action="Updated cart item quantity",
+    category="Cart",
+    entity="Product",
+    entity_id=product_id,
+    status="success",
+    details=f"Qty: {qty}",
+  )
+  return {"status": "success", "message": "Cart updated"}
+
+@app.delete("/cart/{product_id}")
+def remove_from_cart(product_id: str, user=Depends(_get_current_user)):
+  """Remove an item from the cart."""
+  cart_collection = _get_cart_collection()
+  if cart_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+
+  user_id = str(user.get("_id"))
+  cart_doc = cart_collection.find_one({"user_id": user_id})
+  if not cart_doc:
+    raise HTTPException(status_code=404, detail="Cart not found")
+
+  items = cart_doc.get("items", [])
+  items = [it for it in items if it.get("product_id") != product_id]
+
+  cart_collection.update_one({"user_id": user_id}, {"$set": {"items": items, "updated_at": datetime.now().isoformat()}})
+
+  _log_audit_event(
+    actor=user.get("name", "User"),
+    actor_id=str(user.get("_id")),
+    role=user.get("role", "user"),
+    action="Removed item from cart",
+    category="Cart",
+    entity="Product",
+    entity_id=product_id,
+    status="success",
+    details="",
+  )
+  return {"status": "success", "message": "Item removed from cart"}
+
+# --- Orders Endpoints ---
+def _normalize_order(doc: Dict[str, Any]) -> Dict[str, Any]:
+  return {
+    "id": str(doc.get("_id")),
+    "order_number": doc.get("order_number", ""),
+    "status": doc.get("status", ""),
+    "total": doc.get("total", 0),
+    "total_items": doc.get("total_items", 0),
+    "payment_method": doc.get("payment_method", ""),
+    "address": doc.get("address", {}),
+    "items": doc.get("items", []),
+    "created_at": doc.get("created_at"),
+  }
+
+
+@app.post("/orders/checkout")
+def checkout_order(body: OrderCreateBody, user=Depends(_get_current_user)):
+  """Create an order from the current user's cart and clear the cart."""
+  role = (user.get("role") or "user").strip().lower()
+  if role != "user":
+    raise HTTPException(status_code=403, detail="Only regular users can place orders")
+
+  cart_collection = _get_cart_collection()
+  orders_collection = _get_orders_collection()
+  products_collection = _get_products_collection()
+  if cart_collection is None or orders_collection is None or products_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+
+  user_id = str(user.get("_id"))
+  cart_doc = cart_collection.find_one({"user_id": user_id})
+  if not cart_doc or not cart_doc.get("items"):
+    raise HTTPException(status_code=400, detail="Cart is empty")
+
+  items = []
+  product_ids = []
+  for it in cart_doc.get("items", []):
+    try:
+      product_ids.append(ObjectId(it.get("product_id")))
+    except:
+      pass
+
+  products = list(products_collection.find({"_id": {"$in": product_ids}}))
+  products_map = {str(p.get("_id")): p for p in products}
+
+  total_items = 0
+  total = 0
+  for it in cart_doc.get("items", []):
+    pid = it.get("product_id")
+    prod = products_map.get(pid)
+    if not prod:
+      continue
+    qty = int(it.get("qty", 1))
+    price = float(prod.get("price", 0))
+    total_items += qty
+    total += price * qty
+    images = prod.get("images", [])
+    image_url = ""
+    if images and isinstance(images, list):
+      idx = int(prod.get("main_image_index", 0) or 0)
+      if idx < len(images):
+        image_url = images[idx].get("url", "") if isinstance(images[idx], dict) else ""
+    items.append({
+      "product_id": pid,
+      "name": prod.get("name", ""),
+      "price": price,
+      "qty": qty,
+      "image_url": image_url,
+    })
+
+  order_number = f"ORD-{datetime.utcnow().strftime('%y%m%d')}-{str(ObjectId())[-6:].upper()}"
+  now = datetime.utcnow().isoformat()
+  order_doc = {
+    "user_id": user_id,
+    "order_number": order_number,
+    "status": "confirmed",
+    "total": total,
+    "total_items": total_items,
+    "payment_method": body.payment_method,
+    "address": body.address.dict(),
+    "items": items,
+    "created_at": now,
+    "updated_at": now,
+  }
+  result = orders_collection.insert_one(order_doc)
+  order_doc["_id"] = result.inserted_id
+
+  # Clear cart after successful order
+  cart_collection.update_one({"user_id": user_id}, {"$set": {"items": [], "updated_at": now}})
+
+  _log_audit_event(
+    actor=user.get("name", "User"),
+    actor_id=str(user.get("_id")),
+    role=user.get("role", "user"),
+    action="Placed order",
+    category="Order",
+    entity="Order",
+    entity_id=str(order_doc.get("_id")),
+    status="success",
+    details=f"Total: {total}",
+  )
+
+  return {"status": "success", "order": _normalize_order(order_doc)}
+
+
+@app.get("/orders")
+def get_orders(page: int = 1, page_size: int = 10, user=Depends(_get_current_user)):
+  orders_collection = _get_orders_collection()
+  if orders_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  if page < 1 or page_size < 1 or page_size > 50:
+    raise HTTPException(status_code=400, detail="Invalid pagination parameters")
+
+  user_id = str(user.get("_id"))
+  total = orders_collection.count_documents({"user_id": user_id})
+  docs = list(
+    orders_collection.find({"user_id": user_id})
+    .sort("created_at", -1)
+    .skip((page - 1) * page_size)
+    .limit(page_size)
+  )
+  return {"status": "success", "orders": [_normalize_order(d) for d in docs], "total": total}
+
+
+@app.get("/orders/seller")
+def get_seller_orders(page: int = 1, page_size: int = 10, user=Depends(_require_seller_user)):
+  orders_collection = _get_orders_collection()
+  products_collection = _get_products_collection()
+  if orders_collection is None or products_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  if page < 1 or page_size < 1 or page_size > 50:
+    raise HTTPException(status_code=400, detail="Invalid pagination parameters")
+
+  seller_id = str(user.get("_id"))
+  seller_products = list(products_collection.find({"seller_id": seller_id}, {"_id": 1}))
+  seller_product_ids = {str(p.get("_id")) for p in seller_products}
+  if not seller_product_ids:
+    return {"status": "success", "orders": [], "total": 0}
+
+  docs = list(orders_collection.find({}).sort("created_at", -1))
+  filtered = []
+  for doc in docs:
+    items = doc.get("items", [])
+    seller_items = [it for it in items if it.get("product_id") in seller_product_ids]
+    if not seller_items:
+      continue
+    seller_total = sum(float(it.get("price", 0)) * int(it.get("qty", 1)) for it in seller_items)
+    seller_total_items = sum(int(it.get("qty", 1)) for it in seller_items)
+    cloned = dict(doc)
+    cloned["items"] = seller_items
+    cloned["total"] = seller_total
+    cloned["total_items"] = seller_total_items
+    filtered.append(cloned)
+
+  total = len(filtered)
+  start = (page - 1) * page_size
+  paged = filtered[start : start + page_size]
+  return {"status": "success", "orders": [_normalize_order(d) for d in paged], "total": total}
+
+
+@app.patch("/orders/{order_id}/status")
+def update_order_status(order_id: str, body: OrderStatusUpdateBody, user=Depends(_require_seller_user)):
+  orders_collection = _get_orders_collection()
+  products_collection = _get_products_collection()
+  if orders_collection is None or products_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+
+  try:
+    oid = ObjectId(order_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid order ID")
+
+  status = (body.status or "").strip().lower()
+  if status not in {"confirmed", "shipped", "delivered", "cancelled"}:
+    raise HTTPException(status_code=400, detail="Invalid status value")
+
+  doc = orders_collection.find_one({"_id": oid})
+  if not doc:
+    raise HTTPException(status_code=404, detail="Order not found")
+
+  seller_id = str(user.get("_id"))
+  seller_products = list(products_collection.find({"seller_id": seller_id}, {"_id": 1}))
+  seller_product_ids = {str(p.get("_id")) for p in seller_products}
+  if not seller_product_ids:
+    raise HTTPException(status_code=403, detail="No seller products found")
+
+  items = doc.get("items", [])
+  if not any(it.get("product_id") in seller_product_ids for it in items):
+    raise HTTPException(status_code=403, detail="No order items belong to this seller")
+
+  updates: Dict[str, Any] = {"status": status, "updated_at": datetime.utcnow().isoformat()}
+
+  deducted_sellers = set(doc.get("stock_deducted_sellers", []))
+  if status in {"shipped", "delivered"} and seller_id not in deducted_sellers:
+    for it in items:
+      pid = it.get("product_id")
+      if pid not in seller_product_ids:
+        continue
+      try:
+        prod_oid = ObjectId(pid)
+      except:
+        continue
+      product = products_collection.find_one({"_id": prod_oid})
+      if not product:
+        continue
+      qty = int(it.get("qty", 1))
+      current_stock = int(product.get("stock_qty", 0))
+      new_stock = max(0, current_stock - qty)
+      products_collection.update_one(
+        {"_id": prod_oid},
+        {
+          "$set": {"stock_qty": new_stock, "updated_at": datetime.utcnow().isoformat()},
+          "$inc": {"sold_count": qty},
+        },
+      )
+    deducted_sellers.add(seller_id)
+    updates["stock_deducted_sellers"] = list(deducted_sellers)
+
+  orders_collection.update_one({"_id": oid}, {"$set": updates})
+  updated = orders_collection.find_one({"_id": oid})
+
+  _log_audit_event(
+    actor=user.get("name", "Seller"),
+    actor_id=str(user.get("_id")),
+    role=user.get("role", "seller"),
+    action="Updated order status",
+    category="Order",
+    entity="Order",
+    entity_id=order_id,
+    status="success",
+    details=f"Status set to {status}",
+  )
+
+  return {"status": "success", "order": _normalize_order(updated)}
+
+
+@app.patch("/orders/{order_id}/mark-delivered")
+def mark_order_delivered(order_id: str, user=Depends(_get_current_user)):
+  """Allow users to mark shipped orders as delivered when they receive them."""
+  orders_collection = _get_orders_collection()
+  if orders_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+
+  try:
+    oid = ObjectId(order_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid order ID")
+
+  user_id = str(user.get("_id"))
+  doc = orders_collection.find_one({"_id": oid, "user_id": user_id})
+  if not doc:
+    raise HTTPException(status_code=404, detail="Order not found")
+
+  current_status = (doc.get("status") or "").strip().lower()
+  if current_status != "shipped":
+    raise HTTPException(status_code=400, detail="Only shipped orders can be marked as delivered")
+
+  updates = {
+    "status": "delivered",
+    "updated_at": datetime.utcnow().isoformat(),
+    "delivered_at": datetime.utcnow().isoformat()
+  }
+
+  orders_collection.update_one({"_id": oid}, {"$set": updates})
+  updated = orders_collection.find_one({"_id": oid})
+
+  _log_audit_event(
+    actor=user.get("name", "User"),
+    actor_id=user_id,
+    role="user",
+    action="Marked order as delivered",
+    category="Order",
+    entity="Order",
+    entity_id=order_id,
+    status="success",
+    details="User confirmed delivery",
+  )
+
+  return {"status": "success", "order": _normalize_order(updated)}
+
+
+@app.get("/orders/{order_id}")
+def get_order_detail(order_id: str, user=Depends(_get_current_user)):
+  orders_collection = _get_orders_collection()
+  if orders_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  try:
+    oid = ObjectId(order_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid order ID")
+
+  user_id = str(user.get("_id"))
+  doc = orders_collection.find_one({"_id": oid, "user_id": user_id})
+  if not doc:
+    raise HTTPException(status_code=404, detail="Order not found")
+  return {"status": "success", "order": _normalize_order(doc)}
+
+@app.get("/seller/products")
+def get_seller_products(
+  search: str = "",
+  category_id: str = "",
+  in_stock: Optional[bool] = None,
+  include_disabled: bool = True,
+  page: int = 1,
+  page_size: int = 5,
+  user=Depends(_require_seller_user),
+):
+  collection = _get_products_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  if page < 1 or page_size < 1 or page_size > 100:
+    raise HTTPException(status_code=400, detail="Invalid pagination parameters")
+  query: Dict[str, Any] = {"seller_id": str(user.get("_id"))}
+  if search:
+    query["$or"] = [
+      {"name": {"$regex": re.escape(search), "$options": "i"}},
+      {"description": {"$regex": re.escape(search), "$options": "i"}},
+    ]
+  if category_id:
+    try:
+      query["category_id"] = ObjectId(category_id)
+    except:
+      raise HTTPException(status_code=400, detail="Invalid category ID")
+  if in_stock is True:
+    query["stock_qty"] = {"$gt": 0}
+  if in_stock is False:
+    query["stock_qty"] = {"$lte": 0}
+  if not include_disabled:
+    query["is_disabled"] = {"$ne": True}
+  total = collection.count_documents(query)
+  docs = list(
+    collection.find(query)
+    .sort("created_at", -1)
+    .skip((page - 1) * page_size)
+    .limit(page_size)
+  )
+  return {
+    "status": "success",
+    "products": [_normalize_product(d) for d in docs],
+    "total": total,
+    "page": page,
+    "page_size": page_size,
+  }
+
+@app.get("/seller/products/{product_id}")
+def get_seller_product(product_id: str, user=Depends(_require_seller_user)):
+  collection = _get_products_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  try:
+    oid = ObjectId(product_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid product ID")
+  doc = collection.find_one({"_id": oid, "seller_id": str(user.get("_id"))})
+  if not doc:
+    raise HTTPException(status_code=404, detail="Product not found")
+  return {"status": "success", "product": _normalize_product(doc)}
+
+@app.post("/seller/products")
+def create_seller_product(body: ProductCreateBody, user=Depends(_require_seller_user)):
+  collection = _get_products_collection()
+  categories = _get_categories_collection()
+  if collection is None or categories is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  name = (body.name or "").strip()
+  if not name or len(name) < 2:
+    raise HTTPException(status_code=400, detail="Product name must be at least 2 characters")
+  if body.price <= 0:
+    raise HTTPException(status_code=400, detail="Price must be greater than 0")
+  if body.stock_qty < 0:
+    raise HTTPException(status_code=400, detail="Stock must be >= 0")
+  status = (body.status or "available").strip() or "available"
+  if status not in {"available", "draft"}:
+    raise HTTPException(status_code=400, detail="Invalid status value")
+
+  category_name = ""
+  category_oid = None
+  if body.category_id:
+    try:
+      category_oid = ObjectId(body.category_id)
+    except:
+      raise HTTPException(status_code=400, detail="Invalid category ID")
+    category_doc = categories.find_one({"_id": category_oid})
+    if not category_doc:
+      raise HTTPException(status_code=404, detail="Category not found")
+    category_name = category_doc.get("name", "")
+
+  now = datetime.utcnow().isoformat()
+  doc = {
+    "seller_id": str(user.get("_id")),
+    "seller_name": user.get("name", ""),
+    "name": name,
+    "description": (body.description or "").strip(),
+    "price": float(body.price),
+    "category_id": category_oid,
+    "category_name": category_name,
+    "stock_qty": int(body.stock_qty),
+    "status": status,
+    "images": [],
+    "main_image_index": 0,
+    "is_disabled": False,
+    "sold_count": 0,
+    "created_at": now,
+    "updated_at": now,
+  }
+  result = collection.insert_one(doc)
+  doc["_id"] = result.inserted_id
+  return {"status": "success", "product": _normalize_product(doc)}
+
+@app.patch("/seller/products/{product_id}")
+def update_seller_product(product_id: str, body: ProductUpdateBody, user=Depends(_require_seller_user)):
+  collection = _get_products_collection()
+  categories = _get_categories_collection()
+  if collection is None or categories is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  try:
+    oid = ObjectId(product_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid product ID")
+  product = collection.find_one({"_id": oid, "seller_id": str(user.get("_id"))})
+  if not product:
+    raise HTTPException(status_code=404, detail="Product not found")
+
+  updates: Dict[str, Any] = {"updated_at": datetime.utcnow().isoformat()}
+  if body.name is not None:
+    name = body.name.strip()
+    if not name or len(name) < 2:
+      raise HTTPException(status_code=400, detail="Product name must be at least 2 characters")
+    updates["name"] = name
+  if body.description is not None:
+    updates["description"] = body.description.strip()
+  if body.price is not None:
+    if body.price <= 0:
+      raise HTTPException(status_code=400, detail="Price must be greater than 0")
+    updates["price"] = float(body.price)
+  if body.stock_qty is not None:
+    if body.stock_qty < 0:
+      raise HTTPException(status_code=400, detail="Stock must be >= 0")
+    updates["stock_qty"] = int(body.stock_qty)
+  if body.status is not None:
+    status = body.status.strip() or "available"
+    if status not in {"available", "draft"}:
+      raise HTTPException(status_code=400, detail="Invalid status value")
+    updates["status"] = status
+  if body.main_image_index is not None:
+    updates["main_image_index"] = int(body.main_image_index)
+  if body.category_id is not None:
+    if body.category_id == "":
+      updates["category_id"] = None
+      updates["category_name"] = ""
+    else:
+      try:
+        category_oid = ObjectId(body.category_id)
+      except:
+        raise HTTPException(status_code=400, detail="Invalid category ID")
+      category_doc = categories.find_one({"_id": category_oid})
+      if not category_doc:
+        raise HTTPException(status_code=404, detail="Category not found")
+      updates["category_id"] = category_oid
+      updates["category_name"] = category_doc.get("name", "")
+
+  collection.update_one({"_id": oid}, {"$set": updates})
+  updated = collection.find_one({"_id": oid})
+  return {"status": "success", "product": _normalize_product(updated)}
+
+@app.post("/seller/products/{product_id}/disable")
+def disable_seller_product(product_id: str, body: ProductDisableBody, user=Depends(_require_seller_user)):
+  collection = _get_products_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  try:
+    oid = ObjectId(product_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid product ID")
+  product = collection.find_one({"_id": oid, "seller_id": str(user.get("_id"))})
+  if not product:
+    raise HTTPException(status_code=404, detail="Product not found")
+  new_disabled = body.disabled if body.disabled is not None else not product.get("is_disabled", False)
+  collection.update_one({"_id": oid}, {"$set": {"is_disabled": bool(new_disabled), "updated_at": datetime.utcnow().isoformat()}})
+  return {"status": "success", "is_disabled": bool(new_disabled)}
+
+@app.delete("/seller/products/{product_id}")
+def delete_seller_product(product_id: str, user=Depends(_require_seller_user)):
+  collection = _get_products_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  try:
+    oid = ObjectId(product_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid product ID")
+  result = collection.delete_one({"_id": oid, "seller_id": str(user.get("_id"))})
+  if result.deleted_count == 0:
+    raise HTTPException(status_code=404, detail="Product not found")
+  return {"status": "success"}
+
+@app.post("/seller/products/{product_id}/images")
+async def upload_seller_product_images(
+  product_id: str,
+  images: List[UploadFile] = File(...),
+  main_index: Optional[int] = Form(None),
+  user=Depends(_require_seller_user),
+):
+  collection = _get_products_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  try:
+    oid = ObjectId(product_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid product ID")
+  product = collection.find_one({"_id": oid, "seller_id": str(user.get("_id"))})
+  if not product:
+    raise HTTPException(status_code=404, detail="Product not found")
+
+  uploaded_items = []
+  for img in images:
+    contents = await img.read()
+    upload = cloudinary.uploader.upload(
+      contents,
+      folder=f"daing-products/{str(user.get('_id'))}",
+      resource_type="image",
+    )
+    uploaded_items.append({
+      "url": upload.get("secure_url"),
+      "public_id": upload.get("public_id"),
+      "uploaded_at": datetime.utcnow().isoformat(),
+    })
+
+  existing = product.get("images", [])
+  new_images = existing + uploaded_items
+  updates: Dict[str, Any] = {"images": new_images, "updated_at": datetime.utcnow().isoformat()}
+  if main_index is not None:
+    updates["main_image_index"] = int(main_index)
+  elif product.get("main_image_index") is None and new_images:
+    updates["main_image_index"] = 0
+  collection.update_one({"_id": oid}, {"$set": updates})
+  updated = collection.find_one({"_id": oid})
+  return {"status": "success", "product": _normalize_product(updated)}
+
+@app.delete("/seller/products/{product_id}/images/{index}")
+def delete_seller_product_image(product_id: str, index: int, user=Depends(_require_seller_user)):
+  collection = _get_products_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  try:
+    oid = ObjectId(product_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid product ID")
+  product = collection.find_one({"_id": oid, "seller_id": str(user.get("_id"))})
+  if not product:
+    raise HTTPException(status_code=404, detail="Product not found")
+  images = product.get("images", [])
+  if index < 0 or index >= len(images):
+    raise HTTPException(status_code=400, detail="Invalid image index")
+
+  removed = images.pop(index)
+  public_id = removed.get("public_id") if isinstance(removed, dict) else None
+  if public_id and cloudinary:
+    try:
+      cloudinary.uploader.destroy(public_id)
+    except Exception as e:
+      print(f"⚠️ Failed to delete Cloudinary image: {e}")
+
+  main_index = product.get("main_image_index", 0)
+  if index == main_index:
+    main_index = 0 if images else 0
+  elif index < main_index:
+    main_index = max(0, main_index - 1)
+
+  collection.update_one(
+    {"_id": oid},
+    {"$set": {"images": images, "main_image_index": main_index, "updated_at": datetime.utcnow().isoformat()}},
+  )
+  updated = collection.find_one({"_id": oid})
+  return {"status": "success", "product": _normalize_product(updated)}
+
+# Public endpoint for getting product reviews (displayed on product detail page)
+@app.get("/catalog/products/{product_id}/reviews")
+def get_product_reviews_public(
+  product_id: str,
+  page: int = 1,
+  page_size: int = 5,
+):
+  """Public endpoint for displaying product reviews on the product detail page."""
+  collection = _get_reviews_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  try:
+    oid = ObjectId(product_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid product ID")
+  if page < 1 or page_size < 1 or page_size > 50:
+    raise HTTPException(status_code=400, detail="Invalid pagination parameters")
+  # Public query: get all reviews for this product (no seller auth required)
+  query = {"product_id": oid}
+  total = collection.count_documents(query)
+  docs = list(
+    collection.find(query)
+    .sort("created_at", -1)
+    .skip((page - 1) * page_size)
+    .limit(page_size)
+  )
+  return {
+    "status": "success",
+    "reviews": [_normalize_review(d) for d in docs],
+    "total": total,
+    "page": page,
+    "page_size": page_size,
+  }
+
+@app.get("/seller/products/{product_id}/reviews")
+def get_seller_product_reviews(
+  product_id: str,
+  page: int = 1,
+  page_size: int = 3,
+  user=Depends(_require_seller_user),
+):
+  """Seller-only endpoint for viewing reviews of their own products in seller dashboard."""
+  collection = _get_reviews_collection()
+  if collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  try:
+    oid = ObjectId(product_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid product ID")
+  if page < 1 or page_size < 1 or page_size > 50:
+    raise HTTPException(status_code=400, detail="Invalid pagination parameters")
+  query = {"product_id": oid, "seller_id": str(user.get("_id"))}
+  total = collection.count_documents(query)
+  docs = list(
+    collection.find(query)
+    .sort("created_at", -1)
+    .skip((page - 1) * page_size)
+    .limit(page_size)
+  )
+  return {
+    "status": "success",
+    "reviews": [_normalize_review(d) for d in docs],
+    "total": total,
+    "page": page,
+    "page_size": page_size,
+  }
+
+@app.post("/products/{product_id}/reviews")
+def create_product_review(product_id: str, body: ReviewCreateBody, user=Depends(_get_current_user)):
+  collection = _get_reviews_collection()
+  products = _get_products_collection()
+  orders = _get_orders_collection()
+  if collection is None or products is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  role = (user.get("role") or "user").strip().lower()
+  if role != "user":
+    raise HTTPException(status_code=403, detail="Only customers can review products")
+  try:
+    oid = ObjectId(product_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid product ID")
+  product = products.find_one({"_id": oid})
+  if not product:
+    raise HTTPException(status_code=404, detail="Product not found")
+  user_id = str(user.get("_id"))
+  if not _user_has_ordered_product(orders, user_id, product_id):
+    raise HTTPException(status_code=403, detail="You can only review products you've ordered")
+  existing = collection.find_one({"product_id": oid, "user_id": user_id})
+  if existing:
+    raise HTTPException(status_code=409, detail="You already reviewed this product. Update your review instead")
+  rating = int(body.rating)
+  if rating < 1 or rating > 5:
+    raise HTTPException(status_code=400, detail="Rating must be 1-5")
+  comment = _validate_review_comment(body.comment)
+  now = datetime.utcnow().isoformat()
+  doc = {
+    "product_id": oid,
+    "seller_id": product.get("seller_id", ""),
+    "user_id": user_id,
+    "user_name": user.get("name", ""),
+    "rating": rating,
+    "comment": comment,
+    "created_at": now,
+    "updated_at": now,
+  }
+  result = collection.insert_one(doc)
+  doc["_id"] = result.inserted_id
+  return {"status": "success", "review": _normalize_review(doc)}
+
+@app.get("/products/{product_id}/reviews/me")
+def get_my_product_review(product_id: str, user=Depends(_get_current_user)):
+  collection = _get_reviews_collection()
+  products = _get_products_collection()
+  orders = _get_orders_collection()
+  if collection is None or products is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  try:
+    oid = ObjectId(product_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid product ID")
+  product = products.find_one({"_id": oid})
+  if not product:
+    raise HTTPException(status_code=404, detail="Product not found")
+  user_id = str(user.get("_id"))
+  can_review = _user_has_ordered_product(orders, user_id, product_id)
+  existing = collection.find_one({"product_id": oid, "user_id": user_id})
+  return {
+    "status": "success",
+    "can_review": bool(can_review),
+    "review": _normalize_review(existing) if existing else None,
+  }
+
+@app.patch("/products/{product_id}/reviews/me")
+def update_my_product_review(product_id: str, body: ReviewUpdateBody, user=Depends(_get_current_user)):
+  collection = _get_reviews_collection()
+  products = _get_products_collection()
+  orders = _get_orders_collection()
+  if collection is None or products is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  role = (user.get("role") or "user").strip().lower()
+  if role != "user":
+    raise HTTPException(status_code=403, detail="Only customers can review products")
+  try:
+    oid = ObjectId(product_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid product ID")
+  product = products.find_one({"_id": oid})
+  if not product:
+    raise HTTPException(status_code=404, detail="Product not found")
+  user_id = str(user.get("_id"))
+  if not _user_has_ordered_product(orders, user_id, product_id):
+    raise HTTPException(status_code=403, detail="You can only review products you've ordered")
+  existing = collection.find_one({"product_id": oid, "user_id": user_id})
+  if not existing:
+    raise HTTPException(status_code=404, detail="Review not found")
+  updates: Dict[str, Any] = {"updated_at": datetime.utcnow().isoformat()}
+  if body.rating is not None:
+    rating = int(body.rating)
+    if rating < 1 or rating > 5:
+      raise HTTPException(status_code=400, detail="Rating must be 1-5")
+    updates["rating"] = rating
+  if body.comment is not None:
+    updates["comment"] = _validate_review_comment(body.comment)
+  if len(updates) == 1:
+    raise HTTPException(status_code=400, detail="No updates provided")
+  collection.update_one({"_id": existing.get("_id")}, {"$set": updates})
+  updated = collection.find_one({"_id": existing.get("_id")})
+  return {"status": "success", "review": _normalize_review(updated)}
+
+@app.delete("/products/{product_id}/reviews/me")
+def delete_my_product_review(product_id: str, user=Depends(_get_current_user)):
+  """Delete user's own review for a product."""
+  collection = _get_reviews_collection()
+  products = _get_products_collection()
+  if collection is None or products is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  
+  role = (user.get("role") or "user").strip().lower()
+  if role != "user":
+    raise HTTPException(status_code=403, detail="Only customers can delete reviews")
+  
+  try:
+    oid = ObjectId(product_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid product ID")
+  
+  product = products.find_one({"_id": oid})
+  if not product:
+    raise HTTPException(status_code=404, detail="Product not found")
+  
+  user_id = str(user.get("_id"))
+  existing = collection.find_one({"product_id": oid, "user_id": user_id})
+  if not existing:
+    raise HTTPException(status_code=404, detail="Review not found")
+  
+  collection.delete_one({"_id": existing.get("_id")})
+  
+  return {"status": "success", "message": "Review deleted successfully"}
+
+@app.post("/seller/products/import-csv")
+async def import_seller_products_csv(file: UploadFile = File(...), user=Depends(_require_seller_user)):
+  collection = _get_products_collection()
+  categories = _get_categories_collection()
+  if collection is None or categories is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  if not file.filename.lower().endswith(".csv"):
+    raise HTTPException(status_code=400, detail="Only CSV files are supported")
+
+  raw = await file.read()
+  text = raw.decode("utf-8-sig")
+  reader = csv.DictReader(io.StringIO(text))
+  required_cols = {"name", "price", "stock_qty", "category"}
+  if not reader.fieldnames or not required_cols.issubset({c.strip().lower() for c in reader.fieldnames}):
+    raise HTTPException(status_code=400, detail="CSV must include: name, price, stock_qty, category")
+
+  inserted = 0
+  errors = []
+  now = datetime.utcnow().isoformat()
+  for idx, row in enumerate(reader, start=2):
+    try:
+      name = (row.get("name") or "").strip()
+      if not name:
+        raise ValueError("Name is required")
+      price = float(row.get("price") or 0)
+      stock_qty = int(float(row.get("stock_qty") or 0))
+      category_name = (row.get("category") or "").strip()
+      description = (row.get("description") or "").strip()
+      status = (row.get("status") or "available").strip() or "available"
+      images_field = (row.get("images") or "").strip()
+      main_image_index = row.get("main_image_index")
+      main_index = int(main_image_index) if str(main_image_index).strip().isdigit() else 0
+
+      if not category_name:
+        raise ValueError("Category is required")
+      cat_doc = categories.find_one({"name": {"$regex": f"^{re.escape(category_name)}$", "$options": "i"}})
+      if not cat_doc:
+        cat_doc = {
+          "name": category_name,
+          "description": "",
+          "created_at": now,
+          "updated_at": now,
+          "created_by": str(user.get("_id")),
+        }
+        result = categories.insert_one(cat_doc)
+        cat_doc["_id"] = result.inserted_id
+
+      images = []
+      if images_field:
+        for url in [u.strip() for u in images_field.split("|") if u.strip()]:
+          images.append({"url": url, "public_id": "", "uploaded_at": now})
+
+      doc = {
+        "seller_id": str(user.get("_id")),
+        "seller_name": user.get("name", ""),
+        "name": name,
+        "description": description,
+        "price": price,
+        "category_id": cat_doc.get("_id"),
+        "category_name": cat_doc.get("name", ""),
+        "stock_qty": stock_qty,
+        "status": status,
+        "images": images,
+        "main_image_index": main_index,
+        "is_disabled": False,
+        "sold_count": 0,
+        "created_at": now,
+        "updated_at": now,
+      }
+      collection.insert_one(doc)
+      inserted += 1
+    except Exception as e:
+      errors.append({"row": idx, "error": str(e)})
+
+  return {"status": "success", "inserted": inserted, "errors": errors}
+
+
+# --- Seller Analytics Dashboard ---
+
+@app.get("/seller/analytics/kpis")
+def get_seller_kpis(user=Depends(_require_seller_user)):
+  """Get seller KPI metrics for dashboard."""
+  db = get_db()
+  products_collection = _get_products_collection()
+  orders_collection = _get_orders_collection()
+  
+  if db is None or products_collection is None or orders_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  
+  seller_id = str(user.get("_id"))
+  
+  try:
+    # Get total products count
+    total_products = products_collection.count_documents({
+      "seller_id": seller_id,
+      "is_disabled": {"$ne": True}
+    })
+    
+    # Get seller product IDs for order filtering
+    seller_products = list(products_collection.find({"seller_id": seller_id}, {"_id": 1}))
+    seller_product_ids = {str(p.get("_id")) for p in seller_products}
+    seller_product_oids = [p.get("_id") for p in seller_products if p.get("_id")]
+    
+    # Calculate order metrics
+    total_orders = 0
+    total_earnings = 0.0
+    
+    if seller_product_ids:
+      docs = list(orders_collection.find({}))
+      for doc in docs:
+        items = doc.get("items", [])
+        seller_items = [it for it in items if it.get("product_id") in seller_product_ids]
+        if seller_items:
+          total_orders += 1
+          seller_total = sum(float(it.get("price", 0)) * int(it.get("qty", 1)) for it in seller_items)
+          total_earnings += seller_total
+    
+    # Get average rating from reviews
+    avg_rating = 0.0
+    reviews_collection = db["product_reviews"]
+    if reviews_collection is not None and seller_product_oids:
+      rating_pipeline = [
+        {"$match": {"product_id": {"$in": seller_product_oids}}},
+        {"$group": {"_id": None, "avg": {"$avg": "$rating"}}},
+      ]
+      rating_result = list(reviews_collection.aggregate(rating_pipeline))
+      if rating_result and rating_result[0].get("avg"):
+        avg_rating = round(rating_result[0].get("avg", 0), 1)
+    
+    return {
+      "status": "success",
+      "kpis": {
+        "total_products": total_products,
+        "total_orders": total_orders,
+        "total_earnings": round(total_earnings, 2),
+        "average_rating": avg_rating
+      }
+    }
+  except Exception as e:
+    print(f"❌ Error in get_seller_kpis: {e}")
+    import traceback
+    traceback.print_exc()
+    raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get("/seller/analytics/orders/recent")
+def get_seller_recent_orders(limit: int = 3, user=Depends(_require_seller_user)):
+  """Get recent orders for seller dashboard."""
+  products_collection = _get_products_collection()
+  orders_collection = _get_orders_collection()
+  
+  if products_collection is None or orders_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  
+  seller_id = str(user.get("_id"))
+  
+  try:
+    # Get seller product IDs
+    seller_products = list(products_collection.find({"seller_id": seller_id}, {"_id": 1}))
+    seller_product_ids = {str(p.get("_id")) for p in seller_products}
+    
+    if not seller_product_ids:
+      return {"status": "success", "orders": []}
+    
+    # Find recent orders containing seller's products
+    docs = list(orders_collection.find({}).sort("created_at", -1).limit(limit * 3))  # Get more than needed for filtering
+    recent_orders = []
+    
+    for doc in docs:
+      items = doc.get("items", [])
+      seller_items = [it for it in items if it.get("product_id") in seller_product_ids]
+      if seller_items:
+        seller_total = sum(float(it.get("price", 0)) * int(it.get("qty", 1)) for it in seller_items)
+        order_obj = _normalize_order(doc)
+        recent_orders.append({
+          "id": order_obj.get("id"),
+          "order_number": order_obj.get("order_number", order_obj.get("id")),
+          "customer": order_obj.get("address", {}).get("full_name", "Customer"),
+          "total": seller_total,
+          "status": order_obj.get("status", "confirmed"),
+          "created_at": order_obj.get("created_at")
+        })
+        if len(recent_orders) >= limit:
+          break
+    
+    return {"status": "success", "orders": recent_orders}
+  except Exception as e:
+    print(f"❌ Error in get_seller_recent_orders: {e}")
+    import traceback
+    traceback.print_exc()
+    raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get("/seller/analytics/products/top")
+def get_seller_top_products(page: int = 1, page_size: int = 4, user=Depends(_require_seller_user)):
+  """Get top selling products for seller dashboard."""
+  products_collection = _get_products_collection()
+  
+  if products_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  
+  if page < 1 or page_size < 1 or page_size > 20:
+    raise HTTPException(status_code=400, detail="Invalid pagination parameters")
+  
+  seller_id = str(user.get("_id"))
+  
+  try:
+    # Get products sorted by sold_count
+    pipeline = [
+      {"$match": {"seller_id": seller_id, "is_disabled": {"$ne": True}}},
+      {"$sort": {"sold_count": -1}},
+    ]
+    
+    all_products = list(products_collection.aggregate(pipeline))
+    total = len(all_products)
+    
+    # Paginate
+    start = (page - 1) * page_size
+    paged_products = all_products[start : start + page_size]
+    
+    # Format response
+    products = []
+    for p in paged_products:
+      products.append({
+        "id": str(p.get("_id")),
+        "name": p.get("name", "Unknown Product"),
+        "sold": p.get("sold_count", 0),
+        "price": p.get("price", 0),
+        "stock": p.get("stock_qty", 0),
+        "category_name": p.get("category_name")
+      })
+    
+    return {
+      "status": "success",
+      "products": products,
+      "total": total,
+      "page": page,
+      "page_size": page_size
+    }
+  except Exception as e:
+    print(f"❌ Error in get_seller_top_products: {e}")
+    import traceback
+    traceback.print_exc()
+    raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get("/seller/analytics/sales/categories")
+def get_seller_sales_by_category(user=Depends(_require_seller_user)):
+  """Get sales breakdown by category for seller dashboard."""
+  products_collection = _get_products_collection()
+  
+  if products_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  
+  seller_id = str(user.get("_id"))
+  
+  try:
+    # Aggregate sold count by category
+    pipeline = [
+      {"$match": {"seller_id": seller_id, "is_disabled": {"$ne": True}}},
+      {"$group": {
+        "_id": "$category_name",
+        "total_sold": {"$sum": {"$ifNull": ["$sold_count", 0]}},
+      }},
+      {"$sort": {"total_sold": -1}},
+    ]
+    
+    category_data = list(products_collection.aggregate(pipeline))
+    
+    # Calculate total and percentages
+    total_sold = sum(c.get("total_sold", 0) for c in category_data)
+    
+    categories = []
+    for cat in category_data:
+      cat_name = cat.get("_id") or "Uncategorized"
+      cat_sold = cat.get("total_sold", 0)
+      percentage = round((cat_sold / total_sold * 100), 1) if total_sold > 0 else 0
+      categories.append({
+        "category": cat_name,
+        "sold": cat_sold,
+        "percentage": percentage
+      })
+    
+    return {"status": "success", "categories": categories}
+  except Exception as e:
+    print(f"❌ Error in get_seller_sales_by_category: {e}")
+    import traceback
+    traceback.print_exc()
+    raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get("/seller/analytics/sales/overview")
+def get_seller_sales_overview(
+    year: int = None,
+    half: int = None,
+    user=Depends(_require_seller_user)
+):
+  """
+  Get sales data for chart visualization.
+  - If year is provided, returns monthly sales for that year
+  - If half is 1, returns Jan-Jun of specified year
+  - If half is 2, returns Jul-Dec of specified year
+  - Returns available years for dropdown
+  """
+  from datetime import datetime
+  
+  orders_col = _get_orders_collection()
+  if orders_col is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  
+  seller_id = str(user.get("_id"))
+  current_year = datetime.now().year
+  
+  if year is None:
+    year = current_year
+  
+  try:
+    products_collection = _get_products_collection()
+    if products_collection is None:
+      raise HTTPException(status_code=500, detail="Database not configured")
+
+    seller_products = list(products_collection.find({"seller_id": seller_id}, {"_id": 1}))
+    seller_product_ids = {str(p.get("_id")) for p in seller_products}
+    seller_product_oids = [p.get("_id") for p in seller_products if p.get("_id")]
+    product_id_list = list(seller_product_ids) + seller_product_oids
+
+    # Get all orders that include this seller's products
+    seller_orders = list(orders_col.find({
+      "items.product_id": {"$in": product_id_list},
+      "status": {"$in": ["confirmed", "shipped", "delivered"]}
+    }))
+    
+    # Find all available years
+    years_set = set()
+    for order in seller_orders:
+      created = order.get("created_at")
+      if created:
+        if isinstance(created, str):
+          try:
+            created = datetime.fromisoformat(created.replace("Z", "+00:00"))
+          except:
+            continue
+        years_set.add(created.year)
+    
+    available_years = sorted(years_set, reverse=True)
+    if not available_years:
+      available_years = [current_year]
+    
+    # Build monthly data
+    month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    monthly_totals = {i: 0.0 for i in range(1, 13)}
+    
+    for order in seller_orders:
+      created = order.get("created_at")
+      if not created:
+        continue
+      
+      if isinstance(created, str):
+        try:
+          created = datetime.fromisoformat(created.replace("Z", "+00:00"))
+        except:
+          continue
+      
+      if created.year != year:
+        continue
+      
+      # Sum only items from this seller
+      order_total = 0.0
+      for item in order.get("items", []):
+        item_product_id = item.get("product_id")
+        if item_product_id in seller_product_oids or str(item_product_id) in seller_product_ids:
+          order_total += item.get("price", 0) * item.get("qty", 0)
+      
+      monthly_totals[created.month] += order_total
+    
+    # Filter by half if specified
+    if half == 1:
+      months = list(range(1, 7))  # Jan-Jun
+    elif half == 2:
+      months = list(range(7, 13))  # Jul-Dec
+    else:
+      months = list(range(1, 13))
+    
+    sales_data = [
+      {"period": month_names[m - 1], "amount": round(monthly_totals[m], 2)}
+      for m in months
+    ]
+    
+    return {
+      "status": "success",
+      "year": year,
+      "half": half,
+      "available_years": available_years,
+      "data": sales_data
+    }
+  except Exception as e:
+    print(f"❌ Error in get_seller_sales_overview: {e}")
+    import traceback
+    traceback.print_exc()
+    raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")

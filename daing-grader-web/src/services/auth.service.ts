@@ -64,7 +64,18 @@ export const authService = {
       if (error.response?.status === 404 || error.code === 'ECONNREFUSED') {
         const token = localStorage.getItem('token')
         if (token) {
-          return { email: 'user@example.com', name: 'User', avatar_url: null, role: 'user' }
+          return {
+            email: 'user@example.com',
+            name: 'User',
+            full_name: 'User Example',
+            phone: '',
+            city: '',
+            street_address: '',
+            province: '',
+            gender: '',
+            avatar_url: null,
+            role: 'user',
+          }
         }
       }
       throw error
@@ -74,7 +85,16 @@ export const authService = {
   /**
    * Update profile (name) - PATCH /auth/profile
    */
-  async updateProfile(data: { name: string }) {
+  async updateProfile(data: {
+    name?: string
+    full_name?: string
+    phone?: string
+    email?: string
+    city?: string
+    street_address?: string
+    province?: string
+    gender?: string
+  }) {
     const response = await api.patch('/auth/profile', data)
     return response.data
   },

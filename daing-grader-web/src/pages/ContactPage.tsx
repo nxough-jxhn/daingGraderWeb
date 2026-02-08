@@ -65,29 +65,29 @@ export default function ContactPage() {
 
   return (
     <div className="grid md:grid-cols-2 gap-6">
-      <div className="card">
-        <h2 className="text-xl font-semibold">Contact Us</h2>
+      <div className="card bg-gradient-to-b from-white to-blue-50 border border-blue-200 shadow-lg">
+        <h2 className="text-xl font-semibold text-blue-900">Contact Us</h2>
         <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
           <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
           <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           <Input label="Contact Number" placeholder="e.g. +63 912 345 6789" value={contactNumber} onChange={(e) => setContactNumber(e.target.value)} />
           <Input label="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} required />
           <div>
-            <label className="text-sm text-gray-700 mb-1">Message</label>
+            <label className="text-sm text-slate-700 font-medium mb-1 block">Message</label>
             <textarea
-              className="w-full p-3 border rounded-md h-36"
+              className="w-full p-3 border border-blue-300 bg-white text-slate-900 rounded-md h-36 shadow-sm hover:shadow-md focus:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               required
             />
           </div>
           {error && (
-            <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <div className="text-sm text-red-700 bg-red-50 border border-red-300 rounded-lg px-3 py-2 shadow-sm">
               {error}
             </div>
           )}
           {success && (
-            <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+            <div className="text-sm text-green-700 bg-green-50 border border-green-300 rounded-lg px-3 py-2 shadow-sm">
               Message sent successfully. We&apos;ll get back to you soon.
             </div>
           )}
@@ -106,17 +106,17 @@ export default function ContactPage() {
         </form>
       </div>
 
-      <div className="card">
-        <h3 className="font-semibold">Contact Info</h3>
-        <div className="mt-3 text-sm text-muted">
+      <div className="card bg-gradient-to-b from-white to-blue-50 border border-blue-200 shadow-lg">
+        <h3 className="font-semibold text-blue-900">Contact Info</h3>
+        <div className="mt-3 text-sm text-slate-700">
           shathesisgroup@gmail.com<br />
           Messages from the form are sent to this address.
         </div>
-        <div className="mt-6 bg-gray-50 p-4 rounded">
+        <div className="mt-6 bg-blue-100 p-4 rounded-lg border border-blue-200">
           <img
             src="/assets/images/map.png"
             alt="Map"
-            className="w-full max-w-[600px] h-[400px] object-cover rounded"
+            className="w-full max-w-[600px] h-[400px] object-cover rounded-lg"
           />
         </div>
       </div>

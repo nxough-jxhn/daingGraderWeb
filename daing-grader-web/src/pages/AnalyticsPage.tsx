@@ -12,10 +12,10 @@ export default function AnalyticsPage() {
       <PageTitleHero
         title="Analytics"
         subtitle="View grading statistics, trends, and insights."
-        backgroundImage="/assets/page-hero/analytics.jpg"
+        backgroundImage="/assets/page-hero/hero-bg.jpg"
       />
 
-      <div className="card border border-sidebar-subtle shadow-sidebar-subtle max-w-xl text-center py-16">
+      <div className="bg-white border border-black rounded-xl shadow-sidebar-subtle max-w-xl text-center py-16 p-6">
         <BarChart2 className="w-20 h-20 mx-auto text-slate-300 mb-4" />
         <h2 className="text-xl font-semibold text-slate-800 mb-2">Not implemented yet</h2>
         <p className="text-slate-600 mb-6">
