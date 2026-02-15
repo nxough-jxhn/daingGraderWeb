@@ -75,44 +75,41 @@ export async function createPaymentMethod(cardDetails: CardDetails): Promise<Pay
 
 /**
  * Create a PayMongo Payment Intent
+ * Now calls our backend API which securely handles the secret key
  */
 export async function createPaymentIntent(amount: number, description: string): Promise<PayMongoPaymentIntent> {
   // PayMongo expects amount in centavos (multiply by 100)
   const amountInCentavos = Math.round(amount * 100)
 
-  const payload = {
-    data: {
-      attributes: {
-        amount: amountInCentavos,
-        payment_method_allowed: ['card'],
-        payment_method_options: {
-          card: {
-            request_three_d_secure: 'any',
-          },
-        },
-        currency: 'PHP',
-        description: description,
-      },
-    },
-  }
-
   try {
-    const response = await fetch(`${PAYMONGO_CONFIG.apiUrl}/payment_intents`, {
+    // Call our backend API instead of PayMongo directly
+    const response = await fetch(`${PAYMONGO_CONFIG.apiUrl}/api/payment/create-intent`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Basic ${btoa(PAYMONGO_CONFIG.secretKey)}`,
       },
-      body: JSON.stringify(payload),
+      credentials: 'include',
+      body: JSON.stringify({
+        amount: amountInCentavos,
+        description: description,
+      }),
     })
 
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(error.errors?.[0]?.detail || 'Failed to create payment intent')
+      throw new Error(error.detail || error.error || 'Failed to create payment intent')
     }
 
     const data = await response.json()
-    return data.data
+    return {
+      id: data.payment_intent_id || data.client_key,
+      attributes: {
+        amount: amountInCentavos,
+        currency: 'PHP',
+        status: 'awaiting_payment_method',
+        payment_method_allowed: ['card'],
+      }
+    }
   } catch (error: any) {
     throw new Error(error.message || 'Payment intent creation failed')
   }
@@ -120,37 +117,41 @@ export async function createPaymentIntent(amount: number, description: string): 
 
 /**
  * Attach Payment Method to Payment Intent
+ * Now calls our backend API which securely handles the secret key
  */
 export async function attachPaymentIntent(
   paymentIntentId: string,
   paymentMethodId: string
 ): Promise<PayMongoPaymentIntent> {
-  const payload = {
-    data: {
-      attributes: {
-        payment_method: paymentMethodId,
-        return_url: `${window.location.origin}/order-confirmed`, // Redirect after 3D Secure
-      },
-    },
-  }
-
   try {
-    const response = await fetch(`${PAYMONGO_CONFIG.apiUrl}/payment_intents/${paymentIntentId}/attach`, {
+    const response = await fetch(`${PAYMONGO_CONFIG.apiUrl}/api/payment/attach-intent`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Basic ${btoa(PAYMONGO_CONFIG.secretKey)}`,
       },
-      body: JSON.stringify(payload),
+      credentials: 'include',
+      body: JSON.stringify({
+        payment_intent_id: paymentIntentId,
+        payment_method_id: paymentMethodId,
+        return_url: `${window.location.origin}/order-confirmed`,
+      }),
     })
 
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(error.errors?.[0]?.detail || 'Failed to attach payment method')
+      throw new Error(error.detail || error.error || 'Failed to attach payment method')
     }
 
     const data = await response.json()
-    return data.data
+    return {
+      id: data.payment_intent_id,
+      attributes: {
+        amount: data.amount || 0,
+        currency: 'PHP',
+        status: data.status || 'processing',
+        payment_method_allowed: ['card'],
+      }
+    }
   } catch (error: any) {
     throw new Error(error.message || 'Payment attachment failed')
   }

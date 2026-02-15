@@ -319,6 +319,10 @@ def root():
 from contact_web import router as contact_router
 app.include_router(contact_router, tags=["contact"])
 
+# --- for web backend: payment endpoints (secure PayMongo integration) ---
+from payment_web import router as payment_router
+app.include_router(payment_router, tags=["payment"])
+
 @app.post("/analyze")
 async def analyze_fish(request: Request, file: UploadFile = File(...)):
   print("Received an image for AI Analysis...") 

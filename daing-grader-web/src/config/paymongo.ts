@@ -3,17 +3,18 @@
  * 
  * IMPORTANT: These are TEST keys - no real money involved!
  * Test cards will work, real cards will be rejected.
+ * 
+ * Secret key is now stored securely in backend environment variables.
+ * Only public key is exposed in frontend (which is safe and required).
  */
 
 export const PAYMONGO_CONFIG = {
-  // Public key - safe to use in frontend
-  publicKey: 'pk_test_JsM6hAfEyDF58ULeova92Jfp',
+  // Public key - safe to use in frontend, required for PayMongo.js
+  // This is read from environment variable for security
+  publicKey: import.meta.env.VITE_PAYMONGO_PUBLIC_KEY || 'pk_test_JsM6hAfEyDF58ULeova92Jfp',
   
-  // Secret key - should ideally be in backend, but for school project it's ok
-  secretKey: 'sk_test_LjXwVfQP9a7QMdnuuuL8gfAb',
-  
-  // API base URL
-  apiUrl: 'https://api.paymongo.com/v1',
+  // API base URL - now points to our backend for secure operations
+  apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:8000',
   
   // Test mode indicator
   isTestMode: true,
