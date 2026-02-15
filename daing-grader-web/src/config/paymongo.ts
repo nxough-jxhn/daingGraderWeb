@@ -9,11 +9,14 @@
  */
 
 export const PAYMONGO_CONFIG = {
-  // Public key - safe to use in frontend, required for PayMongo.js
+  // Public key - safe to use in frontend, required for PayMongo.js and card tokenization
   // This is read from environment variable for security
   publicKey: import.meta.env.VITE_PAYMONGO_PUBLIC_KEY || 'pk_test_JsM6hAfEyDF58ULeova92Jfp',
   
-  // API base URL - now points to our backend for secure operations
+  // PayMongo API URL - for card tokenization (uses public key only, safe)
+  paymongoApiUrl: 'https://api.paymongo.com/v1',
+  
+  // Backend API URL - for payment intents (uses secret key on backend, secure)
   apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:8000',
   
   // Test mode indicator

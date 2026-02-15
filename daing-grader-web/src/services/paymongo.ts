@@ -52,7 +52,7 @@ export async function createPaymentMethod(cardDetails: CardDetails): Promise<Pay
   }
 
   try {
-    const response = await fetch(`${PAYMONGO_CONFIG.apiUrl}/payment_methods`, {
+    const response = await fetch(`${PAYMONGO_CONFIG.paymongoApiUrl}/payment_methods`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
