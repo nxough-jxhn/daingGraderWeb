@@ -30,6 +30,14 @@ import {
   type ProductReview,
   type SellerProduct,
 } from '../../services/api'
+import { useAuth } from '../../contexts/AuthContext'
+import { 
+  validateProductName, 
+  validateProductDescription, 
+  validateCategoryName,
+  validatePrice,
+  censorBadWords,
+} from '../../utils/validation'
 
 const csvTemplate = `name,description,price,category,stock_qty,status,images,main_image_index\nDanggit Premium 500g,Premium dried fish,249.00,Danggit,24,available,https://example.com/image1.jpg|https://example.com/image2.jpg,0`
 
@@ -44,6 +52,7 @@ const emptyProductForm = {
 }
 
 export default function SellerProductsPage() {
+  const { user } = useAuth()
   const [products, setProducts] = useState<SellerProduct[]>([])
   const [categories, setCategories] = useState<ProductCategory[]>([])
   const [loading, setLoading] = useState(false)
@@ -61,6 +70,8 @@ export default function SellerProductsPage() {
   const [inventoryForm, setInventoryForm] = useState({ stock_qty: 0, status: 'available' })
   const [productsOpen, setProductsOpen] = useState(true)
   const [categoriesOpen, setCategoriesOpen] = useState(true)
+  const [myCategoriesOpen, setMyCategoriesOpen] = useState(true)
+  const [otherCategoriesOpen, setOtherCategoriesOpen] = useState(false)
   const [detailModalProduct, setDetailModalProduct] = useState<SellerProduct | null>(null)
   const [bulkCategoryId, setBulkCategoryId] = useState('')
   const [pendingImages, setPendingImages] = useState<File[]>([])
@@ -157,6 +168,12 @@ export default function SellerProductsPage() {
     return map
   }, [products])
 
+  const { myCategories, otherCategories } = useMemo(() => {
+    const owned = categories.filter((cat) => cat.created_by === user?.id)
+    const notOwned = categories.filter((cat) => cat.created_by !== user?.id)
+    return { myCategories: owned, otherCategories: notOwned }
+  }, [categories, user?.id])
+
   const visibleIds = useMemo(() => products.map((p) => p.id), [products])
   const allSelected = useMemo(
     () => visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id)),
@@ -221,25 +238,54 @@ export default function SellerProductsPage() {
 
   const validateProductForm = () => {
     const errors: Record<string, string> = {}
-    const name = (productForm.name || '').trim()
-    if (name.length < 2) errors.name = 'Name must be at least 2 characters.'
-    if (Number.isNaN(Number(productForm.price)) || Number(productForm.price) <= 0) {
-      errors.price = 'Price must be greater than 0.'
+    
+    // Validate product name
+    const nameValidation = validateProductName(productForm.name)
+    if (!nameValidation.valid) {
+      errors.name = nameValidation.error!
     }
+    
+    // Validate description
+    const descValidation = validateProductDescription(productForm.description)
+    if (!descValidation.valid) {
+      errors.description = descValidation.error!
+    }
+    
+    // Validate price
+    const priceValidation = validatePrice(productForm.price)
+    if (!priceValidation.valid) {
+      errors.price = priceValidation.error!
+    }
+    
+    // Validate stock quantity
     if (Number.isNaN(Number(productForm.stock_qty)) || Number(productForm.stock_qty) < 0) {
       errors.stock_qty = 'Stock cannot be negative.'
     }
+    
+    // Validate status
     if (!['available', 'draft'].includes(productForm.status)) {
       errors.status = 'Invalid status.'
     }
+    
     setProductFormErrors(errors)
     return Object.keys(errors).length === 0
   }
 
   const validateCategoryForm = () => {
     const errors: Record<string, string> = {}
-    const name = (categoryForm.name || '').trim()
-    if (name.length < 2) errors.name = 'Category name must be at least 2 characters.'
+    
+    // Validate category name
+    const nameValidation = validateCategoryName(categoryForm.name)
+    if (!nameValidation.valid) {
+      errors.name = nameValidation.error!
+    }
+    
+    // Validate description (optional)
+    const descValidation = validateProductDescription(categoryForm.description)
+    if (!descValidation.valid) {
+      errors.description = descValidation.error!
+    }
+    
     setCategoryFormErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -252,11 +298,15 @@ export default function SellerProductsPage() {
     setSaving(true)
     setError(null)
     try {
+      // Censor bad words in name and description
+      const cleanName = censorBadWords(productForm.name.trim())
+      const cleanDescription = censorBadWords(productForm.description.trim())
+      
       let updated: SellerProduct
       if (productModalMode === 'create') {
         const res = await createSellerProduct({
-          name: productForm.name,
-          description: productForm.description,
+          name: cleanName,
+          description: cleanDescription,
           price: Number(productForm.price),
           category_id: productForm.category_id || undefined,
           stock_qty: Number(productForm.stock_qty),
@@ -265,8 +315,8 @@ export default function SellerProductsPage() {
         updated = res.product
       } else if (activeProduct) {
         const res = await updateSellerProduct(activeProduct.id, {
-          name: productForm.name,
-          description: productForm.description,
+          name: cleanName,
+          description: cleanDescription,
           price: Number(productForm.price),
           category_id: productForm.category_id || null,
           stock_qty: Number(productForm.stock_qty),
@@ -283,6 +333,7 @@ export default function SellerProductsPage() {
       }
       setProductModalOpen(false)
       setPendingImages([])
+      setProductFormErrors({})
       await loadData()
     } catch (err: any) {
       setError(err.message || 'Failed to save product')
@@ -368,13 +419,18 @@ export default function SellerProductsPage() {
     }
     setSaving(true)
     try {
+      // Censor bad words in name and description
+      const cleanName = censorBadWords(categoryForm.name.trim())
+      const cleanDescription = censorBadWords(categoryForm.description.trim())
+      
       if (categoryForm.id) {
-        await updateCategory(categoryForm.id, { name: categoryForm.name, description: categoryForm.description })
+        await updateCategory(categoryForm.id, { name: cleanName, description: cleanDescription })
       } else {
-        await createCategory({ name: categoryForm.name, description: categoryForm.description })
+        await createCategory({ name: cleanName, description: cleanDescription })
       }
       setCategoryModalOpen(false)
       setCategoryForm({ name: '', description: '', id: '' })
+      setCategoryFormErrors({})
       await loadData()
     } finally {
       setSaving(false)
@@ -410,7 +466,7 @@ export default function SellerProductsPage() {
             <p className="text-sm text-slate-600 mt-1">Manage products, inventory, categories, and imports.</p>
           </div>
           <button
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-all"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold"
             onClick={() => openProductModal('create')}
           >
             <Plus className="w-4 h-4" />
@@ -490,19 +546,19 @@ export default function SellerProductsPage() {
               <div className="flex flex-wrap items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs">
                 <span className="font-semibold text-blue-900">Bulk actions:</span>
                 <button
-                  className="px-2 py-1 border border-blue-200 rounded hover:bg-white"
+                  className="px-2 py-1 border border-blue-200 rounded"
                   onClick={() => handleBulkDisable(true)}
                 >
                   Disable
                 </button>
                 <button
-                  className="px-2 py-1 border border-blue-200 rounded hover:bg-white"
+                  className="px-2 py-1 border border-blue-200 rounded"
                   onClick={() => handleBulkDisable(false)}
                 >
                   Enable
                 </button>
                 <button
-                  className="px-2 py-1 border border-red-200 text-red-600 rounded hover:bg-white"
+                  className="px-2 py-1 border border-red-200 text-red-600 rounded"
                   onClick={handleBulkDelete}
                 >
                   Delete
@@ -518,7 +574,7 @@ export default function SellerProductsPage() {
                   ))}
                 </select>
                 <button
-                  className="px-2 py-1 border border-blue-200 rounded hover:bg-white"
+                  className="px-2 py-1 border border-blue-200 rounded"
                   onClick={handleBulkCategory}
                 >
                   Apply
@@ -578,25 +634,25 @@ export default function SellerProductsPage() {
                         <td className="px-3 py-3 text-right">
                           <div className="inline-flex items-center gap-2">
                             <button
-                              className="px-2 py-1 text-xs border border-blue-200 rounded hover:bg-blue-50"
+                              className="px-2 py-1 text-xs border border-blue-200 rounded"
                               onClick={() => setDetailModalProduct(product)}
                             >
                               View Details
                             </button>
                             <button
-                              className="px-2 py-1 text-xs border border-blue-200 rounded hover:bg-blue-50"
+                              className="px-2 py-1 text-xs border border-blue-200 rounded"
                               onClick={() => openInventoryPanel(product)}
                             >
                               Inventory & Reviews
                             </button>
                             <button
-                              className="px-2 py-1 text-xs border border-blue-200 rounded hover:bg-blue-50"
+                              className="px-2 py-1 text-xs border border-blue-200 rounded"
                               onClick={() => openProductModal('edit', product)}
                             >
                               <Pencil className="w-4 h-4" />
                             </button>
                             <button
-                              className="px-2 py-1 text-xs border border-red-200 text-red-600 rounded hover:bg-red-50"
+                              className="px-2 py-1 text-xs border border-red-200 text-red-600 rounded"
                               onClick={() => handleHardDelete(product)}
                             >
                               <Trash2 className="w-4 h-4" />
@@ -614,14 +670,14 @@ export default function SellerProductsPage() {
               <span>Page {page} of {totalPages}</span>
               <div className="flex items-center gap-2">
                 <button
-                  className="px-3 py-1 border border-blue-200 rounded-lg hover:bg-blue-50 disabled:opacity-50"
+                  className="px-3 py-1 border border-blue-200 rounded-lg disabled:opacity-50"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1}
                 >
                   Prev
                 </button>
                 <button
-                  className="px-3 py-1 border border-blue-200 rounded-lg hover:bg-blue-50 disabled:opacity-50"
+                  className="px-3 py-1 border border-blue-200 rounded-lg disabled:opacity-50"
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages}
                 >
@@ -655,7 +711,7 @@ export default function SellerProductsPage() {
                       </select>
                     </Field>
                     <button
-                      className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg"
                       onClick={saveInventory}
                       disabled={saving}
                     >
@@ -674,7 +730,7 @@ export default function SellerProductsPage() {
                       {reviews.map((review) => (
                         <button
                           key={review.id}
-                          className="text-left w-full border border-blue-100 rounded-lg p-3 bg-white hover:bg-blue-50/40"
+                          className="text-left w-full border border-blue-100 rounded-lg p-3 bg-white"
                           onClick={() => setDetailModalProduct(detailsProduct)}
                         >
                           <div className="flex items-center justify-between">
@@ -725,11 +781,11 @@ export default function SellerProductsPage() {
               className="inline-flex items-center gap-2 text-sm text-blue-700"
               onClick={() => setCategoriesOpen((prev) => !prev)}
             >
-              {categoriesOpen ? 'Collapse' : 'Expand'}
+              {categoriesOpen ? 'Collapse All' : 'Expand All'}
               {categoriesOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
             <button
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 text-sm"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-200 text-blue-700 text-sm"
               onClick={() => {
                 setCategoryForm({ name: '', description: '', id: '' })
                 setCategoryModalOpen(true)
@@ -740,47 +796,148 @@ export default function SellerProductsPage() {
             </button>
           </div>
         </div>
+
         {categoriesOpen && (
-          <div className="overflow-x-auto border border-blue-200 rounded-xl shadow-md bg-white">
-            <table className="w-full text-sm">
-              <thead className="bg-blue-50 text-slate-600">
-                <tr>
-                  <th className="text-left px-3 py-2">Category</th>
-                  <th className="text-left px-3 py-2">Products</th>
-                  <th className="text-right px-3 py-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {categories.map((cat) => (
-                  <tr key={cat.id} className="border-t border-blue-100">
-                    <td className="px-3 py-2">
-                      <div className="font-semibold text-slate-800">{cat.name}</div>
-                      <div className="text-xs text-slate-500">{cat.description || '—'}</div>
-                    </td>
-                    <td className="px-3 py-2 text-slate-600">
-                      {productCountsByCategory.get(cat.id) || 0}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <button
-                        className="px-2 py-1 text-xs border border-blue-200 rounded hover:bg-blue-50 mr-2"
-                        onClick={() => {
-                          setCategoryForm({ name: cat.name, description: cat.description || '', id: cat.id })
-                          setCategoryModalOpen(true)
-                        }}
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        className="px-2 py-1 text-xs border border-red-200 text-red-600 rounded hover:bg-red-50"
-                        onClick={() => deleteCategory(cat.id).then(loadData)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-4">
+            {/* My Categories Section */}
+            <div className="border border-blue-200 rounded-xl shadow-md bg-white overflow-hidden">
+              <button
+                onClick={() => setMyCategoriesOpen((prev) => !prev)}
+                className="w-full px-4 py-3 bg-blue-50 flex items-center justify-between border-b border-blue-200"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-blue-900 text-sm font-semibold">📌 My Categories</span>
+                  <span className="text-slate-500 text-sm">({myCategories.length})</span>
+                </div>
+                {myCategoriesOpen ? (
+                  <ChevronUp className="w-4 h-4 text-slate-600" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-slate-600" />
+                )}
+              </button>
+
+              {myCategoriesOpen && (
+                <div className="overflow-x-auto">
+                  {myCategories.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-slate-500 text-sm">
+                      You haven't created any categories yet
+                    </div>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead className="bg-blue-50 text-slate-600">
+                        <tr>
+                          <th className="text-left px-3 py-2">Category</th>
+                          <th className="text-left px-3 py-2">Products</th>
+                          <th className="text-right px-3 py-2">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {myCategories.map((cat) => (
+                          <tr key={cat.id} className="border-t border-blue-100">
+                            <td className="px-3 py-2">
+                              <div className="font-semibold text-slate-800">{cat.name}</div>
+                              <div className="text-xs text-slate-500">{cat.description || '—'}</div>
+                            </td>
+                            <td className="px-3 py-2 text-slate-600">
+                              {productCountsByCategory.get(cat.id) || 0}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <button
+                                className="px-2 py-1 text-xs border border-blue-200 rounded mr-2"
+                                onClick={() => {
+                                  setCategoryForm({ name: cat.name, description: cat.description || '', id: cat.id })
+                                  setCategoryModalOpen(true)
+                                }}
+                                title="Edit category"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
+                                className="px-2 py-1 text-xs border border-red-200 text-red-600 rounded"
+                                onClick={() => {
+                                  if (window.confirm('Delete this category?')) {
+                                    deleteCategory(cat.id).then(loadData)
+                                  }
+                                }}
+                                title="Delete category"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Other Categories Section */}
+            {otherCategories.length > 0 && (
+              <div className="border border-blue-200 rounded-xl shadow-md bg-white overflow-hidden">
+                <button
+                  onClick={() => setOtherCategoriesOpen((prev) => !prev)}
+                  className="w-full px-4 py-3 bg-blue-50 flex items-center justify-between border-b border-blue-200"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-blue-900 text-sm font-semibold">🏪 Other Sellers' Categories</span>
+                    <span className="text-slate-500 text-sm">({otherCategories.length})</span>
+                  </div>
+                  {otherCategoriesOpen ? (
+                    <ChevronUp className="w-4 h-4 text-slate-600" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-slate-600" />
+                  )}
+                </button>
+
+                {otherCategoriesOpen && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-blue-50 text-slate-600">
+                        <tr>
+                          <th className="text-left px-3 py-2">Category</th>
+                          <th className="text-left px-3 py-2">Products</th>
+                          <th className="text-right px-3 py-2">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {otherCategories.map((cat) => (
+                          <tr key={cat.id} className="border-t border-blue-100">
+                            <td className="px-3 py-2">
+                              <div className="font-semibold text-slate-800">{cat.name}</div>
+                              <div className="text-xs text-slate-500">
+                                {cat.description || '—'}
+                                <span className="ml-2 text-amber-600 font-medium">(Read-only)</span>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 text-slate-600">
+                              {productCountsByCategory.get(cat.id) || 0}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <button
+                                className="px-2 py-1 text-xs border border-slate-200 text-slate-400 cursor-not-allowed opacity-50 rounded mr-2"
+                                disabled
+                                title="Only the creator can edit this category"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
+                                className="px-2 py-1 text-xs border border-slate-200 text-slate-400 cursor-not-allowed opacity-50 rounded"
+                                disabled
+                                title="Only the creator can delete this category"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -791,7 +948,7 @@ export default function SellerProductsPage() {
           <p className="text-xs text-slate-500">Use the template to format CSV files. Required columns must be present.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 text-sm cursor-pointer">
+          <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-200 text-blue-700 text-sm cursor-pointer">
             <Upload className="w-4 h-4" />
             {importing ? 'Importing...' : 'Upload CSV'}
             <input
@@ -804,7 +961,7 @@ export default function SellerProductsPage() {
           <a
             href={`data:text/csv;charset=utf-8,${encodeURIComponent(csvTemplate)}`}
             download="products-template.csv"
-            className="text-sm text-blue-600 hover:underline"
+            className="text-sm text-blue-600"
           >
             Download template
           </a>
@@ -859,7 +1016,7 @@ export default function SellerProductsPage() {
               <div className="rounded-xl border border-blue-200 bg-white p-3">
                 <div className="text-xs font-semibold text-slate-600 mb-2">Upload Images</div>
                 <div className="flex items-center gap-2">
-                  <label className="px-3 py-2 text-xs border border-blue-200 rounded-lg text-blue-700 cursor-pointer hover:bg-blue-50">
+                  <label className="px-3 py-2 text-xs border border-blue-200 rounded-lg text-blue-700 cursor-pointer">
                     Choose files
                     <input
                       type="file"
@@ -869,7 +1026,7 @@ export default function SellerProductsPage() {
                       onChange={(e) => handleAddImages(e.target.files)}
                     />
                   </label>
-                  <label className="px-3 py-2 text-xs border border-blue-200 rounded-lg text-blue-700 cursor-pointer hover:bg-blue-50">
+                  <label className="px-3 py-2 text-xs border border-blue-200 rounded-lg text-blue-700 cursor-pointer">
                     Add more images
                     <input
                       type="file"
@@ -929,7 +1086,10 @@ export default function SellerProductsPage() {
                   <input
                     value={productForm.name}
                     onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg"
+                    className={`w-full px-3 py-2 text-sm border rounded-lg ${
+                      productFormErrors.name ? 'border-red-300 focus:ring-red-500' : 'border-blue-200 focus:ring-blue-500'
+                    }`}
+                    placeholder="e.g., Premium Danggit 500g"
                   />
                   {productFormErrors.name && (
                     <div className="text-xs text-red-500 mt-1">{productFormErrors.name}</div>
@@ -953,9 +1113,15 @@ export default function SellerProductsPage() {
                 <textarea
                   value={productForm.description}
                   onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg"
+                  className={`w-full px-3 py-2 text-sm border rounded-lg ${
+                    productFormErrors.description ? 'border-red-300 focus:ring-red-500' : 'border-blue-200 focus:ring-blue-500'
+                  }`}
                   rows={4}
+                  placeholder="Describe your product..."
                 />
+                {productFormErrors.description && (
+                  <div className="text-xs text-red-500 mt-1">{productFormErrors.description}</div>
+                )}
               </Field>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -966,7 +1132,10 @@ export default function SellerProductsPage() {
                     step="0.01"
                     value={productForm.price}
                     onChange={(e) => setProductForm({ ...productForm, price: Number(e.target.value) })}
-                    className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg"
+                    className={`w-full px-3 py-2 text-sm border rounded-lg ${
+                      productFormErrors.price ? 'border-red-300 focus:ring-red-500' : 'border-blue-200 focus:ring-blue-500'
+                    }`}
+                    placeholder="0.00"
                   />
                   {productFormErrors.price && (
                     <div className="text-xs text-red-500 mt-1">{productFormErrors.price}</div>
@@ -978,7 +1147,10 @@ export default function SellerProductsPage() {
                     min="0"
                     value={productForm.stock_qty}
                     onChange={(e) => setProductForm({ ...productForm, stock_qty: Number(e.target.value) })}
-                    className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg"
+                    className={`w-full px-3 py-2 text-sm border rounded-lg ${
+                      productFormErrors.stock_qty ? 'border-red-300 focus:ring-red-500' : 'border-blue-200 focus:ring-blue-500'
+                    }`}
+                    placeholder="0"
                   />
                   {productFormErrors.stock_qty && (
                     <div className="text-xs text-red-500 mt-1">{productFormErrors.stock_qty}</div>
@@ -988,7 +1160,9 @@ export default function SellerProductsPage() {
                   <select
                     value={productForm.status}
                     onChange={(e) => setProductForm({ ...productForm, status: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg"
+                    className={`w-full px-3 py-2 text-sm border rounded-lg ${
+                      productFormErrors.status ? 'border-red-300 focus:ring-red-500' : 'border-blue-200 focus:ring-blue-500'
+                    }`}
                   >
                     <option value="available">Available</option>
                     <option value="draft">Draft</option>
@@ -1004,7 +1178,7 @@ export default function SellerProductsPage() {
                   Cancel
                 </button>
                 <button
-                  className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg"
                   onClick={saveProduct}
                   disabled={saving}
                 >
@@ -1068,7 +1242,10 @@ export default function SellerProductsPage() {
               <input
                 value={categoryForm.name}
                 onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg"
+                className={`w-full px-3 py-2 text-sm border rounded-lg ${
+                  categoryFormErrors.name ? 'border-red-300 focus:ring-red-500' : 'border-blue-200 focus:ring-blue-500'
+                }`}
+                placeholder="e.g., Danggit, Boneless Bangus"
               />
               {categoryFormErrors.name && (
                 <div className="text-xs text-red-500 mt-1">{categoryFormErrors.name}</div>
@@ -1078,16 +1255,22 @@ export default function SellerProductsPage() {
               <textarea
                 value={categoryForm.description}
                 onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-blue-200 rounded-lg"
+                className={`w-full px-3 py-2 text-sm border rounded-lg ${
+                  categoryFormErrors.description ? 'border-red-300 focus:ring-red-500' : 'border-blue-200 focus:ring-blue-500'
+                }`}
                 rows={3}
+                placeholder="Describe this category..."
               />
+              {categoryFormErrors.description && (
+                <div className="text-xs text-red-500 mt-1">{categoryFormErrors.description}</div>
+              )}
             </Field>
             <div className="flex justify-end gap-2 pt-2">
               <button className="px-3 py-2 text-sm border border-slate-200 rounded-lg" onClick={() => setCategoryModalOpen(false)}>
                 Cancel
               </button>
               <button
-                className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg"
                 onClick={saveCategory}
                 disabled={saving}
               >
@@ -1156,7 +1339,7 @@ function ImageCarousel({
     <div className="flex items-center gap-2">
       <button
         type="button"
-        className="w-6 h-6 rounded-full border border-blue-200 flex items-center justify-center hover:bg-blue-50"
+        className="w-6 h-6 rounded-full border border-blue-200 flex items-center justify-center"
         onClick={() => setIndex((prev) => (prev - 1 + total) % total)}
       >
         <ChevronLeft className="w-3 h-3" />
@@ -1166,7 +1349,7 @@ function ImageCarousel({
       </div>
       <button
         type="button"
-        className="w-6 h-6 rounded-full border border-blue-200 flex items-center justify-center hover:bg-blue-50"
+        className="w-6 h-6 rounded-full border border-blue-200 flex items-center justify-center"
         onClick={() => setIndex((prev) => (prev + 1) % total)}
       >
         <ChevronRight className="w-3 h-3" />
@@ -1174,7 +1357,7 @@ function ImageCarousel({
       {onChangeMain && (
         <button
           type="button"
-          className="px-2 py-1 text-xs border border-blue-200 rounded-lg hover:bg-blue-50"
+          className="px-2 py-1 text-xs border border-blue-200 rounded-lg"
           onClick={() => onChangeMain(safeIndex)}
         >
           Set main
@@ -1199,7 +1382,7 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
       <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl border border-blue-200 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-blue-50 to-white border-b border-blue-100">
           <div className="font-semibold text-blue-900 text-lg">{title}</div>
-          <button className="p-1 text-slate-500 hover:text-slate-700" onClick={onClose}>
+          <button className="p-1 text-slate-500" onClick={onClose}>
             <X className="w-4 h-4" />
           </button>
         </div>

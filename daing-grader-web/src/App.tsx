@@ -21,10 +21,14 @@ import AdminPostsPage from './pages/AdminPostsPage'
 import AdminScansPage from './pages/AdminScansPage'
 import AdminAuditLogsPage from './pages/AdminAuditLogsPage'
 import AdminOrdersPage from './pages/AdminOrdersPage'
+import AdminDiscountsPage from './pages/AdminDiscountsPage'
+import AdminPayoutsPage from './pages/AdminPayoutsPage'
 import SellerDashboardPage from './pages/seller/SellerDashboardPage'
 import SellerProductsPage from './pages/seller/SellerProductsPage'
 import SellerOrdersPage from './pages/seller/SellerOrdersPage'
 import SellerReviewsPage from './pages/seller/SellerReviewsPage'
+import SellerDiscountsPage from './pages/SellerDiscountsPage'
+import SellerEarningsPage from './pages/SellerEarningsPage'
 import ProductCatalogPage from './pages/ProductCatalogPage'
 import ProductDetailPage from './pages/ProductDetailPage'
 import WishlistPage from './pages/WishlistPage'
@@ -89,6 +93,8 @@ export default function App() {
       <Route path="/admin/posts" element={<Layout><RoleRoute allowed={['admin']}><AdminPostsPage /></RoleRoute></Layout>} />
       <Route path="/admin/scans" element={<Layout><RoleRoute allowed={['admin']}><AdminScansPage /></RoleRoute></Layout>} />
       <Route path="/admin/audit-logs" element={<Layout><RoleRoute allowed={['admin']}><AdminAuditLogsPage /></RoleRoute></Layout>} />
+      <Route path="/admin/discounts" element={<Layout><RoleRoute allowed={['admin']}><AdminDiscountsPage /></RoleRoute></Layout>} />
+      <Route path="/admin/payouts" element={<Layout><RoleRoute allowed={['admin']}><AdminPayoutsPage /></RoleRoute></Layout>} />
       <Route path="/grade" element={<Layout><GradePage /></Layout>} />
       <Route path="/history" element={<Layout><HistoryPage /></Layout>} />
       <Route path="/analytics" element={<Layout><RoleRoute allowed={['admin']}><AnalyticsPage /></RoleRoute></Layout>} />
@@ -101,6 +107,7 @@ export default function App() {
       <Route path="/cart" element={<Layout><RoleRoute allowed={['user']}><CartPage /></RoleRoute></Layout>} />
       <Route path="/checkout/address" element={<Layout><RoleRoute allowed={['user']}><CheckoutAddressPage /></RoleRoute></Layout>} />
       <Route path="/checkout/payment" element={<Layout><RoleRoute allowed={['user']}><CheckoutPaymentPage /></RoleRoute></Layout>} />
+      <Route path="/order-confirmed" element={<Layout><RoleRoute allowed={['user']}><OrderConfirmedPage /></RoleRoute></Layout>} />
       <Route path="/order-confirmed/:orderId" element={<Layout><RoleRoute allowed={['user']}><OrderConfirmedPage /></RoleRoute></Layout>} />
       <Route path="/shop" element={<Layout><RoleRoute allowed={['user']}><EcommercePage /></RoleRoute></Layout>} />
       <Route path="/seller" element={<Navigate to="/seller/dashboard" replace />} />
@@ -108,6 +115,8 @@ export default function App() {
       <Route path="/seller/products" element={<Layout><RoleRoute allowed={['seller']}><SellerProductsPage /></RoleRoute></Layout>} />
       <Route path="/seller/orders" element={<Layout><RoleRoute allowed={['seller']}><SellerOrdersPage /></RoleRoute></Layout>} />
       <Route path="/seller/reviews" element={<Layout><RoleRoute allowed={['seller']}><SellerReviewsPage /></RoleRoute></Layout>} />
+      <Route path="/seller/discounts" element={<Layout><RoleRoute allowed={['seller']}><SellerDiscountsPage /></RoleRoute></Layout>} />
+      <Route path="/seller/earnings" element={<Layout><RoleRoute allowed={['seller']}><SellerEarningsPage /></RoleRoute></Layout>} />
       <Route path="/dataset" element={<Layout><DatasetPage /></Layout>} />
       <Route path="/dataset/:id" element={<Layout><DatasetImageDetailPage /></Layout>} />
       <Route path="/login" element={<Layout><LoginPage /></Layout>} />

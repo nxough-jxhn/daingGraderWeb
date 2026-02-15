@@ -2,7 +2,7 @@
  * Admin Scans Management Page
  * Features: scans table with filtering, disable/delete, pagination
  */
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   Search,
   ChevronLeft,
@@ -12,6 +12,9 @@ import {
   Eye,
   X,
   Calendar,
+  LineChart,
+  PieChart,
+  Maximize2,
   Image as ImageIcon,
   User,
   Fish,
@@ -72,6 +75,322 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
+function ScanCalendarChart({
+  year,
+  month,
+  scans,
+  variant = 'compact',
+}: {
+  year: number
+  month: number
+  scans: AdminScanEntry[]
+  variant?: 'compact' | 'expanded'
+}) {
+  const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null)
+
+  const scansByDay = useMemo(() => {
+    const daysMap: Record<number, number> = {}
+    const daysData: Record<number, { day: number | null; count: number; isFuture?: boolean }> = {}
+    const today = new Date()
+    const isCurrentMonthYear = today.getFullYear() === year && today.getMonth() + 1 === month
+
+    scans.forEach((scan) => {
+      if (scan.timestamp) {
+        const scanDate = new Date(scan.timestamp)
+        if (!isNaN(scanDate.getTime()) && scanDate.getFullYear() === year && scanDate.getMonth() + 1 === month) {
+          const day = scanDate.getDate()
+          daysMap[day] = (daysMap[day] || 0) + 1
+        }
+      }
+    })
+
+    const firstDay = new Date(year, month - 1, 1)
+    const lastDay = new Date(year, month, 0)
+    const daysInMonth = lastDay.getDate()
+    const startingDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1
+
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      daysData[Object.keys(daysData).length] = { day: null, count: 0 }
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const isFuture = isCurrentMonthYear && day > today.getDate()
+      const count = isFuture ? 0 : (daysMap[day] || 0)
+      daysData[Object.keys(daysData).length] = { day, count, isFuture }
+    }
+
+    return Object.values(daysData)
+  }, [year, month, scans])
+
+  const maxCount = Math.max(...scansByDay.map((d) => d.count), 1)
+  const monthName = new Date(year, month - 1).toLocaleString('en-US', { month: 'long' })
+
+  const isExpanded = variant === 'expanded'
+  const headerTextClass = isExpanded ? 'text-xs' : 'text-[10px]'
+  const headerGapClass = isExpanded ? 'gap-1' : 'gap-0.5'
+  const headerMarginClass = isExpanded ? 'mb-1' : 'mb-0.5'
+  const cellHeightClass = isExpanded ? 'h-12' : 'h-8'
+  const cellTextClass = isExpanded ? 'text-xs' : 'text-[9px]'
+  const dayTextClass = isExpanded ? 'text-[10px]' : 'text-[8px]'
+  const countTextClass = isExpanded ? 'text-[9px]' : 'text-[7px]'
+  const legendTextClass = isExpanded ? 'text-xs' : 'text-[9px]'
+  const legendGapClass = isExpanded ? 'gap-1.5' : 'gap-0.5'
+  const legendBoxClass = isExpanded ? 'w-4 h-4' : 'w-2.5 h-2.5'
+
+  return (
+    <div className="space-y-2 h-full flex flex-col">
+      <div className={`${headerTextClass} text-slate-600`}>
+        {monthName} {year}
+      </div>
+      <div className="space-y-1 flex-1 overflow-y-auto min-h-0">
+        <div className={`grid grid-cols-7 ${headerGapClass} ${headerTextClass} text-slate-600 font-semibold ${headerMarginClass}`}>
+          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, idx) => (
+            <div key={`${d}-${idx}`} className="text-center">{d}</div>
+          ))}
+        </div>
+        <div className={`grid grid-cols-7 ${headerGapClass}`}>
+          {scansByDay.map((dayData, idx) => {
+            const intensity = dayData.day !== null && dayData.count > 0 ? dayData.count / maxCount : 0
+            const bgColor =
+              dayData.day === null ? 'bg-slate-50'
+              : dayData.isFuture ? 'bg-slate-50 text-slate-400'
+              : intensity > 0.7 ? 'bg-blue-600 text-white'
+              : intensity > 0.4 ? 'bg-blue-400 text-white'
+              : intensity > 0 ? 'bg-blue-200 text-blue-900'
+              : 'bg-blue-50 text-slate-600'
+
+            return (
+              <div
+                key={idx}
+                className={`${cellHeightClass} cursor-pointer relative flex items-center justify-center font-medium rounded border border-blue-200 ${cellTextClass} ${bgColor} transition-colors`}
+                onMouseMove={(e) => dayData.day !== null && !dayData.isFuture && dayData.count > 0 ? setHover({ x: e.clientX, y: e.clientY, text: `Scans: ${dayData.count}` }) : null}
+                onMouseLeave={() => setHover(null)}
+              >
+                {dayData.day !== null && !dayData.isFuture && dayData.count > 0 ? (
+                  <div className="text-center">
+                    <div className={dayTextClass}>{dayData.day}</div>
+                    <div className={`${countTextClass} font-bold`}>{dayData.count}</div>
+                  </div>
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      <div className={`${legendTextClass} text-slate-500 flex items-center ${legendGapClass} justify-center flex-shrink-0`}>
+        <span>Less</span>
+        {[0, 0.3, 0.6, 1].map((intensity) => (
+          <div
+            key={intensity}
+            className={`${legendBoxClass} rounded border border-blue-200`}
+            style={{
+              backgroundColor:
+                intensity === 0 ? '#EFF6FF'
+                : intensity < 0.5 ? '#BFDBFE'
+                : intensity < 0.8 ? '#60A5FA'
+                : '#1E40AF',
+            }}
+          />
+        ))}
+        <span>More</span>
+      </div>
+      {hover && (
+        <div
+          className="fixed z-50 px-2 py-1 text-xs font-bold text-blue-900 bg-white border border-blue-200 rounded shadow-sm pointer-events-none"
+          style={{ left: hover.x + 12, top: hover.y + 12 }}
+        >
+          {hover.text}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DaingTypeLineChart({ scans, year }: { scans: AdminScanEntry[]; year: number }) {
+  const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null)
+
+  const data = useMemo(() => {
+    const counts: Record<string, number> = {}
+    scans.forEach((scan) => {
+      if (!scan.timestamp) return
+      const scanDate = new Date(scan.timestamp)
+      if (isNaN(scanDate.getTime()) || scanDate.getFullYear() !== year) return
+      const type = scan.fish_type?.trim() || 'Unknown'
+      counts[type] = (counts[type] || 0) + 1
+    })
+
+    const preferredOrder = ['Bisugo', 'Danggit', 'Espada', 'Dalagangbukid', 'Flyingfish', 'Unknown']
+    const ordered = preferredOrder.map((label) => ({ label, value: counts[label] ?? 0 }))
+    const remaining = Object.keys(counts)
+      .filter((label) => !preferredOrder.includes(label))
+      .sort()
+      .map((label) => ({ label, value: counts[label] }))
+
+    return [...ordered, ...remaining]
+  }, [scans, year])
+
+  if (data.length === 0) {
+    return <div className="h-40 flex items-center justify-center text-slate-500">No data</div>
+  }
+
+  const maxValue = Math.max(...data.map((d) => d.value), 1)
+  const width = 720
+  const height = 230
+  const padding = { top: 12, right: 24, bottom: 40, left: 40 }
+  const chartWidth = width - padding.left - padding.right
+  const chartHeight = height - padding.top - padding.bottom
+
+  const points = data.map((item, idx) => {
+    const x = padding.left + (chartWidth * (data.length === 1 ? 0.5 : idx / (data.length - 1)))
+    const y = padding.top + chartHeight - (item.value / maxValue) * chartHeight
+    return { x, y, value: item.value }
+  })
+
+  const path = points.map((point, idx) => `${idx === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
+
+  return (
+    <div className="space-y-2 h-full flex flex-col">
+      <div className="flex-1 flex flex-col relative min-h-0 w-full">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
+          {[1, 0.75, 0.5, 0.25, 0].map((tick, i) => {
+            const y = padding.top + chartHeight - tick * chartHeight
+            const value = Math.round(maxValue * tick)
+            return (
+              <g key={i}>
+                <line
+                  x1={padding.left}
+                  y1={y}
+                  x2={width - padding.right}
+                  y2={y}
+                  stroke="#DBEAFE"
+                  strokeWidth="1"
+                />
+                <text x={padding.left - 6} y={y + 3} textAnchor="end" fontSize="10" fill="#64748B">
+                  {value}
+                </text>
+              </g>
+            )
+          })}
+
+          <path d={path} fill="none" stroke="#2563EB" strokeWidth="2" />
+          {points.map((point, idx) => (
+            <g
+              key={idx}
+              className="cursor-pointer"
+              onMouseMove={(e) => setHover({ x: e.clientX, y: e.clientY, text: `${data[idx].label}: ${point.value}` })}
+              onMouseLeave={() => setHover(null)}
+            >
+              <circle cx={point.x} cy={point.y} r="3" fill="#2563EB" />
+              <text
+                x={point.x}
+                y={Math.max(point.y - 8, padding.top + 8)}
+                textAnchor="middle"
+                fontSize="12"
+                fontWeight="700"
+                fill="#2563EB"
+              >
+                {point.value}
+              </text>
+            </g>
+          ))}
+
+          {points.map((point, idx) => (
+            <text
+              key={`label-${idx}`}
+              x={point.x}
+              y={height - 10}
+              textAnchor="middle"
+              fontSize="10"
+              fill="#64748B"
+            >
+              {data[idx].label}
+            </text>
+          ))}
+        </svg>
+        {hover && (
+          <div
+            className="fixed z-50 px-2 py-1 text-xs font-bold text-blue-900 bg-white border border-blue-200 rounded shadow-sm pointer-events-none"
+            style={{ left: hover.x + 12, top: hover.y + 12 }}
+          >
+            {hover.text}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ScanQualityDonut({ scans, year }: { scans: AdminScanEntry[]; year: number }) {
+  const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null)
+
+  const counts = useMemo(() => {
+    const summary = { Export: 0, Local: 0, Reject: 0 }
+    scans.forEach((scan) => {
+      if (!scan.timestamp) return
+      const scanDate = new Date(scan.timestamp)
+      if (isNaN(scanDate.getTime()) || scanDate.getFullYear() !== year) return
+      if (scan.grade === 'Export') summary.Export += 1
+      if (scan.grade === 'Local') summary.Local += 1
+      if (scan.grade === 'Reject') summary.Reject += 1
+    })
+    return summary
+  }, [scans, year])
+
+  const total = counts.Export + counts.Local + counts.Reject
+  if (total === 0) {
+    return <div className="h-40 flex items-center justify-center text-slate-500">No data</div>
+  }
+
+  const segments = [
+    { label: 'Export', value: counts.Export, color: '#22C55E' },
+    { label: 'Local', value: counts.Local, color: '#3B82F6' },
+    { label: 'Reject', value: counts.Reject, color: '#EF4444' },
+  ]
+
+  return (
+    <div className="flex flex-col gap-4 h-full justify-center relative">
+      {segments.map((segment) => {
+        const ratio = total > 0 ? segment.value / total : 0
+        return (
+          <div
+            key={segment.label}
+            className="flex items-center gap-3 cursor-pointer"
+            onMouseMove={(e) => setHover({ x: e.clientX, y: e.clientY, text: `${segment.label}: ${segment.value} (${Math.round(ratio * 100)}%)` })}
+            onMouseLeave={() => setHover(null)}
+          >
+            <div className="w-20 text-xs font-semibold text-slate-700">{segment.label}</div>
+            <div className="relative flex-1 h-4 bg-slate-100 rounded-full">
+              <div
+                className="absolute left-0 top-1/2 -translate-y-1/2 h-2.5 rounded-full"
+                style={{ width: `${Math.max(ratio * 100, 4)}%`, backgroundColor: segment.color }}
+              />
+              <span
+                className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 bg-white"
+                style={{ left: `calc(${ratio * 100}% - 8px)`, borderColor: segment.color }}
+              />
+              <span
+                className="absolute -top-6 text-xs font-semibold text-slate-700"
+                style={{ left: `calc(${ratio * 100}% - 6px)` }}
+              >
+                {segment.value}
+              </span>
+            </div>
+            <div className="w-12 text-right text-sm font-semibold text-slate-700">{Math.round(ratio * 100)}%</div>
+          </div>
+        )
+      })}
+      {hover && (
+        <div
+          className="fixed z-50 px-2 py-1 text-xs font-bold text-blue-900 bg-white border border-blue-200 rounded shadow-sm pointer-events-none"
+          style={{ left: hover.x + 12, top: hover.y + 12 }}
+        >
+          {hover.text}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function AdminScansPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [gradeFilter, setGradeFilter] = useState<FilterGrade>('all')
@@ -86,6 +405,8 @@ export default function AdminScansPage() {
   const [stats, setStats] = useState<AdminScanStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [analyticsScans, setAnalyticsScans] = useState<AdminScanEntry[]>([])
+  const [analyticsLoading, setAnalyticsLoading] = useState(false)
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -101,6 +422,13 @@ export default function AdminScansPage() {
   // Delete modal
   const [deleteModal, setDeleteModal] = useState<{ open: boolean; scan: AdminScanEntry | null }>({ open: false, scan: null })
   const [deleteLoading, setDeleteLoading] = useState(false)
+
+  // Graph state
+  const today = new Date()
+  const [graphType, setGraphType] = useState<'types' | 'quality' | 'calendar'>('types')
+  const [graphYear, setGraphYear] = useState(today.getFullYear())
+  const [graphMonth, setGraphMonth] = useState(today.getMonth() + 1)
+  const [showGraphModal, setShowGraphModal] = useState(false)
 
   // Fetch scans
   const fetchScans = async () => {
@@ -128,12 +456,41 @@ export default function AdminScansPage() {
     }
   }
 
+  const fetchAnalyticsScans = async () => {
+    setAnalyticsLoading(true)
+    try {
+      const pageSize = 200
+      let pageIndex = 1
+      let allScans: AdminScanEntry[] = []
+      let total = 0
+
+      while (true) {
+        const res = await getAdminScanPage(pageIndex, pageSize)
+        allScans = allScans.concat(res.entries || [])
+        total = res.total || 0
+        if (allScans.length >= total || (res.entries || []).length === 0) break
+        pageIndex += 1
+      }
+
+      setAnalyticsScans(allScans)
+    } catch (e) {
+      console.error('Failed to load analytics scans')
+      setAnalyticsScans([])
+    } finally {
+      setAnalyticsLoading(false)
+    }
+  }
+
   useEffect(() => {
     fetchScans()
   }, [page])
 
   useEffect(() => {
     fetchStats()
+  }, [])
+
+  useEffect(() => {
+    fetchAnalyticsScans()
   }, [])
 
   // Filter scans locally (search and filters)
@@ -158,6 +515,18 @@ export default function AdminScansPage() {
   })
 
   const totalPages = Math.ceil(totalScans / pageSize)
+
+  const totalDetected = useMemo(() => {
+    return analyticsScans.filter((scan) => scan.detected).length
+  }, [analyticsScans])
+
+  const avgScoreValue = useMemo(() => {
+    if (stats && typeof stats.avg_score === 'number') return stats.avg_score
+    const scored = analyticsScans.filter((scan) => typeof scan.score === 'number')
+    if (scored.length === 0) return null
+    const sum = scored.reduce((total, scan) => total + (scan.score || 0), 0)
+    return sum / scored.length
+  }, [analyticsScans, stats])
 
   // Bulk selection handlers
   const handleToggleSelect = (id: string) => {
@@ -211,6 +580,7 @@ export default function AdminScansPage() {
       await toggleScanStatus(disableModal.scan.id, disableReason)
       await fetchScans()
       await fetchStats()
+      await fetchAnalyticsScans()
       setDisableModal({ open: false, scan: null })
     } catch (e) {
       alert('Failed to update scan status')
@@ -232,6 +602,7 @@ export default function AdminScansPage() {
       await deleteAdminScan(deleteModal.scan.id)
       await fetchScans()
       await fetchStats()
+      await fetchAnalyticsScans()
       setDeleteModal({ open: false, scan: null })
       if (detailModal.scan?.id === deleteModal.scan.id) {
         setDetailModal({ open: false, scan: null })
@@ -252,31 +623,131 @@ export default function AdminScansPage() {
         backgroundImage="/assets/page-hero/hero-bg.jpg"
       />
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="text-sm font-bold text-blue-700 mb-1">Total Scans</div>
-          <div className="text-2xl font-bold text-slate-900">{stats?.total_scans?.toLocaleString() || '-'}</div>
+      {/* KPI + Graph Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* KPIs on the left - 2x2 grid */}
+        <div className="grid grid-cols-2 gap-4 lg:items-start">
+          <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold text-blue-700">Total Scans</div>
+              <ImageIcon className="w-6 h-6 text-blue-600" />
+            </div>
+            <div className="text-3xl font-bold text-slate-900">{stats?.total_scans?.toLocaleString() || '-'}</div>
+            <div className="text-xs text-blue-600 mt-2">All scans</div>
+          </div>
+          <div className="bg-gradient-to-br from-white to-red-50 border border-red-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold text-red-700">Total Rejects</div>
+              <XCircle className="w-6 h-6 text-red-600" />
+            </div>
+            <div className="text-3xl font-bold text-red-600">{stats?.reject_count ?? '-'}</div>
+            <div className="text-xs text-red-600 mt-2">Rejected scans</div>
+          </div>
+          <div className="bg-gradient-to-br from-white to-emerald-50 border border-emerald-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold text-emerald-700">Daing Detected</div>
+              <Fish className="w-6 h-6 text-emerald-600" />
+            </div>
+            <div className="text-3xl font-bold text-emerald-600">{analyticsLoading ? '-' : totalDetected}</div>
+            <div className="text-xs text-emerald-600 mt-2">Detected scans</div>
+          </div>
+          <div className="bg-gradient-to-br from-white to-indigo-50 border border-indigo-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold text-indigo-700">Avg Confidence</div>
+              <Award className="w-6 h-6 text-indigo-600" />
+            </div>
+            <div className="text-3xl font-bold text-indigo-700">
+              {avgScoreValue !== null ? `${(avgScoreValue * 100).toFixed(1)}%` : 'N/A'}
+            </div>
+            <div className="text-xs text-indigo-600 mt-2">Average score</div>
+          </div>
         </div>
-        <div className="bg-gradient-to-br from-white to-green-50 border border-green-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="text-sm font-bold text-green-700 mb-1">Export Grade</div>
-          <div className="text-2xl font-bold text-green-600">{stats?.export_count ?? 0}</div>
-        </div>
-        <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="text-sm font-bold text-blue-700 mb-1">Local Grade</div>
-          <div className="text-2xl font-bold text-blue-600">{stats?.local_count ?? 0}</div>
-        </div>
-        <div className="bg-gradient-to-br from-white to-red-50 border border-red-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="text-sm font-bold text-red-700 mb-1">Reject Grade</div>
-          <div className="text-2xl font-bold text-red-600">{stats?.reject_count ?? 0}</div>
-        </div>
-        <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="text-sm font-bold text-blue-700 mb-1">Unique Users</div>
-          <div className="text-2xl font-bold text-slate-900">{stats?.unique_users ?? 0}</div>
-        </div>
-        <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="text-sm font-bold text-blue-700 mb-1">Avg Score</div>
-          <div className="text-2xl font-bold text-slate-900">{stats?.avg_score !== undefined ? `${(stats.avg_score * 100).toFixed(1)}%` : 'N/A'}</div>
+
+        {/* Graph on the right */}
+        <div className="lg:col-span-2 bg-white border border-blue-200 shadow-md p-3 rounded-lg max-h-[300px] flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold text-blue-900">Scan Analytics</h3>
+            <button
+              onClick={() => setShowGraphModal(true)}
+              className="p-2 text-blue-600 hover:bg-blue-50 transition-colors border border-blue-300 rounded"
+              title="Expand view"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Graph Type Toggle + Filter Controls on same row */}
+          <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+            <button
+              onClick={() => setGraphType('types')}
+              className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
+                graphType === 'types'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+              }`}
+            >
+              <LineChart className="w-3 h-3 inline mr-0.5" />
+              Daing Types
+            </button>
+            <button
+              onClick={() => setGraphType('quality')}
+              className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
+                graphType === 'quality'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+              }`}
+            >
+              <PieChart className="w-3 h-3 inline mr-0.5" />
+              Quality Distribution
+            </button>
+            <button
+              onClick={() => setGraphType('calendar')}
+              className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
+                graphType === 'calendar'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+              }`}
+            >
+              <Calendar className="w-3 h-3 inline mr-0.5" />
+              Scan Calendar
+            </button>
+            <select
+              value={graphYear}
+              onChange={(e) => setGraphYear(Number(e.target.value))}
+              className="px-1.5 py-1 border border-blue-300 bg-white text-xs rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            >
+              {[today.getFullYear(), today.getFullYear() - 1, today.getFullYear() - 2].map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+            {graphType === 'calendar' && (
+              <select
+                value={graphMonth}
+                onChange={(e) => setGraphMonth(Number(e.target.value))}
+                className="px-1.5 py-1 border border-blue-300 bg-white text-xs rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              >
+                {[
+                  { val: 1, name: 'January' }, { val: 2, name: 'February' }, { val: 3, name: 'March' },
+                  { val: 4, name: 'April' }, { val: 5, name: 'May' }, { val: 6, name: 'June' },
+                  { val: 7, name: 'July' }, { val: 8, name: 'August' }, { val: 9, name: 'September' },
+                  { val: 10, name: 'October' }, { val: 11, name: 'November' }, { val: 12, name: 'December' },
+                ].map((m) => (
+                  <option key={m.val} value={m.val}>{m.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Graph Display */}
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {graphType === 'types' ? (
+              <DaingTypeLineChart scans={analyticsScans} year={graphYear} />
+            ) : graphType === 'quality' ? (
+              <ScanQualityDonut scans={analyticsScans} year={graphYear} />
+            ) : (
+              <ScanCalendarChart year={graphYear} month={graphMonth} scans={analyticsScans} />
+            )}
+          </div>
         </div>
       </div>
 
@@ -592,6 +1063,102 @@ export default function AdminScansPage() {
           </div>
         )}
       </div>
+
+      {/* Graph Expansion Modal */}
+      {showGraphModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowGraphModal(false)}>
+          <div
+            className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-blue-200 shadow-xl rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-6 border-b border-blue-200 sticky top-0 bg-white z-10">
+              <h2 className="text-xl font-bold text-blue-900">Scan Analytics - Expanded View</h2>
+              <button
+                onClick={() => setShowGraphModal(false)}
+                className="p-2 hover:bg-blue-50 transition-colors rounded"
+              >
+                <X className="w-5 h-5 text-slate-600" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => setGraphType('types')}
+                  className={`px-4 py-2 text-sm font-semibold border rounded transition-colors ${
+                    graphType === 'types'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  }`}
+                >
+                  <LineChart className="w-4 h-4 inline mr-1" />
+                  Daing Types
+                </button>
+                <button
+                  onClick={() => setGraphType('quality')}
+                  className={`px-4 py-2 text-sm font-semibold border rounded transition-colors ${
+                    graphType === 'quality'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  }`}
+                >
+                  <PieChart className="w-4 h-4 inline mr-1" />
+                  Quality Distribution
+                </button>
+                <button
+                  onClick={() => setGraphType('calendar')}
+                  className={`px-4 py-2 text-sm font-semibold border rounded transition-colors ${
+                    graphType === 'calendar'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4 inline mr-1" />
+                  Scan Calendar
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3 flex-wrap">
+                <select
+                  value={graphYear}
+                  onChange={(e) => setGraphYear(Number(e.target.value))}
+                  className="px-4 py-2 border border-blue-300 bg-white text-sm rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                >
+                  {[today.getFullYear(), today.getFullYear() - 1, today.getFullYear() - 2].map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+                {graphType === 'calendar' && (
+                  <select
+                    value={graphMonth}
+                    onChange={(e) => setGraphMonth(Number(e.target.value))}
+                    className="px-4 py-2 border border-blue-300 bg-white text-sm rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  >
+                    {[
+                      { val: 1, name: 'January' }, { val: 2, name: 'February' }, { val: 3, name: 'March' },
+                      { val: 4, name: 'April' }, { val: 5, name: 'May' }, { val: 6, name: 'June' },
+                      { val: 7, name: 'July' }, { val: 8, name: 'August' }, { val: 9, name: 'September' },
+                      { val: 10, name: 'October' }, { val: 11, name: 'November' }, { val: 12, name: 'December' },
+                    ].map((m) => (
+                      <option key={m.val} value={m.val}>{m.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div className="p-8 bg-gradient-to-br from-white to-blue-50 border border-blue-200 rounded-lg">
+                {graphType === 'types' ? (
+                  <DaingTypeLineChart scans={analyticsScans} year={graphYear} />
+                ) : graphType === 'quality' ? (
+                  <ScanQualityDonut scans={analyticsScans} year={graphYear} />
+                ) : (
+                  <ScanCalendarChart year={graphYear} month={graphMonth} scans={analyticsScans} variant="expanded" />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Detail Modal */}
       {detailModal.open && detailModal.scan && (

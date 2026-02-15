@@ -20,6 +20,9 @@ import cloudinary.api
 from dotenv import load_dotenv
 from ultralytics import YOLO  # <--- NEW IMPORT
 from mongodb import get_db
+from order_receipt import build_receipt_pdf_bytes, send_order_receipt_email
+from email_sender import send_item_disabled_email, send_item_enabled_email
+from paymongo import create_payment_intent_for_ewallet, create_payment_intent_for_card, retrieve_payment_intent
 
 # Load environment variables
 load_dotenv()
@@ -889,6 +892,8 @@ def disable_admin_scan(scan_id: str, reason: str = "", user=Depends(_require_adm
   
   now = datetime.now().isoformat()
   is_disabled = scan.get("is_disabled", False)
+  admin_email = user.get("email", "")
+  admin_name = user.get("name", "Admin")
   
   # Toggle disable status
   update_data = {
@@ -900,30 +905,40 @@ def disable_admin_scan(scan_id: str, reason: str = "", user=Depends(_require_adm
   
   collection.update_one({"id": scan_id}, {"$set": update_data})
   
-  # Send email to user if disabling and user has an email
-  if not is_disabled and reason:
-    user_id = scan.get("user_id")
-    if user_id:
-      try:
-        users_collection = get_db()["users"]
-        scan_user = users_collection.find_one({"_id": ObjectId(user_id)})
-        if scan_user and scan_user.get("email"):
-          # Import email sending
-          from contact_web import send_scan_disabled_email
-          send_scan_disabled_email(
+  # Send email to user if toggling status
+  user_id = scan.get("user_id")
+  if user_id:
+    try:
+      users_collection = get_db()["users"]
+      scan_user = users_collection.find_one({"_id": ObjectId(user_id)})
+      if scan_user and scan_user.get("email"):
+        if is_disabled:  # Re-enabling
+          send_item_enabled_email(
             user_email=scan_user.get("email"),
-            user_name=scan_user.get("displayName") or scan_user.get("email"),
-            scan_id=scan_id,
-            reason=reason
+            user_name=scan_user.get("name") or scan_user.get("email"),
+            item_type="scan",
+            item_name=scan.get("name") or f"Scan {scan_id}",
+            admin_name=admin_name,
+            admin_email=admin_email
           )
-      except Exception as email_error:
-        print(f"⚠️ Failed to send disable email: {email_error}")
+        else:  # Disabling
+          send_item_disabled_email(
+            user_email=scan_user.get("email"),
+            user_name=scan_user.get("name") or scan_user.get("email"),
+            item_type="scan",
+            item_name=scan.get("name") or f"Scan {scan_id}",
+            reason=reason,
+            admin_name=admin_name,
+            admin_email=admin_email
+          )
+    except Exception as email_error:
+      print(f"[EMAIL ERROR] Failed to send email: {email_error}")
   
   # Log audit event
   _log_audit_event(
-    actor=user.get("name", "Admin"),
+    actor=admin_name,
     role=user.get("role", "admin"),
-    action="Toggle scan status" if is_disabled else "Disabled scan",
+    action="Re-enabled scan" if is_disabled else "Disabled scan",
     category="Scans",
     entity="Scan",
     entity_id=scan_id,
@@ -1787,6 +1802,8 @@ def toggle_post_status(post_id: str, body: TogglePostStatusBody, user=Depends(_r
   is_disabled = post.get("is_disabled", False)
   new_status = not is_disabled
   now = datetime.now().isoformat()
+  admin_email = user.get("email", "")
+  admin_name = user.get("name", "Admin")
   
   update_data = {
     "is_disabled": new_status,
@@ -1803,7 +1820,46 @@ def toggle_post_status(post_id: str, body: TogglePostStatusBody, user=Depends(_r
   
   collection.update_one({"_id": oid}, {"$set": update_data})
   
-  # TODO: Send email notification to post author
+  # Send email notification to post author
+  db = get_db()
+  author_id = post.get("author_id")
+  if author_id:
+    try:
+      author = db["users"].find_one({"_id": ObjectId(author_id)})
+      if author and author.get("email"):
+        if new_status:  # Disabling
+          send_item_disabled_email(
+            user_email=author.get("email"),
+            user_name=author.get("name") or author.get("email"),
+            item_type="post",
+            item_name=post.get("title", "Post")[:50],
+            reason=body.reason,
+            admin_name=admin_name,
+            admin_email=admin_email
+          )
+        else:  # Enabling
+          send_item_enabled_email(
+            user_email=author.get("email"),
+            user_name=author.get("name") or author.get("email"),
+            item_type="post",
+            item_name=post.get("title", "Post")[:50],
+            admin_name=admin_name,
+            admin_email=admin_email
+          )
+    except Exception as email_error:
+      print(f"[EMAIL ERROR] Failed to send email: {email_error}")
+  
+  # Log audit event
+  _log_audit_event(
+    actor=admin_name,
+    role=user.get("role", "admin"),
+    action="Disabled post" if new_status else "Enabled post",
+    category="Posts",
+    entity="Post",
+    entity_id=post_id,
+    status="success",
+    details=f"New status: {'disabled' if new_status else 'active'}, Reason: {body.reason}"
+  )
   
   return {
     "status": "success",
@@ -1900,6 +1956,8 @@ def toggle_comment_status(comment_id: str, body: ToggleCommentStatusBody, user=D
   is_disabled = comment.get("is_disabled", False)
   new_status = not is_disabled
   now = datetime.now().isoformat()
+  admin_email = user.get("email", "")
+  admin_name = user.get("name", "Admin")
   
   update_data = {
     "is_disabled": new_status,
@@ -1915,18 +1973,46 @@ def toggle_comment_status(comment_id: str, body: ToggleCommentStatusBody, user=D
   
   comments_collection.update_one({"_id": oid}, {"$set": update_data})
   
-  # TODO: Send email notification to comment author
-  # Get author email
+  # Send email notification to comment author
   db = get_db()
   author_id = comment.get("author_id")
-  if author_id and new_status:
+  if author_id:
     try:
       author = db["users"].find_one({"_id": ObjectId(author_id)})
       if author and author.get("email"):
-        # TODO: Implement actual email sending
-        print(f"Would send email to {author.get('email')} about disabled comment")
-    except:
-      pass
+        if new_status:  # Disabling
+          send_item_disabled_email(
+            user_email=author.get("email"),
+            user_name=author.get("name") or author.get("email"),
+            item_type="comment",
+            item_name=comment.get("text", "Comment")[:50],  # First 50 chars
+            reason=body.reason,
+            admin_name=admin_name,
+            admin_email=admin_email
+          )
+        else:  # Enabling
+          send_item_enabled_email(
+            user_email=author.get("email"),
+            user_name=author.get("name") or author.get("email"),
+            item_type="comment",
+            item_name=comment.get("text", "Comment")[:50],
+            admin_name=admin_name,
+            admin_email=admin_email
+          )
+    except Exception as email_error:
+      print(f"[EMAIL ERROR] Failed to send email: {email_error}")
+  
+  # Log audit event
+  _log_audit_event(
+    actor=admin_name,
+    role=user.get("role", "admin"),
+    action="Disabled comment" if new_status else "Enabled comment",
+    category="Comments",
+    entity="Comment",
+    entity_id=comment_id,
+    status="success",
+    details=f"New status: {'disabled' if new_status else 'active'}, Reason: {body.reason}"
+  )
   
   return {
     "status": "success",
@@ -2043,6 +2129,8 @@ def toggle_user_status(user_id: str, body: ToggleUserStatusBody, user=Depends(_r
   
   current_status = target_user.get("status", "active")
   new_status = "inactive" if current_status == "active" else "active"
+  admin_email = user.get("email", "")
+  admin_name = user.get("name", "Admin")
   
   update_data = {"status": new_status}
   if new_status == "inactive":
@@ -2054,8 +2142,42 @@ def toggle_user_status(user_id: str, body: ToggleUserStatusBody, user=Depends(_r
   
   users_collection.update_one({"_id": oid}, {"$set": update_data})
   
-  # TODO: Send email notification to user (implement with SMTP or email service)
-  # For now, just return success
+  # Send email notification to user
+  if target_user.get("email"):
+    try:
+      if new_status == "inactive":
+        send_item_disabled_email(
+          user_email=target_user.get("email"),
+          user_name=target_user.get("name") or target_user.get("email"),
+          item_type="account",
+          item_name=target_user.get("name") or target_user.get("email"),
+          reason=body.reason,
+          admin_name=admin_name,
+          admin_email=admin_email
+        )
+      else:
+        send_item_enabled_email(
+          user_email=target_user.get("email"),
+          user_name=target_user.get("name") or target_user.get("email"),
+          item_type="account",
+          item_name=target_user.get("name") or target_user.get("email"),
+          admin_name=admin_name,
+          admin_email=admin_email
+        )
+    except Exception as email_error:
+      print(f"[EMAIL ERROR] Failed to send email: {email_error}")
+  
+  # Log audit event
+  _log_audit_event(
+    actor=admin_name,
+    role=user.get("role", "admin"),
+    action="Deactivated account" if new_status == "inactive" else "Activated account",
+    category="Users",
+    entity="User Account",
+    entity_id=user_id,
+    status="success",
+    details=f"New status: {new_status}, Reason: {body.reason}"
+  )
   
   return {
     "status": "success",
@@ -2561,6 +2683,7 @@ def _normalize_category(doc: dict) -> dict:
     "description": doc.get("description", ""),
     "created_at": doc.get("created_at", ""),
     "updated_at": doc.get("updated_at", ""),
+    "created_by": str(doc.get("created_by", "")),
   }
 
 def _normalize_product(doc: dict) -> dict:
@@ -2623,17 +2746,34 @@ def update_category(category_id: str, body: CategoryUpdateBody, user=Depends(_re
     oid = ObjectId(category_id)
   except:
     raise HTTPException(status_code=400, detail="Invalid category ID")
+  
+  # Check if category exists
+  category = collection.find_one({"_id": oid})
+  if not category:
+    raise HTTPException(status_code=404, detail="Category not found")
+  
+  # Check ownership - only creator can edit
+  user_id = str(user.get("_id"))
+  if str(category.get("created_by", "")) != user_id:
+    raise HTTPException(status_code=403, detail="You can only edit categories you created")
+  
   updates: Dict[str, Any] = {"updated_at": datetime.utcnow().isoformat()}
   if body.name is not None:
     name = body.name.strip()
     if not name:
       raise HTTPException(status_code=400, detail="Category name is required")
+    # Check if new name conflicts with existing category (excluding self)
+    existing = collection.find_one({
+      "name": {"$regex": f"^{re.escape(name)}$", "$options": "i"},
+      "_id": {"$ne": oid}
+    })
+    if existing:
+      raise HTTPException(status_code=400, detail="Category name already exists")
     updates["name"] = name
   if body.description is not None:
     updates["description"] = body.description.strip()
-  result = collection.update_one({"_id": oid}, {"$set": updates})
-  if result.matched_count == 0:
-    raise HTTPException(status_code=404, detail="Category not found")
+  
+  collection.update_one({"_id": oid}, {"$set": updates})
   doc = collection.find_one({"_id": oid})
   return {"status": "success", "category": _normalize_category(doc)}
 
@@ -2646,9 +2786,18 @@ def delete_category(category_id: str, user=Depends(_require_seller_user)):
     oid = ObjectId(category_id)
   except:
     raise HTTPException(status_code=400, detail="Invalid category ID")
-  result = collection.delete_one({"_id": oid})
-  if result.deleted_count == 0:
+  
+  # Check if category exists
+  category = collection.find_one({"_id": oid})
+  if not category:
     raise HTTPException(status_code=404, detail="Category not found")
+  
+  # Check ownership - only creator can delete
+  user_id = str(user.get("_id"))
+  if str(category.get("created_by", "")) != user_id:
+    raise HTTPException(status_code=403, detail="You can only delete categories you created")
+  
+  collection.delete_one({"_id": oid})
   return {"status": "success"}
 
 @app.get("/catalog/categories")
@@ -2861,6 +3010,13 @@ def _get_orders_collection():
   except Exception:
     return None
 
+def _get_payouts_collection():
+  """Return payouts collection if MongoDB is configured."""
+  try:
+    return get_db()["payouts"]
+  except Exception:
+    return None
+
 @app.get("/wishlist")
 def get_user_wishlist(user=Depends(_get_current_user)):
   """Get the current user's wishlist with product details."""
@@ -2989,6 +3145,29 @@ class OrderAddressBody(BaseModel):
 class OrderCreateBody(BaseModel):
   address: OrderAddressBody
   payment_method: str
+  seller_id: Optional[str] = None
+
+
+# ===== VOUCHER/DISCOUNT MODELS =====
+class VoucherCreateBody(BaseModel):
+  code: str
+  discount_type: str  # "fixed" or "percentage"
+  value: float
+  expiration_date: Optional[str] = None
+  max_uses: Optional[int] = None
+  per_user_limit: Optional[int] = None
+  min_order_amount: Optional[float] = None
+
+
+class VoucherUpdateBody(BaseModel):
+  code: Optional[str] = None
+  discount_type: Optional[str] = None
+  value: Optional[float] = None
+  expiration_date: Optional[str] = None
+  max_uses: Optional[int] = None
+  per_user_limit: Optional[int] = None
+  min_order_amount: Optional[float] = None
+  active: Optional[bool] = None
 
 
 @app.get("/cart")
@@ -3170,13 +3349,448 @@ def _normalize_order(doc: Dict[str, Any]) -> Dict[str, Any]:
   return {
     "id": str(doc.get("_id")),
     "order_number": doc.get("order_number", ""),
+    "seller_id": doc.get("seller_id", ""),
+    "seller_name": doc.get("seller_name", ""),
     "status": doc.get("status", ""),
     "total": doc.get("total", 0),
     "total_items": doc.get("total_items", 0),
     "payment_method": doc.get("payment_method", ""),
+    "payment_status": doc.get("payment_status", "completed"),  # pending, completed, failed
+    "payment_intent_id": doc.get("payment_intent_id", None),
+    "paid_at": doc.get("paid_at", None),
     "address": doc.get("address", {}),
     "items": doc.get("items", []),
     "created_at": doc.get("created_at"),
+    "updated_at": doc.get("updated_at"),
+  }
+
+
+@app.post("/payments/create-payment-intent")
+def create_payment_intent(
+    request_body: dict,
+    user=Depends(_get_current_user)
+):
+  """
+  Create a payment intent with PayMongo for e-wallet or card payments.
+  
+  Expects:
+  - amount: integer (in PHP centavos, e.g., 50000 = PHP 500.00)
+  - provider: string ('gcash', 'grabpay', 'maya' for e-wallet, or 'card')
+  - phone_number: string (for e-wallet payments)
+  - description: string (order description)
+  - redirect_url: string (URL to redirect after payment)
+  """
+  role = (user.get("role") or "user").strip().lower()
+  if role != "user":
+    raise HTTPException(status_code=403, detail="Only regular users can make payments")
+  
+  try:
+    amount = request_body.get("amount")
+    provider = request_body.get("provider", "").strip().lower()
+    phone_number = request_body.get("phone_number", "").strip()
+    description = request_body.get("description", "DaingGrader Order")
+    redirect_url = request_body.get("redirect_url", "")
+    
+    # Validate amount
+    if not amount or amount <= 0:
+      raise HTTPException(status_code=400, detail="Invalid amount")
+    
+    # Convert PHP to centavos if needed
+    amount_centavos = int(amount) if isinstance(amount, int) else int(float(amount) * 100)
+    
+    # Create payment intent based on provider type
+    if provider in ["gcash", "grabpay", "maya"]:
+      # E-wallet payment
+      if not phone_number:
+        raise HTTPException(status_code=400, detail="Phone number required for e-wallet payments")
+      
+      result = create_payment_intent_for_ewallet(
+        amount=amount_centavos,
+        provider=provider,
+        description=description,
+        redirect_url=redirect_url
+      )
+    elif provider == "card":
+      # Card payment
+      result = create_payment_intent_for_card(
+        amount=amount_centavos,
+        description=description,
+        redirect_url=redirect_url
+      )
+    else:
+      raise HTTPException(status_code=400, detail="Invalid payment provider")
+    
+    if not result.get("success"):
+      raise HTTPException(status_code=400, detail=result.get("error", "Failed to create payment intent"))
+    
+    # Log the payment attempt
+    _log_audit_event(
+      actor=user.get("name", "User"),
+      actor_id=str(user.get("_id")),
+      role=user.get("role", "user"),
+      action="Created payment intent",
+      category="Payment",
+      entity="PaymentIntent",
+      entity_id=result.get("payment_intent_id", ""),
+      status="success",
+      details=f"Provider: {provider}, Amount: {amount_centavos} centavos",
+    )
+    
+    return {
+      "status": "success",
+      "payment_intent_id": result.get("payment_intent_id"),
+      "checkout_url": result.get("checkout_url"),
+      "client_key": result.get("client_key"),
+      "amount": amount_centavos,
+      "provider": provider
+    }
+    
+  except HTTPException:
+    raise
+  except Exception as e:
+    error_msg = str(e)
+    _log_audit_event(
+      actor=user.get("name", "User"),
+      actor_id=str(user.get("_id")),
+      role=user.get("role", "user"),
+      action="Failed to create payment intent",
+      category="Payment",
+      entity="PaymentIntent",
+      entity_id="",
+      status="failure",
+      details=f"Error: {error_msg}",
+    )
+    raise HTTPException(status_code=500, detail=f"Failed to create payment intent: {error_msg}")
+
+
+@app.post("/payments/callback")
+def payment_callback(request_body: dict, user=Depends(_get_current_user)):
+  """
+  Handle payment callback after user completes payment on PayMongo
+  
+  Expects:
+  - payment_intent_id: string (from PayMongo)
+  """
+  try:
+    payment_intent_id = request_body.get("payment_intent_id", "").strip()
+    
+    if not payment_intent_id:
+      raise HTTPException(status_code=400, detail="Missing payment_intent_id")
+    
+    orders_collection = _get_orders_collection()
+    if orders_collection is None:
+      raise HTTPException(status_code=500, detail="Database not configured")
+    
+    # Retrieve payment intent status from PayMongo
+    result = retrieve_payment_intent(payment_intent_id)
+    
+    if not result.get("success"):
+      raise HTTPException(status_code=400, detail=result.get("error", "Failed to retrieve payment status"))
+    
+    paymongo_status = result.get("status", "unknown")
+    
+    # Map PayMongo status to our order status
+    if paymongo_status == "succeeded":
+      order_status = "confirmed"
+      payment_status = "completed"
+    elif paymongo_status == "failed":
+      order_status = "failed"
+      payment_status = "failed"
+    else:
+      order_status = "pending"
+      payment_status = "pending"
+    
+    now = datetime.utcnow().isoformat()
+    
+    # Update all orders with this payment intent ID
+    update_result = orders_collection.update_many(
+      {"payment_intent_id": payment_intent_id, "user_id": str(user.get("_id"))},
+      {
+        "$set": {
+          "status": order_status,
+          "payment_status": payment_status,
+          "paid_at": now if paymongo_status == "succeeded" else None,
+          "updated_at": now
+        }
+      }
+    )
+    
+    _log_audit_event(
+      actor=user.get("name", "User"),
+      actor_id=str(user.get("_id")),
+      role=user.get("role", "user"),
+      action="Payment callback processed",
+      category="Payment",
+      entity="PaymentIntent",
+      entity_id=payment_intent_id,
+      status="success",
+      details=f"PayMongo status: {paymongo_status}, Orders updated: {update_result.modified_count}",
+    )
+    
+    return {
+      "status": "success",
+      "payment_status": payment_status,
+      "payment_intent_id": payment_intent_id,
+      "paymongo_status": paymongo_status,
+      "orders_updated": update_result.modified_count
+    }
+    
+  except HTTPException:
+    raise
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=f"Failed to process payment callback: {str(e)}")
+
+
+# --- Payouts Management (Admin & Seller) ---
+@app.get("/payouts/admin")
+def get_admin_payouts(
+  page: int = 1,
+  page_size: int = 20,
+  status: str = "all",
+  seller_id: str = "all",
+  period: str = "",
+  user=Depends(_require_admin_user)
+):
+  """Get all payouts for admin management with filters."""
+  db = get_db()
+  payouts_collection = _get_payouts_collection()
+  users_collection = _get_users_collection()
+  
+  if payouts_collection is None:
+    return {"status": "success", "page": page, "page_size": page_size, "total": 0, "payouts": []}
+  
+  page = max(page, 1)
+  page_size = min(max(page_size, 1), 50)
+  
+  # Build query
+  query = {}
+  if status != "all":
+    query["status"] = status
+  if seller_id != "all":
+    query["seller_id"] = seller_id
+  if period:
+    query["period"] = period
+  
+  total = payouts_collection.count_documents(query)
+  docs = list(
+    payouts_collection.find(query)
+    .sort("created_at", -1)
+    .skip((page - 1) * page_size)
+    .limit(page_size)
+  )
+  
+  payouts = []
+  for doc in docs:
+    seller_id = doc.get("seller_id", "")
+    seller_name = "Unknown"
+    
+    # Get seller name
+    if seller_id and users_collection:
+      try:
+        seller_user = users_collection.find_one({"_id": ObjectId(seller_id)})
+        if seller_user:
+          seller_name = seller_user.get("name", "Unknown")
+      except:
+        pass
+    
+    payouts.append({
+      "id": str(doc.get("_id")),
+      "seller_id": seller_id,
+      "seller_name": seller_name,
+      "period": doc.get("period", ""),
+      "total_sales": float(doc.get("total_sales", 0)),
+      "commission_percent": doc.get("commission_percent", 5),
+      "commission_amount": float(doc.get("commission_amount", 0)),
+      "amount_to_pay": float(doc.get("amount_to_pay", 0)),
+      "status": doc.get("status", "pending"),
+      "notes": doc.get("notes", ""),
+      "created_at": doc.get("created_at", ""),
+      "paid_at": doc.get("paid_at"),
+    })
+  
+  return {
+    "status": "success",
+    "page": page,
+    "page_size": page_size,
+    "total": total,
+    "payouts": payouts,
+  }
+
+
+@app.get("/payouts/admin/stats")
+def get_admin_payouts_stats(user=Depends(_require_admin_user)):
+  """Get payout statistics for admin dashboard."""
+  payouts_collection = _get_payouts_collection()
+  
+  if payouts_collection is None:
+    return {
+      "status": "success",
+      "stats": {
+        "total_payouts": 0,
+        "pending_payouts": 0,
+        "completed_payouts": 0,
+        "total_pending_amount": 0,
+        "total_paid_amount": 0,
+      }
+    }
+  
+  total_payouts = payouts_collection.count_documents({})
+  pending_payouts = payouts_collection.count_documents({"status": "pending"})
+  completed_payouts = payouts_collection.count_documents({"status": "completed"})
+  
+  # Calculate amounts
+  pending_docs = list(payouts_collection.find({"status": "pending"}))
+  total_pending = sum(float(doc.get("amount_to_pay", 0)) for doc in pending_docs)
+  
+  completed_docs = list(payouts_collection.find({"status": "completed"}))
+  total_paid = sum(float(doc.get("amount_to_pay", 0)) for doc in completed_docs)
+  
+  return {
+    "status": "success",
+    "stats": {
+      "total_payouts": total_payouts,
+      "pending_payouts": pending_payouts,
+      "completed_payouts": completed_payouts,
+      "total_pending_amount": round(total_pending, 2),
+      "total_paid_amount": round(total_paid, 2),
+    }
+  }
+
+
+class PayoutStatusUpdateBody(BaseModel):
+  status: str  # pending, completed
+  notes: Optional[str] = None
+
+
+@app.put("/payouts/admin/{payout_id}/status")
+def update_payout_status(payout_id: str, body: PayoutStatusUpdateBody, user=Depends(_require_admin_user)):
+  """Update payout status (admin only)."""
+  payouts_collection = _get_payouts_collection()
+  
+  if payouts_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  
+  try:
+    oid = ObjectId(payout_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid payout ID")
+  
+  payout = payouts_collection.find_one({"_id": oid})
+  if not payout:
+    raise HTTPException(status_code=404, detail="Payout not found")
+  
+  new_status = body.status.lower()
+  if new_status not in ["pending", "completed"]:
+    raise HTTPException(status_code=400, detail="Invalid status")
+  
+  now = datetime.utcnow().isoformat()
+  update_data = {
+    "status": new_status,
+    "updated_at": now,
+  }
+  
+  if body.notes:
+    update_data["notes"] = body.notes
+  
+  if new_status == "completed":
+    update_data["paid_at"] = now
+  
+  payouts_collection.update_one({"_id": oid}, {"$set": update_data})
+  
+  _log_audit_event(
+    actor=user.get("name", "Admin"),
+    actor_id=str(user.get("_id")),
+    role=user.get("role", "admin"),
+    action="Updated payout status",
+    category="Payouts",
+    entity="Payout",
+    entity_id=payout_id,
+    status="success",
+    details=f"New status: {new_status}",
+  )
+  
+  return {
+    "status": "success",
+    "new_status": new_status,
+    "message": f"Payout status updated to {new_status}",
+  }
+
+
+@app.get("/payouts/mysales")
+def get_seller_earnings(user=Depends(_require_seller_user)):
+  """Get current seller's earnings summary and payout history."""
+  payouts_collection = _get_payouts_collection()
+  orders_collection = _get_orders_collection()
+  
+  if payouts_collection is None or orders_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  
+  seller_id = str(user.get("_id"))
+  seller_name = user.get("name", "Seller")
+  
+  # Get seller's payouts
+  payouts = list(payouts_collection.find({"seller_id": seller_id}).sort("created_at", -1))
+  
+  # Calculate current period earnings (current month)
+  from datetime import datetime as dt
+  now = dt.now()
+  current_period = f"{now.year}-{now.month:02d}"
+  
+  current_month_payout = next(
+    (p for p in payouts if p.get("period") == current_period),
+    None
+  )
+  
+  # If no payout for current month, calculate from orders
+  current_total_sales = 0
+  current_orders_count = 0
+  
+  if not current_month_payout:
+    # Sum all orders for current seller this month
+    orders = list(orders_collection.find({"seller_id": seller_id}))
+    for order in orders:
+      order_date = order.get("created_at", "")
+      if order_date.startswith(current_period):
+        current_total_sales += float(order.get("total", 0))
+        current_orders_count += 1
+  else:
+    current_total_sales = float(current_month_payout.get("total_sales", 0))
+    current_orders_count = len(current_month_payout.get("orders", []))
+  
+  # Commission calculation (default 5%)
+  commission_percent = 5
+  commission_amount = (current_total_sales * commission_percent) / 100
+  amount_to_pay = current_total_sales - commission_amount
+  
+  # Build payout history
+  payout_history = []
+  for payout in payouts:
+    payout_history.append({
+      "period": payout.get("period", ""),
+      "total_sales": float(payout.get("total_sales", 0)),
+      "commission_percent": payout.get("commission_percent", 5),
+      "commission_amount": float(payout.get("commission_amount", 0)),
+      "amount_to_pay": float(payout.get("amount_to_pay", 0)),
+      "status": payout.get("status", "pending"),
+      "paid_at": payout.get("paid_at"),
+      "created_at": payout.get("created_at", ""),
+    })
+  
+  return {
+    "status": "success",
+    "seller": {
+      "id": seller_id,
+      "name": seller_name,
+    },
+    "current_period": current_period,
+    "earnings": {
+      "total_sales": round(current_total_sales, 2),
+      "commission_percent": commission_percent,
+      "commission_amount": round(commission_amount, 2),
+      "amount_to_pay": round(amount_to_pay, 2),
+      "orders_count": current_orders_count,
+    },
+    "payout_history": payout_history,
   }
 
 
@@ -3198,7 +3812,7 @@ def checkout_order(body: OrderCreateBody, user=Depends(_get_current_user)):
   if not cart_doc or not cart_doc.get("items"):
     raise HTTPException(status_code=400, detail="Cart is empty")
 
-  items = []
+  seller_filter = (body.seller_id or "").strip()
   product_ids = []
   for it in cart_doc.get("items", []):
     try:
@@ -3209,50 +3823,133 @@ def checkout_order(body: OrderCreateBody, user=Depends(_get_current_user)):
   products = list(products_collection.find({"_id": {"$in": product_ids}}))
   products_map = {str(p.get("_id")): p for p in products}
 
-  total_items = 0
-  total = 0
+  seller_groups: Dict[str, Dict[str, Any]] = {}
   for it in cart_doc.get("items", []):
     pid = it.get("product_id")
     prod = products_map.get(pid)
     if not prod:
       continue
+    if seller_filter and str(prod.get("seller_id", "")) != seller_filter:
+      continue
     qty = int(it.get("qty", 1))
     price = float(prod.get("price", 0))
-    total_items += qty
-    total += price * qty
+    seller_id = str(prod.get("seller_id", ""))
+    seller_name = (prod.get("seller_name") or "").strip()
+
     images = prod.get("images", [])
     image_url = ""
     if images and isinstance(images, list):
       idx = int(prod.get("main_image_index", 0) or 0)
       if idx < len(images):
         image_url = images[idx].get("url", "") if isinstance(images[idx], dict) else ""
-    items.append({
+
+    if seller_id not in seller_groups:
+      seller_groups[seller_id] = {
+        "seller_id": seller_id,
+        "seller_name": seller_name,
+        "items": [],
+        "total": 0.0,
+        "total_items": 0,
+      }
+
+    seller_groups[seller_id]["items"].append({
       "product_id": pid,
+      "seller_id": seller_id,
+      "seller_name": seller_name,
       "name": prod.get("name", ""),
       "price": price,
       "qty": qty,
       "image_url": image_url,
     })
+    seller_groups[seller_id]["total"] += price * qty
+    seller_groups[seller_id]["total_items"] += qty
 
-  order_number = f"ORD-{datetime.utcnow().strftime('%y%m%d')}-{str(ObjectId())[-6:].upper()}"
+  if seller_filter and not seller_groups:
+    raise HTTPException(status_code=400, detail="No items found for the selected seller")
+
   now = datetime.utcnow().isoformat()
-  order_doc = {
-    "user_id": user_id,
-    "order_number": order_number,
-    "status": "confirmed",
-    "total": total,
-    "total_items": total_items,
-    "payment_method": body.payment_method,
-    "address": body.address.dict(),
-    "items": items,
-    "created_at": now,
-    "updated_at": now,
-  }
-  result = orders_collection.insert_one(order_doc)
-  order_doc["_id"] = result.inserted_id
+  created_orders: List[Dict[str, Any]] = []
+
+  for seller_id, group in seller_groups.items():
+    order_number = f"ORD-{datetime.utcnow().strftime('%y%m%d')}-{str(ObjectId())[-6:].upper()}"
+    
+    # Determine payment status based on payment method
+    if body.payment_method.lower() == "cod":
+      # COD orders are immediately confirmed
+      order_status = "confirmed"
+      payment_status = "completed"
+      paid_at = now
+      payment_intent_id = None
+    else:
+      # PayMongo (e-wallet/card) orders start as pending until payment confirmed
+      order_status = "pending"
+      payment_status = "pending"
+      paid_at = None
+      payment_intent_id = None
+    
+    order_doc = {
+      "user_id": user_id,
+      "seller_id": group.get("seller_id", ""),
+      "seller_name": group.get("seller_name", ""),
+      "order_number": order_number,
+      "status": order_status,
+      "total": float(group.get("total", 0)),
+      "total_items": int(group.get("total_items", 0)),
+      "payment_method": body.payment_method,
+      "payment_status": payment_status,
+      "payment_intent_id": payment_intent_id,
+      "paid_at": paid_at,
+      "address": body.address.dict(),
+      "items": group.get("items", []),
+      "created_at": now,
+      "updated_at": now,
+    }
+    result = orders_collection.insert_one(order_doc)
+    order_doc["_id"] = result.inserted_id
+    created_orders.append(order_doc)
+
+  # Create payment intent for PayMongo orders
+  checkout_url = None
+  payment_intent_id = None
+  if body.payment_method.lower() in ["paymongo"] and created_orders:
+    total_amount = sum(order.get("total", 0) for order in created_orders)
+    # Convert PHP to centavos
+    amount_centavos = int(total_amount * 100)
+    
+    payment_result = create_payment_intent_for_ewallet(
+      amount=amount_centavos,
+      provider="gcash",  # Default to GCash, will be overridden by frontend if needed
+      description=f"DaingGrader Order - {len(created_orders)} seller(s)",
+      redirect_url=f"{os.getenv('FRONTEND_URL', 'http://localhost:5173')}/checkout/payment-callback"
+    )
+    
+    if payment_result.get("success"):
+      payment_intent_id = payment_result.get("payment_intent_id")
+      checkout_url = payment_result.get("checkout_url")
+      
+      # Update all orders with the payment_intent_id
+      orders_collection.update_many(
+        {"user_id": user_id, "_id": {"$in": [o.get("_id") for o in created_orders]}},
+        {"$set": {"payment_intent_id": payment_intent_id, "updated_at": now}}
+      )
+      
+      # Update created_orders list with the payment_intent_id so it's returned to frontend
+      for order in created_orders:
+        order["payment_intent_id"] = payment_intent_id
 
   # Clear cart after successful order
-  cart_collection.update_one({"user_id": user_id}, {"$set": {"items": [], "updated_at": now}})
+  if seller_filter:
+    remaining_items = []
+    for it in cart_doc.get("items", []):
+      pid = it.get("product_id")
+      prod = products_map.get(pid)
+      if not prod:
+        continue
+      if str(prod.get("seller_id", "")) != seller_filter:
+        remaining_items.append(it)
+    cart_collection.update_one({"user_id": user_id}, {"$set": {"items": remaining_items, "updated_at": now}})
+  else:
+    cart_collection.update_one({"user_id": user_id}, {"$set": {"items": [], "updated_at": now}})
 
   _log_audit_event(
     actor=user.get("name", "User"),
@@ -3261,12 +3958,74 @@ def checkout_order(body: OrderCreateBody, user=Depends(_get_current_user)):
     action="Placed order",
     category="Order",
     entity="Order",
-    entity_id=str(order_doc.get("_id")),
+    entity_id=str(created_orders[0].get("_id")) if created_orders else "",
     status="success",
-    details=f"Total: {total}",
+    details=f"Orders created: {len(created_orders)}",
   )
 
-  return {"status": "success", "order": _normalize_order(order_doc)}
+  order_payloads = [_normalize_order(doc) for doc in created_orders]
+
+  user_email = (user.get("email") or "").strip().lower()
+  user_name = user.get("name") or user_email or "Customer"
+  users_collection = _get_users_collection()
+  email_status = []
+  for order_payload in order_payloads:
+    buyer_sent = False
+    seller_sent = False
+    buyer_error = ""
+    seller_error = ""
+
+    try:
+      pdf_bytes = build_receipt_pdf_bytes(order_payload)
+
+      if user_email:
+        try:
+          send_order_receipt_email(user_email, user_name, order_payload, pdf_bytes)
+          buyer_sent = True
+        except Exception as email_error:
+          buyer_error = str(email_error)
+          print(f"⚠️ Failed to send receipt email to buyer: {email_error}")
+
+      seller_email = ""
+      seller_name = "Seller"
+      seller_id = (order_payload.get("seller_id") or "").strip()
+      if users_collection is not None and seller_id:
+        try:
+          seller_user = users_collection.find_one({"_id": ObjectId(seller_id)})
+          if seller_user:
+            seller_email = (seller_user.get("email") or "").strip().lower()
+            seller_name = seller_user.get("name") or seller_email or "Seller"
+        except Exception:
+          seller_email = ""
+
+      if seller_email and seller_email != user_email:
+        try:
+          send_order_receipt_email(seller_email, seller_name, order_payload, pdf_bytes)
+          seller_sent = True
+        except Exception as email_error:
+          seller_error = str(email_error)
+          print(f"⚠️ Failed to send receipt email to seller: {email_error}")
+    except Exception as email_error:
+      buyer_error = buyer_error or str(email_error)
+      print(f"⚠️ Failed to prepare receipt email: {email_error}")
+
+    email_status.append({
+      "order_id": order_payload.get("id"),
+      "buyer_sent": buyer_sent,
+      "seller_sent": seller_sent,
+      "buyer_error": buyer_error,
+      "seller_error": seller_error,
+    })
+
+  return {
+    "status": "success",
+    "orders": order_payloads,
+    "order_ids": [o.get("id") for o in order_payloads],
+    "order": order_payloads[0] if order_payloads else None,
+    "email_status": email_status,
+    "checkout_url": checkout_url,  # For PayMongo redirect
+    "payment_intent_id": payment_intent_id,  # For callback reference
+  }
 
 
 @app.get("/orders")
@@ -3306,6 +4065,10 @@ def get_seller_orders(page: int = 1, page_size: int = 10, user=Depends(_require_
   docs = list(orders_collection.find({}).sort("created_at", -1))
   filtered = []
   for doc in docs:
+    if str(doc.get("seller_id", "")) == seller_id:
+      filtered.append(doc)
+      continue
+
     items = doc.get("items", [])
     seller_items = [it for it in items if it.get("product_id") in seller_product_ids]
     if not seller_items:
@@ -3322,6 +4085,60 @@ def get_seller_orders(page: int = 1, page_size: int = 10, user=Depends(_require_
   start = (page - 1) * page_size
   paged = filtered[start : start + page_size]
   return {"status": "success", "orders": [_normalize_order(d) for d in paged], "total": total}
+
+
+@app.put("/orders/{order_id}/cancel")
+def cancel_order(order_id: str, user=Depends(_get_current_user)):
+  """Cancel an order (customer only). Can only cancel orders in 'pending' or 'confirmed' status."""
+  role = (user.get("role") or "user").strip().lower()
+  if role != "user":
+    raise HTTPException(status_code=403, detail="Only regular users can cancel orders")
+
+  orders_collection = _get_orders_collection()
+  if orders_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+
+  try:
+    oid = ObjectId(order_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid order ID")
+
+  doc = orders_collection.find_one({"_id": oid})
+  if not doc:
+    raise HTTPException(status_code=404, detail="Order not found")
+
+  user_id = str(user.get("_id"))
+  if doc.get("user_id") != user_id:
+    raise HTTPException(status_code=403, detail="Not your order")
+
+  current_status = (doc.get("status") or "").strip().lower()
+  if current_status not in ["pending", "confirmed"]:
+    raise HTTPException(
+      status_code=400,
+      detail=f"Cannot cancel order with status '{current_status}'. Only pending or confirmed orders can be cancelled."
+    )
+
+  now = datetime.utcnow().isoformat()
+  orders_collection.update_one(
+    {"_id": oid},
+    {"$set": {"status": "cancelled", "updated_at": now}}
+  )
+
+  updated = orders_collection.find_one({"_id": oid})
+
+  _log_audit_event(
+    actor=user.get("name", "User"),
+    actor_id=user_id,
+    role=user.get("role", "user"),
+    action="Cancelled order",
+    category="Order",
+    entity="Order",
+    entity_id=order_id,
+    status="success",
+    details=f"Previous status: {current_status}",
+  )
+
+  return {"status": "success", "order": _normalize_order(updated)}
 
 
 @app.patch("/orders/{order_id}/status")
@@ -3460,6 +4277,27 @@ def get_order_detail(order_id: str, user=Depends(_get_current_user)):
   if not doc:
     raise HTTPException(status_code=404, detail="Order not found")
   return {"status": "success", "order": _normalize_order(doc)}
+
+@app.get("/orders/{order_id}/receipt.pdf")
+def get_order_receipt_pdf(order_id: str, user=Depends(_get_current_user)):
+  orders_collection = _get_orders_collection()
+  if orders_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+  try:
+    oid = ObjectId(order_id)
+  except:
+    raise HTTPException(status_code=400, detail="Invalid order ID")
+
+  user_id = str(user.get("_id"))
+  doc = orders_collection.find_one({"_id": oid, "user_id": user_id})
+  if not doc:
+    raise HTTPException(status_code=404, detail="Order not found")
+
+  order_payload = _normalize_order(doc)
+  pdf_bytes = build_receipt_pdf_bytes(order_payload)
+  filename = f"receipt-{order_payload.get('order_number', order_id)}.pdf"
+  headers = {"Content-Disposition": f"attachment; filename={filename}"}
+  return StreamingResponse(io.BytesIO(pdf_bytes), media_type="application/pdf", headers=headers)
 
 @app.get("/seller/products")
 def get_seller_products(
@@ -4337,4 +5175,346 @@ def get_seller_sales_overview(
     print(f"❌ Error in get_seller_sales_overview: {e}")
     import traceback
     traceback.print_exc()
+    raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+# ===== VOUCHER/DISCOUNT ENDPOINTS =====
+
+def _get_vouchers_collection():
+  try:
+    db = get_db()
+    return db["vouchers"]
+  except Exception:
+    return None
+
+
+@app.get("/api/vouchers")
+def list_vouchers(
+  filter_by: str = "all",  # all, active, expired
+  seller_id: Optional[str] = None,
+  user=Depends(_get_current_user)
+):
+  """List vouchers. If seller_id param is provided, filter to that seller. Otherwise, list all (admin only)."""
+  vouchers_collection = _get_vouchers_collection()
+  if vouchers_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+
+  user_id = str(user.get("_id"))
+  user_role = user.get("role", "user")
+
+  # If seller_id param is provided, filter to that seller (seller viewing own codes)
+  if seller_id:
+    query = {"seller_id": seller_id}
+  else:
+    # If no seller_id param and user is not admin, return only their own codes
+    if user_role != "admin":
+      query = {"seller_id": user_id}
+    else:
+      # Admin: return all vouchers
+      query = {}
+
+  # Apply status filter
+  now = datetime.utcnow()
+  if filter_by == "active":
+    query["$or"] = [
+      {"expiration_date": {"$exists": False}},
+      {"expiration_date": {"$gt": now}},
+      {"expiration_date": None}
+    ]
+    query["active"] = True
+  elif filter_by == "expired":
+    query["expiration_date"] = {"$lt": now}
+
+  try:
+    vouchers = list(vouchers_collection.find(query).sort("created_at", -1))
+    # Convert ObjectId to string
+    for v in vouchers:
+      v["_id"] = str(v["_id"])
+      v["seller_id"] = str(v["seller_id"])
+      if v.get("created_at"):
+        v["created_at"] = v["created_at"].isoformat()
+      if v.get("expiration_date"):
+        v["expiration_date"] = v["expiration_date"].isoformat()
+
+    return {"status": "success", "vouchers": vouchers}
+  except Exception as e:
+    print(f"❌ Error listing vouchers: {e}")
+    raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get("/api/vouchers/{voucher_id}")
+def get_voucher(voucher_id: str, user=Depends(_get_current_user)):
+  """Get a single voucher details."""
+  vouchers_collection = _get_vouchers_collection()
+  if vouchers_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+
+  try:
+    voucher = vouchers_collection.find_one({"_id": ObjectId(voucher_id)})
+    if not voucher:
+      raise HTTPException(status_code=404, detail="Voucher not found")
+
+    voucher["_id"] = str(voucher["_id"])
+    voucher["seller_id"] = str(voucher["seller_id"])
+    if voucher.get("created_at"):
+      voucher["created_at"] = voucher["created_at"].isoformat()
+    if voucher.get("expiration_date"):
+      voucher["expiration_date"] = voucher["expiration_date"].isoformat()
+
+    return {"status": "success", "voucher": voucher}
+  except Exception as e:
+    print(f"❌ Error getting voucher: {e}")
+    raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.post("/api/vouchers")
+def create_voucher(body: VoucherCreateBody, user=Depends(_get_current_user)):
+  """Create a new voucher code."""
+  vouchers_collection = _get_vouchers_collection()
+  if vouchers_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+
+  user_id = str(user.get("_id"))
+
+  # Validation
+  if len(body.code) < 3 or len(body.code) > 20:
+    raise HTTPException(status_code=400, detail="Code must be 3-20 characters")
+
+  if not re.match(r"^[A-Za-z0-9_-]+$", body.code):
+    raise HTTPException(status_code=400, detail="Code must be alphanumeric, dash, or underscore only")
+
+  if body.discount_type not in ["fixed", "percentage"]:
+    raise HTTPException(status_code=400, detail="Invalid discount type")
+
+  if body.value <= 0:
+    raise HTTPException(status_code=400, detail="Value must be greater than 0")
+
+  if body.discount_type == "percentage" and body.value > 100:
+    raise HTTPException(status_code=400, detail="Percentage cannot exceed 100%")
+
+  # Check if code already exists
+  if vouchers_collection.find_one({"code": body.code.upper()}):
+    raise HTTPException(status_code=400, detail="This code already exists")
+
+  # Parse dates
+  expiration_date = None
+  if body.expiration_date:
+    try:
+      expiration_date = datetime.fromisoformat(body.expiration_date.replace("Z", "+00:00"))
+      if expiration_date <= datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Expiration date must be in the future")
+    except ValueError:
+      raise HTTPException(status_code=400, detail="Invalid date format")
+
+  # Validate constraints
+  if body.max_uses is not None and body.max_uses <= 0:
+    raise HTTPException(status_code=400, detail="Max uses must be greater than 0")
+
+  if body.per_user_limit is not None and body.per_user_limit <= 0:
+    raise HTTPException(status_code=400, detail="Per user limit must be greater than 0")
+
+  if body.min_order_amount is not None and body.min_order_amount <= 0:
+    raise HTTPException(status_code=400, detail="Min order amount must be greater than 0")
+
+  try:
+    voucher_doc = {
+      "seller_id": ObjectId(user_id),
+      "code": body.code.upper(),
+      "discount_type": body.discount_type,
+      "value": body.value,
+      "expiration_date": expiration_date,
+      "max_uses": body.max_uses,
+      "current_uses": 0,
+      "per_user_limit": body.per_user_limit,
+      "min_order_amount": body.min_order_amount,
+      "active": True,
+      "created_at": datetime.utcnow(),
+      "used_by": []
+    }
+
+    result = vouchers_collection.insert_one(voucher_doc)
+    voucher_doc["_id"] = str(result.inserted_id)
+    voucher_doc["seller_id"] = str(voucher_doc["seller_id"])
+    voucher_doc["created_at"] = voucher_doc["created_at"].isoformat()
+    if voucher_doc.get("expiration_date"):
+      voucher_doc["expiration_date"] = voucher_doc["expiration_date"].isoformat()
+
+    return {"status": "success", "voucher": voucher_doc}
+  except Exception as e:
+    print(f"❌ Error creating voucher: {e}")
+    raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.put("/api/vouchers/{voucher_id}")
+def update_voucher(voucher_id: str, body: VoucherUpdateBody, user=Depends(_get_current_user)):
+  """Update a voucher (only own vouchers can be edited)."""
+  vouchers_collection = _get_vouchers_collection()
+  if vouchers_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+
+  user_id = str(user.get("_id"))
+
+  try:
+    voucher = vouchers_collection.find_one({"_id": ObjectId(voucher_id)})
+    if not voucher:
+      raise HTTPException(status_code=404, detail="Voucher not found")
+
+    # Only seller who created it can edit (admins can't edit others' codes)
+    if str(voucher["seller_id"]) != user_id:
+      raise HTTPException(status_code=403, detail="You can only edit your own voucher codes")
+
+    update_data = {}
+
+    if body.code is not None:
+      if len(body.code) < 3 or len(body.code) > 20:
+        raise HTTPException(status_code=400, detail="Code must be 3-20 characters")
+      if not re.match(r"^[A-Za-z0-9_-]+$", body.code):
+        raise HTTPException(status_code=400, detail="Code must be alphanumeric, dash, or underscore only")
+      # Check if new code already exists (excluding self)
+      if vouchers_collection.find_one({"code": body.code.upper(), "_id": {"$ne": ObjectId(voucher_id)}}):
+        raise HTTPException(status_code=400, detail="This code already exists")
+      update_data["code"] = body.code.upper()
+
+    if body.discount_type is not None:
+      if body.discount_type not in ["fixed", "percentage"]:
+        raise HTTPException(status_code=400, detail="Invalid discount type")
+      update_data["discount_type"] = body.discount_type
+
+    if body.value is not None:
+      if body.value <= 0:
+        raise HTTPException(status_code=400, detail="Value must be greater than 0")
+      current_type = body.discount_type or voucher.get("discount_type")
+      if current_type == "percentage" and body.value > 100:
+        raise HTTPException(status_code=400, detail="Percentage cannot exceed 100%")
+      update_data["value"] = body.value
+
+    if body.expiration_date is not None:
+      try:
+        exp_date = datetime.fromisoformat(body.expiration_date.replace("Z", "+00:00"))
+        if exp_date <= datetime.utcnow():
+          raise HTTPException(status_code=400, detail="Expiration date must be in the future")
+        update_data["expiration_date"] = exp_date
+      except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format")
+
+    if body.max_uses is not None:
+      if body.max_uses <= 0:
+        raise HTTPException(status_code=400, detail="Max uses must be greater than 0")
+      update_data["max_uses"] = body.max_uses
+
+    if body.per_user_limit is not None:
+      if body.per_user_limit <= 0:
+        raise HTTPException(status_code=400, detail="Per user limit must be greater than 0")
+      update_data["per_user_limit"] = body.per_user_limit
+
+    if body.min_order_amount is not None:
+      if body.min_order_amount <= 0:
+        raise HTTPException(status_code=400, detail="Min order amount must be greater than 0")
+      update_data["min_order_amount"] = body.min_order_amount
+
+    if body.active is not None:
+      update_data["active"] = body.active
+
+    if not update_data:
+      raise HTTPException(status_code=400, detail="No fields to update")
+
+    vouchers_collection.update_one({"_id": ObjectId(voucher_id)}, {"$set": update_data})
+    updated_voucher = vouchers_collection.find_one({"_id": ObjectId(voucher_id)})
+
+    updated_voucher["_id"] = str(updated_voucher["_id"])
+    updated_voucher["seller_id"] = str(updated_voucher["seller_id"])
+    if updated_voucher.get("created_at"):
+      updated_voucher["created_at"] = updated_voucher["created_at"].isoformat()
+    if updated_voucher.get("expiration_date"):
+      updated_voucher["expiration_date"] = updated_voucher["expiration_date"].isoformat()
+
+    return {"status": "success", "voucher": updated_voucher}
+  except HTTPException:
+    raise
+  except Exception as e:
+    print(f"❌ Error updating voucher: {e}")
+    raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.delete("/api/vouchers/{voucher_id}")
+def delete_voucher(voucher_id: str, user=Depends(_get_current_user)):
+  """Delete a voucher (only own vouchers can be deleted)."""
+  vouchers_collection = _get_vouchers_collection()
+  if vouchers_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+
+  user_id = str(user.get("_id"))
+
+  try:
+    voucher = vouchers_collection.find_one({"_id": ObjectId(voucher_id)})
+    if not voucher:
+      raise HTTPException(status_code=404, detail="Voucher not found")
+
+    if str(voucher["seller_id"]) != user_id:
+      raise HTTPException(status_code=403, detail="You can only delete your own voucher codes")
+
+    vouchers_collection.delete_one({"_id": ObjectId(voucher_id)})
+    return {"status": "success", "message": "Voucher deleted"}
+  except HTTPException:
+    raise
+  except Exception as e:
+    print(f"❌ Error deleting voucher: {e}")
+    raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.post("/api/vouchers/validate")
+def validate_voucher(code: str, order_total: float, user=Depends(_get_current_user)):
+  """Validate a voucher code and return discount info."""
+  vouchers_collection = _get_vouchers_collection()
+  if vouchers_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+
+  user_id = str(user.get("_id"))
+
+  try:
+    voucher = vouchers_collection.find_one({"code": code.upper(), "active": True})
+    if not voucher:
+      raise HTTPException(status_code=400, detail="Invalid or inactive voucher code")
+
+    # Check expiration
+    if voucher.get("expiration_date") and voucher["expiration_date"] <= datetime.utcnow():
+      raise HTTPException(status_code=400, detail="This voucher code has expired")
+
+    # Check max uses
+    if voucher.get("max_uses") and voucher.get("current_uses", 0) >= voucher["max_uses"]:
+      raise HTTPException(status_code=400, detail="This voucher code has reached its usage limit")
+
+    # Check per user limit
+    if voucher.get("per_user_limit"):
+      user_usage = next(
+        (u["used_count"] for u in voucher.get("used_by", []) if u["user_id"] == user_id),
+        0
+      )
+      if user_usage >= voucher["per_user_limit"]:
+        raise HTTPException(status_code=400, detail="You have reached the usage limit for this code")
+
+    # Check minimum order amount
+    if voucher.get("min_order_amount") and order_total < voucher["min_order_amount"]:
+      raise HTTPException(
+        status_code=400,
+        detail=f"Minimum order amount of ₱{voucher['min_order_amount']} required"
+      )
+
+    # Calculate discount
+    if voucher["discount_type"] == "percentage":
+      discount_value = order_total * (voucher["value"] / 100)
+    else:
+      discount_value = voucher["value"]
+
+    return {
+      "status": "success",
+      "valid": True,
+      "discount_value": discount_value,
+      "discount_type": voucher["discount_type"],
+      "voucher_id": str(voucher["_id"])
+    }
+  except HTTPException:
+    raise
+  except Exception as e:
+    print(f"❌ Error validating voucher: {e}")
     raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")

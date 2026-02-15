@@ -18,7 +18,9 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         >
           <Header />
           <main className="flex-1 px-4 py-6 lg:px-6 overflow-x-clip">
-            <div className="max-w-6xl mx-auto">{children}</div>
+            <div className="max-w-[1250px] mx-auto">
+              {children}
+            </div>
           </main>
           <Footer />
         </div>

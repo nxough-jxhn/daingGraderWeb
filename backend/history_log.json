@@ -1,5 +1,27 @@
 [
   {
+    "id": "scan_20260209_094802_120590",
+    "timestamp": "2026-02-09T09:48:02.120590",
+    "url": "https://res.cloudinary.com/dq2bhvzig/image/upload/v1770601683/daing-history/2026-02-09/scan_20260209_094802_120590.jpg",
+    "folder": "daing-history/2026-02-09",
+    "fish_type": "Flyingfish",
+    "grade": "Local",
+    "score": 0.8699,
+    "user_id": "6988e02d7739000dfe74e050",
+    "user_name": "Doe John"
+  },
+  {
+    "id": "scan_20260209_032307_790665",
+    "timestamp": "2026-02-09T03:23:07.790665",
+    "url": "https://res.cloudinary.com/dq2bhvzig/image/upload/v1770578591/daing-history/2026-02-09/scan_20260209_032307_790665.jpg",
+    "folder": "daing-history/2026-02-09",
+    "fish_type": "Flyingfish",
+    "grade": "Export",
+    "score": 0.9202,
+    "user_id": "6988e02d7739000dfe74e050",
+    "user_name": "Doe John"
+  },
+  {
     "id": "scan_20260208_235338_650902",
     "timestamp": "2026-02-08T23:53:38.650902",
     "url": "https://res.cloudinary.com/dq2bhvzig/image/upload/v1770566018/daing-history/2026-02-08/scan_20260208_235338_650902.jpg",

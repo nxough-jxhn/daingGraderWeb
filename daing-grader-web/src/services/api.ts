@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { auth } from './firebase'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -8,10 +9,16 @@ export const api = axios.create({
 })
 
 // Add JWT token; for FormData leave Content-Type unset so browser sets multipart boundary
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
-  if (token) {
+api.interceptors.request.use(async (config) => {
+  const firebaseUser = auth.currentUser
+  if (firebaseUser) {
+    const token = await firebaseUser.getIdToken()
     config.headers.Authorization = `Bearer ${token}`
+  } else {
+    const token = localStorage.getItem('token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
   }
   if (config.data instanceof FormData) {
     delete config.headers['Content-Type']
@@ -230,6 +237,7 @@ export interface ProductCategory {
   description?: string
   created_at?: string
   updated_at?: string
+  created_by?: string
 }
 
 export interface ProductImage {
@@ -460,6 +468,8 @@ export interface OrderAddress {
 
 export interface OrderItem {
   product_id: string
+  seller_id?: string
+  seller_name?: string
   name: string
   price: number
   qty: number
@@ -469,6 +479,8 @@ export interface OrderItem {
 export interface OrderDetail {
   id: string
   order_number: string
+  seller_id?: string
+  seller_name?: string
   status: string
   total: number
   total_items: number
@@ -478,8 +490,20 @@ export interface OrderDetail {
   created_at: string
 }
 
-export async function createOrder(payload: { address: OrderAddress; payment_method: string }): Promise<{ status: string; order: OrderDetail }> {
-  const response = await api.post<{ status: string; order: OrderDetail }>('/orders/checkout', payload)
+export async function createOrder(payload: { address: OrderAddress; payment_method: string; seller_id?: string }): Promise<{
+  status: string
+  orders: OrderDetail[]
+  order_ids: string[]
+  order?: OrderDetail | null
+  email_status?: { order_id?: string; buyer_sent: boolean; seller_sent: boolean; buyer_error?: string; seller_error?: string }[]
+}> {
+  const response = await api.post<{
+    status: string
+    orders: OrderDetail[]
+    order_ids: string[]
+    order?: OrderDetail | null
+    email_status?: { order_id?: string; buyer_sent: boolean; seller_sent: boolean; buyer_error?: string; seller_error?: string }[]
+  }>('/orders/checkout', payload)
   return response.data
 }
 
@@ -502,6 +526,14 @@ export async function getOrderById(orderId: string): Promise<{ status: string; o
   return response.data
 }
 
+export async function downloadOrderReceipt(orderId: string): Promise<{ blob: Blob; filename: string }> {
+  const response = await api.get(`/orders/${orderId}/receipt.pdf`, { responseType: 'blob' })
+  const disposition = response.headers?.['content-disposition'] || ''
+  const match = /filename="?([^";]+)"?/i.exec(disposition)
+  const filename = match?.[1] || `receipt-${orderId}.pdf`
+  return { blob: response.data as Blob, filename }
+}
+
 export async function updateSellerOrderStatus(orderId: string, status: string): Promise<{ status: string; order: OrderDetail }> {
   const response = await api.patch<{ status: string; order: OrderDetail }>(`/orders/${orderId}/status`, { status })
   return response.data
@@ -509,6 +541,11 @@ export async function updateSellerOrderStatus(orderId: string, status: string): 
 
 export async function markOrderDelivered(orderId: string): Promise<{ status: string; order: OrderDetail }> {
   const response = await api.patch<{ status: string; order: OrderDetail }>(`/orders/${orderId}/mark-delivered`)
+  return response.data
+}
+
+export async function cancelOrder(orderId: string): Promise<{ status: string; order: OrderDetail }> {
+  const response = await api.put<{ status: string; order: OrderDetail }>(`/orders/${orderId}/cancel`)
   return response.data
 }
 
@@ -1079,6 +1116,63 @@ export async function getAdminOrderDetail(orderId: string): Promise<{ status: st
 
 export async function updateAdminOrderStatus(orderId: string, status: string): Promise<{ status: string; new_status: string; message: string }> {
   const response = await api.put(`/admin/orders/${orderId}/status`, { status })
+  return response.data
+}
+
+// ===== VOUCHER/DISCOUNT ENDPOINTS =====
+
+export async function listVouchers(filterStatus = 'all', sellerId?: string): Promise<{ status: string; vouchers: any[] }> {
+  const response = await api.get('/api/vouchers', {
+    params: { filter_by: filterStatus, seller_id: sellerId },
+  })
+  return response.data
+}
+
+export async function getVoucher(voucherId: string): Promise<{ status: string; voucher: any }> {
+  const response = await api.get(`/api/vouchers/${voucherId}`)
+  return response.data
+}
+
+export async function createVoucher(data: {
+  code: string
+  discount_type: 'fixed' | 'percentage'
+  value: number
+  expiration_date?: string | null
+  max_uses?: number | null
+  per_user_limit?: number | null
+  min_order_amount?: number | null
+}): Promise<{ status: string; voucher: any }> {
+  const response = await api.post('/api/vouchers', data)
+  return response.data
+}
+
+export async function updateVoucher(voucherId: string, data: Partial<{
+  code: string
+  discount_type: 'fixed' | 'percentage'
+  value: number
+  expiration_date?: string | null
+  max_uses?: number | null
+  per_user_limit?: number | null
+  min_order_amount?: number | null
+  active: boolean
+}>): Promise<{ status: string; voucher: any }> {
+  const response = await api.put(`/api/vouchers/${voucherId}`, data)
+  return response.data
+}
+
+export async function deleteVoucher(voucherId: string): Promise<{ status: string; message: string }> {
+  const response = await api.delete(`/api/vouchers/${voucherId}`)
+  return response.data
+}
+
+export async function validateVoucher(code: string, orderTotal: number): Promise<{
+  status: string
+  valid: boolean
+  discount_value: number
+  discount_type: 'fixed' | 'percentage'
+  voucher_id: string
+}> {
+  const response = await api.post('/api/vouchers/validate', { code, order_total: orderTotal })
   return response.data
 }
 

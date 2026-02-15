@@ -21,6 +21,10 @@ import {
   Truck,
   CheckCircle,
   AlertCircle,
+  Maximize2,
+  BarChart3,
+  Store,
+  UserCheck,
 } from 'lucide-react'
 import PageTitleHero from '../components/layout/PageTitleHero'
 import {
@@ -246,7 +250,359 @@ function OrdersTable({
   )
 }
 
+/**
+ * Seller Sales Distribution Bar Chart - shows successful orders per seller
+ */
+function SellerSalesBarChart({ orders }: { orders: AdminOrder[] }) {
+  const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null)
+
+  const sellerData = useMemo(() => {
+    const sellerCounts: Record<string, number> = {}
+    
+    orders.forEach((order) => {
+      if (order.status === 'delivered') {
+        sellerCounts[order.seller_name] = (sellerCounts[order.seller_name] || 0) + 1
+      }
+    })
+
+    return Object.entries(sellerCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10) // Top 10 sellers
+  }, [orders])
+
+  const maxValue = Math.max(...sellerData.map(d => d.count), 1)
+  
+  const width = 600
+  const height = 240
+  const padding = { top: 20, right: 24, bottom: 60, left: 40 }
+  const chartWidth = width - padding.left - padding.right
+  const chartHeight = height - padding.top - padding.bottom
+
+  const barWidth = sellerData.length > 0 ? Math.min(chartWidth / sellerData.length - 8, 60) : 40
+
+  return (
+    <div className="h-full flex flex-col relative">
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
+        {/* Grid lines and Y-axis */}
+        {[1, 0.75, 0.5, 0.25, 0].map((tick, i) => {
+          const y = padding.top + chartHeight - tick * chartHeight
+          const value = Math.round(maxValue * tick)
+          return (
+            <g key={i}>
+              <line
+                x1={padding.left}
+                y1={y}
+                x2={width - padding.right}
+                y2={y}
+                stroke="#DBEAFE"
+                strokeWidth="1"
+              />
+              <text x={padding.left - 6} y={y + 3} textAnchor="end" fontSize="10" fill="#64748B">
+                {value}
+              </text>
+            </g>
+          )
+        })}
+
+        {/* Bars */}
+        {sellerData.map((data, idx) => {
+          const x = padding.left + (idx * (chartWidth / sellerData.length)) + (chartWidth / sellerData.length - barWidth) / 2
+          const barHeight = (data.count / maxValue) * chartHeight
+          const y = padding.top + chartHeight - barHeight
+
+          return (
+            <g key={data.name}>
+              <rect
+                x={x}
+                y={y}
+                width={barWidth}
+                height={barHeight}
+                fill="#3B82F6"
+                className="cursor-pointer transition-all"
+                onMouseMove={(e) => setHover({ x: e.clientX, y: e.clientY, text: `${data.name}: ${data.count}` })}
+                onMouseLeave={() => setHover(null)}
+              />
+              <text
+                x={x + barWidth / 2}
+                y={height - 10}
+                textAnchor="middle"
+                fontSize="9"
+                fill="#64748B"
+                className="pointer-events-none"
+                transform={`rotate(-45 ${x + barWidth / 2} ${height - 10})`}
+              >
+                {data.name.length > 12 ? data.name.slice(0, 12) + '...' : data.name}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+      {hover && (
+        <div
+          className="fixed z-50 px-2 py-1 text-xs font-bold text-blue-900 bg-white border border-blue-200 rounded shadow-sm pointer-events-none"
+          style={{ left: hover.x + 12, top: hover.y + 12 }}
+        >
+          {hover.text}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Sales Line Chart - shows total sales over time
+ */
+function SalesLineChart({ orders, year }: { orders: AdminOrder[]; year: number }) {
+  const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null)
+
+  const data = useMemo(() => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    
+    // Initialize monthly sales
+    const monthlySales: Record<number, number> = {}
+    for (let m = 0; m < 12; m++) {
+      monthlySales[m] = 0
+    }
+
+    // Sum sales by month
+    orders.forEach((order) => {
+      if (!order.created_at) return
+      const orderDate = new Date(order.created_at)
+      if (isNaN(orderDate.getTime()) || orderDate.getFullYear() !== year) return
+      if (order.status === 'delivered') {
+        const month = orderDate.getMonth()
+        monthlySales[month] += order.total
+      }
+    })
+
+    return monthNames.map((label, idx) => ({
+      label,
+      month: idx,
+      value: monthlySales[idx]
+    }))
+  }, [orders, year])
+
+  const maxValue = Math.max(...data.map(d => d.value), 1)
+  
+  const width = 720
+  const height = 230
+  const padding = { top: 12, right: 24, bottom: 40, left: 60 }
+  const chartWidth = width - padding.left - padding.right
+  const chartHeight = height - padding.top - padding.bottom
+
+  const pathPoints = data.map((point, idx) => {
+    const x = padding.left + (idx / (data.length - 1)) * chartWidth
+    const y = padding.top + chartHeight - (point.value / maxValue) * chartHeight
+    return { x, y, value: point.value, label: point.label }
+  })
+
+  const path = pathPoints
+    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`)
+    .join(' ')
+
+  return (
+    <div className="h-full flex flex-col relative">
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
+        {/* Grid lines and Y-axis */}
+        {[1, 0.75, 0.5, 0.25, 0].map((tick, i) => {
+          const y = padding.top + chartHeight - tick * chartHeight
+          const value = Math.round(maxValue * tick)
+          const formattedValue = value >= 1000 ? `₱${(value / 1000).toFixed(0)}k` : `₱${value}`
+          return (
+            <g key={i}>
+              <line
+                x1={padding.left}
+                y1={y}
+                x2={width - padding.right}
+                y2={y}
+                stroke="#DBEAFE"
+                strokeWidth="1"
+              />
+              <text x={padding.left - 6} y={y + 3} textAnchor="end" fontSize="9" fill="#64748B">
+                {formattedValue}
+              </text>
+            </g>
+          )
+        })}
+
+        {/* Line and points */}
+        <path d={path} fill="none" stroke="#10B981" strokeWidth="2" />
+        {pathPoints.map((point, idx) => (
+          <g
+            key={idx}
+            className="cursor-pointer"
+            onMouseMove={(e) => setHover({ x: e.clientX, y: e.clientY, text: `${point.label}: ₱${point.value.toLocaleString('en-US', { maximumFractionDigits: 0 })}` })}
+            onMouseLeave={() => setHover(null)}
+          >
+            <circle cx={point.x} cy={point.y} r="3" fill="#10B981" />
+          </g>
+        ))}
+
+        {/* X-axis labels */}
+        {pathPoints.map((point, idx) => (
+          <text
+            key={`label-${idx}`}
+            x={point.x}
+            y={height - 10}
+            textAnchor="middle"
+            fontSize="10"
+            fill="#64748B"
+          >
+            {point.label}
+          </text>
+        ))}
+      </svg>
+      {hover && (
+        <div
+          className="fixed z-50 px-2 py-1 text-xs font-bold text-blue-900 bg-white border border-blue-200 rounded shadow-sm pointer-events-none"
+          style={{ left: hover.x + 12, top: hover.y + 12 }}
+        >
+          {hover.text}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Order Calendar Chart - shows daily order counts in calendar format
+ */
+function OrderCalendarChart({
+  year,
+  month,
+  orders,
+  variant = 'compact',
+}: {
+  year: number
+  month: number
+  orders: AdminOrder[]
+  variant?: 'compact' | 'expanded'
+}) {
+  const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null)
+
+  const ordersByDay = useMemo(() => {
+    const daysMap: Record<number, number> = {}
+    const daysData: Record<number, { day: number | null; count: number; isFuture?: boolean }> = {}
+    const today = new Date()
+    const isCurrentMonthYear = today.getFullYear() === year && today.getMonth() + 1 === month
+
+    orders.forEach((order) => {
+      if (order.created_at) {
+        const orderDate = new Date(order.created_at)
+        if (!isNaN(orderDate.getTime()) && orderDate.getFullYear() === year && orderDate.getMonth() + 1 === month) {
+          const day = orderDate.getDate()
+          daysMap[day] = (daysMap[day] || 0) + 1
+        }
+      }
+    })
+
+    const firstDay = new Date(year, month - 1, 1)
+    const lastDay = new Date(year, month, 0)
+    const daysInMonth = lastDay.getDate()
+    const startingDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1
+
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      daysData[Object.keys(daysData).length] = { day: null, count: 0 }
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const isFuture = isCurrentMonthYear && day > today.getDate()
+      const count = isFuture ? 0 : (daysMap[day] || 0)
+      daysData[Object.keys(daysData).length] = { day, count, isFuture }
+    }
+
+    return Object.values(daysData)
+  }, [year, month, orders])
+
+  const maxCount = Math.max(...ordersByDay.map((d) => d.count), 1)
+  const monthName = new Date(year, month - 1).toLocaleString('en-US', { month: 'long' })
+
+  const isExpanded = variant === 'expanded'
+  const headerTextClass = isExpanded ? 'text-xs' : 'text-[10px]'
+  const headerGapClass = isExpanded ? 'gap-1' : 'gap-0.5'
+  const headerMarginClass = isExpanded ? 'mb-1' : 'mb-0.5'
+  const cellHeightClass = isExpanded ? 'h-12' : 'h-8'
+  const cellTextClass = isExpanded ? 'text-xs' : 'text-[9px]'
+  const dayTextClass = isExpanded ? 'text-[10px]' : 'text-[8px]'
+  const countTextClass = isExpanded ? 'text-[9px]' : 'text-[7px]'
+  const legendTextClass = isExpanded ? 'text-xs' : 'text-[9px]'
+  const legendGapClass = isExpanded ? 'gap-1.5' : 'gap-0.5'
+  const legendBoxClass = isExpanded ? 'w-4 h-4' : 'w-2.5 h-2.5'
+
+  return (
+    <div className="space-y-2 h-full flex flex-col relative">
+      <div className={`${headerTextClass} text-slate-600`}>
+        {monthName} {year}
+      </div>
+      <div className="space-y-1 flex-1 overflow-y-auto min-h-0">
+        <div className={`grid grid-cols-7 ${headerGapClass} ${headerTextClass} text-slate-600 font-semibold ${headerMarginClass}`}>
+          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, idx) => (
+            <div key={`${d}-${idx}`} className="text-center">{d}</div>
+          ))}
+        </div>
+        <div className={`grid grid-cols-7 ${headerGapClass}`}>
+          {ordersByDay.map((dayData, idx) => {
+            const intensity = dayData.day !== null && dayData.count > 0 ? dayData.count / maxCount : 0
+            const bgColor =
+              dayData.day === null ? 'bg-slate-50'
+              : dayData.isFuture ? 'bg-slate-50 text-slate-400'
+              : intensity > 0.7 ? 'bg-blue-600 text-white'
+              : intensity > 0.4 ? 'bg-blue-400 text-white'
+              : intensity > 0 ? 'bg-blue-200 text-blue-900'
+              : 'bg-blue-50 text-slate-600'
+
+            return (
+              <div
+                key={idx}
+                className={`${cellHeightClass} cursor-pointer relative flex items-center justify-center font-medium rounded border border-blue-200 ${cellTextClass} ${bgColor} transition-colors`}
+                onMouseMove={(e) => dayData.day !== null && !dayData.isFuture && dayData.count > 0 ? setHover({ x: e.clientX, y: e.clientY, text: `Orders: ${dayData.count}` }) : null}
+                onMouseLeave={() => setHover(null)}
+              >
+                {dayData.day !== null && !dayData.isFuture && dayData.count > 0 ? (
+                  <div className="text-center">
+                    <div className={dayTextClass}>{dayData.day}</div>
+                    <div className={`${countTextClass} font-bold`}>{dayData.count}</div>
+                  </div>
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      <div className={`${legendTextClass} text-slate-500 flex items-center ${legendGapClass} justify-center flex-shrink-0`}>
+        <span>Less</span>
+        {[0, 0.3, 0.6, 1].map((intensity) => (
+          <div
+            key={intensity}
+            className={`${legendBoxClass} rounded border border-blue-200`}
+            style={{
+              backgroundColor:
+                intensity === 0 ? '#EFF6FF'
+                : intensity < 0.5 ? '#BFDBFE'
+                : intensity < 0.8 ? '#60A5FA'
+                : '#2563EB',
+            }}
+          />
+        ))}
+        <span>More</span>
+      </div>
+      {hover && (
+        <div
+          className="fixed z-50 px-2 py-1 text-xs font-bold text-blue-900 bg-white border border-blue-200 rounded shadow-sm pointer-events-none"
+          style={{ left: hover.x + 12, top: hover.y + 12 }}
+        >
+          {hover.text}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function AdminOrdersPage() {
+  const currentYear = new Date().getFullYear()
+  const currentMonth = new Date().getMonth() + 1
+  
   const [stats, setStats] = useState<AdminOrdersStats | null>(null)
   const [allOrders, setAllOrders] = useState<AdminOrder[]>([])
   const [sellers, setSellers] = useState<string[]>([])
@@ -257,15 +613,17 @@ export default function AdminOrdersPage() {
   const [sellerFilter, setSellerFilter] = useState<FilterSeller>('all')
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [collapsedSections, setCollapsedSections] = useState({
-    byStatus: false,
-    bySeller: false,
-    all: false,
-  })
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
 
   const [detailModal, setDetailModal] = useState<{ order: AdminOrder | null; open: boolean }>({ order: null, open: false })
   const [detailLoading, setDetailLoading] = useState(false)
   const [orderDetail, setOrderDetail] = useState<AdminOrderDetail | null>(null)
+  
+  // Graph state
+  const [graphType, setGraphType] = useState<'seller' | 'sales' | 'calendar'>('seller')
+  const [graphYear, setGraphYear] = useState(currentYear)
+  const [graphMonth, setGraphMonth] = useState(currentMonth)
+  const [showGraphModal, setShowGraphModal] = useState(false)
 
   // Load data
   useEffect(() => {
@@ -334,7 +692,45 @@ export default function AdminOrdersPage() {
     return {}
   }, [filteredOrders, sellers, sellerFilter])
 
-  const toggleSection = (section: keyof typeof collapsedSections) => {
+  // Analytics KPIs
+  const analyticsKPIs = useMemo(() => {
+    const totalOrders = allOrders.length
+    
+    // Total sales (delivered orders only)
+    const totalSales = allOrders
+      .filter((order) => order.status === 'delivered')
+      .reduce((sum, order) => sum + order.total, 0)
+    
+    // Seller with most sales
+    const sellerSales: Record<string, number> = {}
+    allOrders.forEach((order) => {
+      if (order.status === 'delivered') {
+        sellerSales[order.seller_name] = (sellerSales[order.seller_name] || 0) + order.total
+      }
+    })
+    const topSellerEntry = Object.entries(sellerSales).sort((a, b) => b[1] - a[1])[0]
+    const topSeller = topSellerEntry ? `${topSellerEntry[0]} (₱${topSellerEntry[1].toLocaleString('en-US', { maximumFractionDigits: 0 })})` : 'N/A'
+    
+    // Most ordered product (we'll need to look at order details, but for now just use a placeholder)
+    // Since we don't have product info readily available in order list, we'll show most active buyer
+    const buyerCounts: Record<string, number> = {}
+    allOrders.forEach((order) => {
+      buyerCounts[order.buyer_name] = (buyerCounts[order.buyer_name] || 0) + 1
+    })
+    const topBuyerEntry = Object.entries(buyerCounts).sort((a, b) => b[1] - a[1])[0]
+    const topBuyer = topBuyerEntry ? `${topBuyerEntry[0]} (${topBuyerEntry[1]} orders)` : 'N/A'
+
+    return [
+      { label: 'Total Orders', value: totalOrders.toString() },
+      { label: 'Total Sales', value: `₱${totalSales.toLocaleString('en-US', { maximumFractionDigits: 0 })}` },
+      { label: 'Top Seller', value: topSeller },
+      { label: 'Most Active Buyer', value: topBuyer },
+    ]
+  }, [allOrders])
+
+  const isFiltered = statusFilter !== 'all' || sellerFilter !== 'all' || searchQuery.trim().length > 0
+
+  const toggleSection = (section: string) => {
     setCollapsedSections((prev) => ({ ...prev, [section]: !prev[section] }))
   }
 
@@ -396,31 +792,145 @@ export default function AdminOrdersPage() {
         backgroundImage="/assets/page-hero/hero-bg.jpg"
       />
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-4 rounded-lg">
-          <div className="text-xs font-bold text-blue-700 mb-1">Total Orders</div>
-          <div className="text-2xl font-bold text-slate-900">{stats?.total_orders ?? '-'}</div>
+      {/* Analytics Section - Side by Side Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left: 4 KPIs in 2x2 Grid */}
+        <div className="grid grid-cols-2 gap-4 lg:items-start">
+          {/* Total Orders */}
+          <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold text-blue-700">Total Orders</div>
+              <ShoppingCart className="w-6 h-6 text-blue-600" />
+            </div>
+            <div className="text-3xl font-bold text-slate-900">{analyticsKPIs[0].value}</div>
+            <div className="text-xs text-blue-600 mt-2">All orders</div>
+          </div>
+
+          {/* Total Sales */}
+          <div className="bg-gradient-to-br from-white to-green-50 border border-green-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold text-green-700">Total Sales</div>
+              <DollarSign className="w-6 h-6 text-green-600" />
+            </div>
+            <div className="text-3xl font-bold text-green-600">{analyticsKPIs[1].value}</div>
+            <div className="text-xs text-green-600 mt-2">Delivered revenue</div>
+          </div>
+
+          {/* Top Seller */}
+          <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold text-purple-700">Top Seller</div>
+              <Store className="w-6 h-6 text-purple-600" />
+            </div>
+            <div className="text-lg font-bold text-purple-600">{analyticsKPIs[2].value}</div>
+            <div className="text-xs text-purple-600 mt-2">Best performer</div>
+          </div>
+
+          {/* Most Active Buyer */}
+          <div className="bg-gradient-to-br from-white to-orange-50 border border-orange-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold text-orange-700">Most Active Buyer</div>
+              <UserCheck className="w-6 h-6 text-orange-600" />
+            </div>
+            <div className="text-lg font-bold text-orange-600">{analyticsKPIs[3].value}</div>
+            <div className="text-xs text-orange-600 mt-2">Top customer</div>
+          </div>
         </div>
-        <div className="bg-gradient-to-br from-white to-yellow-50 border border-yellow-200 shadow-md p-4 rounded-lg">
-          <div className="text-xs font-bold text-yellow-700 mb-1">Pending</div>
-          <div className="text-2xl font-bold text-yellow-600">{stats?.pending_orders ?? '-'}</div>
-        </div>
-        <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-4 rounded-lg">
-          <div className="text-xs font-bold text-blue-700 mb-1">Confirmed</div>
-          <div className="text-2xl font-bold text-blue-600">{stats?.confirmed_orders ?? '-'}</div>
-        </div>
-        <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-200 shadow-md p-4 rounded-lg">
-          <div className="text-xs font-bold text-purple-700 mb-1">Shipped</div>
-          <div className="text-2xl font-bold text-purple-600">{stats?.shipped_orders ?? '-'}</div>
-        </div>
-        <div className="bg-gradient-to-br from-white to-green-50 border border-green-200 shadow-md p-4 rounded-lg">
-          <div className="text-xs font-bold text-green-700 mb-1">Delivered</div>
-          <div className="text-2xl font-bold text-green-600">{stats?.delivered_orders ?? '-'}</div>
-        </div>
-        <div className="bg-gradient-to-br from-white to-amber-50 border border-amber-200 shadow-md p-4 rounded-lg">
-          <div className="text-xs font-bold text-amber-700 mb-1">Total Revenue</div>
-          <div className="text-xl font-bold text-amber-700">₱{(stats?.total_revenue ?? 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}</div>
+
+        {/* Right: Order Analytics - Combined Graph Card */}
+        <div className="lg:col-span-2 bg-white border border-blue-200 shadow-md rounded-lg p-3 max-h-[300px] flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold text-blue-900">Order Analytics</h3>
+            <button
+              onClick={() => setShowGraphModal(true)}
+              className="p-2 text-blue-600 hover:bg-blue-50 transition-colors border border-blue-300 rounded"
+              title="Expand view"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Graph Type Toggle + Filter Controls */}
+          <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+            <button
+              onClick={() => setGraphType('seller')}
+              className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
+                graphType === 'seller'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+              }`}
+            >
+              <BarChart3 className="w-3 h-3 inline mr-0.5" />
+              Top Sellers
+            </button>
+            <button
+              onClick={() => setGraphType('sales')}
+              className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
+                graphType === 'sales'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+              }`}
+            >
+              <DollarSign className="w-3 h-3 inline mr-0.5" />
+              Sales Trend
+            </button>
+            <button
+              onClick={() => setGraphType('calendar')}
+              className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
+                graphType === 'calendar'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+              }`}
+            >
+              <Calendar className="w-3 h-3 inline mr-0.5" />
+              Order Calendar
+            </button>
+            {/* Year Filter */}
+            <select
+              value={graphYear}
+              onChange={(e) => setGraphYear(Number(e.target.value))}
+              className="px-1.5 py-1 border border-blue-300 bg-white text-xs rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            >
+              {[currentYear, currentYear - 1, currentYear - 2].map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+            {graphType === 'calendar' && (
+              <select
+                value={graphMonth}
+                onChange={(e) => setGraphMonth(Number(e.target.value))}
+                className="px-1.5 py-1 border border-blue-300 bg-white text-xs rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              >
+                {[
+                  { val: 1, name: 'January' }, { val: 2, name: 'February' }, { val: 3, name: 'March' },
+                  { val: 4, name: 'April' }, { val: 5, name: 'May' }, { val: 6, name: 'June' },
+                  { val: 7, name: 'July' }, { val: 8, name: 'August' }, { val: 9, name: 'September' },
+                  { val: 10, name: 'October' }, { val: 11, name: 'November' }, { val: 12, name: 'December' },
+                ].map((m) => (
+                  <option key={m.val} value={m.val}>{m.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Graph Display */}
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {loading ? (
+              <div className="h-64 flex items-center justify-center text-xs text-slate-500">Loading...</div>
+            ) : graphType === 'seller' ? (
+              <div className="h-64">
+                <SellerSalesBarChart orders={isFiltered ? filteredOrders : allOrders} />
+              </div>
+            ) : graphType === 'sales' ? (
+              <div className="h-64">
+                <SalesLineChart orders={isFiltered ? filteredOrders : allOrders} year={graphYear} />
+              </div>
+            ) : (
+              <div className="h-64">
+                <OrderCalendarChart year={graphYear} month={graphMonth} orders={isFiltered ? filteredOrders : allOrders} />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -473,22 +983,24 @@ export default function AdminOrdersPage() {
           /* Split View - Filtered & Others */
           <>
             {/* Filtered Orders */}
-            <div className="transition-all duration-500 ease-in-out">
-              <OrdersTable
-                orders={filteredOrders}
-                title={
-                  statusFilter !== 'all'
-                    ? `Orders: ${statusLabels[statusFilter]}`
-                    : `Orders: ${sellerFilter}`
-                }
-                filterType={statusFilter !== 'all' ? 'status' : 'seller'}
-                filterValue={
-                  statusFilter !== 'all'
-                    ? statusFilter
-                    : sellerFilter
-                }
-                isCollapsed={collapsedSections.all}
-                onToggleCollapse={() => toggleSection('all')}
+              <div
+                className="transition-all duration-500 ease-in-out"
+              >
+                <OrdersTable
+                  orders={filteredOrders}
+                  title={
+                    statusFilter !== 'all'
+                      ? `Orders: ${statusLabels[statusFilter]}`
+                      : `Orders: ${sellerFilter}`
+                  }
+                  filterType={statusFilter !== 'all' ? 'status' : 'seller'}
+                  filterValue={
+                    statusFilter !== 'all'
+                      ? statusFilter
+                      : sellerFilter
+                  }
+                  isCollapsed={collapsedSections['filtered-orders'] ?? false}
+                  onToggleCollapse={() => toggleSection('filtered-orders')}
                 selectedIds={selectedIds}
                 onToggleSelect={handleToggleSelect}
                 onSelectAll={handleSelectAll}
@@ -508,8 +1020,8 @@ export default function AdminOrdersPage() {
                       )
                   )}
                   title="Other Orders"
-                  isCollapsed={collapsedSections.byStatus}
-                  onToggleCollapse={() => toggleSection('byStatus')}
+                  isCollapsed={collapsedSections['other-orders'] ?? false}
+                  onToggleCollapse={() => toggleSection('other-orders')}
                   selectedIds={selectedIds}
                   onToggleSelect={handleToggleSelect}
                   onSelectAll={handleSelectAll}
@@ -536,8 +1048,8 @@ export default function AdminOrdersPage() {
                     title={`${statusLabels[status as OrderStatus]}`}
                     filterType="status"
                     filterValue={status}
-                    isCollapsed={collapsedSections.byStatus}
-                    onToggleCollapse={() => toggleSection('byStatus')}
+                    isCollapsed={collapsedSections[`status-${status}`] ?? false}
+                    onToggleCollapse={() => toggleSection(`status-${status}`)}
                     selectedIds={selectedIds}
                     onToggleSelect={handleToggleSelect}
                     onSelectAll={handleSelectAll}
@@ -696,6 +1208,106 @@ export default function AdminOrdersPage() {
                 </div>
               </div>
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* Expandable Graph Modal */}
+      {showGraphModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-auto">
+            <div className="sticky top-0 flex items-center justify-between px-6 py-4 border-b border-blue-200 bg-white">
+              <div>
+                <h3 className="text-lg font-bold text-blue-900">
+                  {graphType === 'seller' ? 'Top Sellers Distribution' : graphType === 'sales' ? 'Sales Trend Over Time' : 'Order Calendar'}
+                </h3>
+                <p className="text-xs text-slate-600 mt-1">
+                  {graphType === 'calendar' ? `${new Date(graphYear, graphMonth - 1).toLocaleString('en-US', { month: 'long' })} ${graphYear}` : `Year ${graphYear}`}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowGraphModal(false)}
+                className="p-1 hover:bg-slate-100 rounded transition-colors"
+              >
+                <X className="w-6 h-6 text-slate-600" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="flex items-center gap-4 mb-6 flex-wrap">
+                {/* Graph Type Toggle */}
+                <button
+                  onClick={() => setGraphType('seller')}
+                  className={`px-3 py-1.5 text-sm font-semibold border rounded transition-colors ${
+                    graphType === 'seller'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  }`}
+                >
+                  <BarChart3 className="w-4 h-4 inline mr-1" />
+                  Top Sellers
+                </button>
+                <button
+                  onClick={() => setGraphType('sales')}
+                  className={`px-3 py-1.5 text-sm font-semibold border rounded transition-colors ${
+                    graphType === 'sales'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  }`}
+                >
+                  <DollarSign className="w-4 h-4 inline mr-1" />
+                  Sales Trend
+                </button>
+                <button
+                  onClick={() => setGraphType('calendar')}
+                  className={`px-3 py-1.5 text-sm font-semibold border rounded transition-colors ${
+                    graphType === 'calendar'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4 inline mr-1" />
+                  Order Calendar
+                </button>
+
+                <select
+                  value={graphYear}
+                  onChange={(e) => setGraphYear(parseInt(e.target.value))}
+                  className="px-2 py-1 border border-black shadow-md bg-white text-xs font-semibold rounded"
+                >
+                  {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+                {graphType === 'calendar' && (
+                  <select
+                    value={graphMonth}
+                    onChange={(e) => setGraphMonth(parseInt(e.target.value))}
+                    className="px-2 py-1 border border-black shadow-md bg-white text-xs font-semibold rounded"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => (
+                      <option key={i + 1} value={i + 1}>
+                        {new Date(0, i).toLocaleString('en-US', { month: 'long' })}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {loading ? (
+                <div className="h-96 flex items-center justify-center text-sm text-slate-500">Loading...</div>
+              ) : (
+                <div className="h-96">
+                  {graphType === 'seller' ? (
+                    <SellerSalesBarChart orders={isFiltered ? filteredOrders : allOrders} />
+                  ) : graphType === 'sales' ? (
+                    <SalesLineChart orders={isFiltered ? filteredOrders : allOrders} year={graphYear} />
+                  ) : (
+                    <OrderCalendarChart year={graphYear} month={graphMonth} orders={isFiltered ? filteredOrders : allOrders} variant="expanded" />
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

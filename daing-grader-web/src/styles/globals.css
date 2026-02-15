@@ -19,7 +19,8 @@ html, body, #root {
 
 /* Monday.com-style design tokens (work even if Tailwind theme extend not loaded) */
 .bg-sidebar { background-color: var(--sidebar); }
-.hover\:bg-sidebar-hover:hover { background-color: var(--sidebar-hover); }
+/* Hover effects disabled */
+/* .hover\:bg-sidebar-hover:hover { background-color: var(--sidebar-hover); } */
 .bg-surface { background-color: var(--surface); }
 .bg-sidebar-active-bg { background-color: rgba(59, 130, 246, 0.2); }
 .border-sidebar-active { border-color: var(--sidebar-active); }
@@ -32,12 +33,14 @@ html, body, #root {
 .border-sidebar-subtle { border-color: rgba(30, 58, 95, 0.2); }
 
 /* Basic utility to mimic Monday.com-like card style */
-.card {
+/* Hover effects disabled */
+/* .card {
   @apply bg-white rounded-xl shadow-md border border-black p-6 transition-all duration-200 hover:shadow-lg hover:shadow-slate-200/50;
-}
+} */
 
 /* Subtle hover: cursor pointer + slight scale + shadow for buttons, images, clickable elements */
-.hover-lift {
+/* Hover effects disabled */
+/* .hover-lift {
   @apply transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 cursor-pointer;
 }
 .hover-shadow-subtle {
@@ -45,7 +48,7 @@ html, body, #root {
 }
 .hover-scale-subtle {
   @apply transition-transform duration-200 hover:scale-[1.02] cursor-pointer;
-}
+} */
 /* Buttons and clickable: pointer cursor + subtle enlarge + shadow */
 button:not(:disabled),
 a[href],
@@ -54,14 +57,16 @@ input[type="submit"],
 input[type="button"] {
   @apply cursor-pointer;
 }
-button:not(:disabled):hover,
+/* Hover effects disabled */
+/* button:not(:disabled):hover,
 a[href]:hover,
 .btn-hover {
   @apply transition-all duration-200 hover:scale-[1.02] hover:shadow-md;
-}
-img.hover-zoom {
+} */
+/* Hover effects disabled */
+/* img.hover-zoom {
   @apply transition-all duration-200 hover:scale-[1.03] hover:shadow-lg cursor-pointer;
-}
+} */
 
 .header-shadow {
   box-shadow: 0 2px 8px rgba(2,6,23,0.06);

@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Filter, RefreshCw, ChevronDown, ChevronLeft, ChevronRight, Maximize2, X } from 'lucide-react'
+import { Filter, RefreshCw, ChevronDown, ChevronLeft, ChevronRight, Maximize2, X, Activity, Clock, User, Tag } from 'lucide-react'
 import PageTitleHero from '../components/layout/PageTitleHero'
 import { getAdminAuditLogs, type AdminAuditLogEntry } from '../services/api'
 
-type AuditCategory = 'Scans' | 'Users' | 'Community' | 'Auth' | 'Dataset' | 'Comments'
+type AuditCategory = 'Scans' | 'Users' | 'Community' | 'Auth' | 'Comments' | 'Orders'
 type AuditStatus = 'success' | 'warning' | 'error'
 
-const categoryOptions: Array<'All' | AuditCategory> = ['All', 'Scans', 'Users', 'Community', 'Auth', 'Dataset', 'Comments']
+const categoryOptions: Array<'All' | AuditCategory> = ['All', 'Scans', 'Users', 'Community', 'Auth', 'Comments', 'Orders']
 const statusOptions: Array<'All' | AuditStatus> = ['All', 'success', 'warning', 'error']
 
 // Category descriptions for activity labels
@@ -14,32 +14,32 @@ const categoryDescriptions: Record<AuditCategory, { title: string; description: 
   'Scans': {
     title: 'Scan Activities',
     description: 'Fish scanning and grading actions',
-    activities: ['Created fish scan', 'Disabled scan', 'Enabled scan', 'Permanently deleted scan']
+    activities: ['Created fish scan', 'Updated scan grade', 'Disabled scan', 'Enabled scan', 'Deleted scan']
   },
   'Community': {
     title: 'Community Activities',
     description: 'Community posts and interactions',
-    activities: ['Created community post', 'Liked post', 'Unliked post', 'Deleted post']
+    activities: ['Created community post', 'Liked post', 'Unliked post', 'Edited post', 'Deleted post']
   },
   'Comments': {
     title: 'Comment Activities',
     description: 'Post comments and replies',
-    activities: ['Created comment', 'Deleted comment', 'Edited comment']
+    activities: ['Created comment', 'Replied to comment', 'Edited comment', 'Deleted comment']
   },
   'Users': {
     title: 'User Management Activities',
     description: 'User account and role management',
-    activities: ['Updated user role', 'Changed user status', 'Disabled user account', 'Enabled user account']
+    activities: ['User registered', 'Updated user role', 'Changed user status', 'Profile updated', 'Account deleted']
   },
   'Auth': {
     title: 'Authentication Activities',
-    description: 'Login and account security events',
-    activities: ['User login', 'User logout', 'Password changed', 'Email verified', 'Login failed']
+    description: 'Login, signup, and account security events',
+    activities: ['User signed in', 'User signed up', 'User signed out', 'Password changed', 'Password reset', 'Email verified', 'Login failed']
   },
-  'Dataset': {
-    title: 'Dataset Management',
-    description: 'Dataset upload and management',
-    activities: ['Uploaded dataset image', 'Deleted dataset entry', 'Bulk uploaded dataset']
+  'Orders': {
+    title: 'Order & Commerce Activities',
+    description: 'E-commerce orders and payment transactions',
+    activities: ['Order created', 'Order confirmed', 'Payment processed', 'Payment failed', 'Order shipped', 'Order delivered', 'Order cancelled']
   }
 }
 
@@ -62,8 +62,304 @@ const formatTime = (timestamp: string) => {
   return d.toISOString().slice(11, 19)
 }
 
+/**
+ * Activity Category Line Chart - shows trends of different activity categories over time
+ */
+function ActivityCategoryLineChart({ logs, year }: { logs: AdminAuditLogEntry[]; year: number }) {
+  const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null)
+
+  const data = useMemo(() => {
+    const categories: AuditCategory[] = ['Scans', 'Users', 'Community', 'Auth', 'Comments', 'Orders']
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    
+    // Initialize data structure: { month: { category: count } }
+    const monthlyCounts: Record<number, Record<AuditCategory, number>> = {}
+    for (let m = 0; m < 12; m++) {
+      monthlyCounts[m] = {} as Record<AuditCategory, number>
+      categories.forEach(cat => {
+        monthlyCounts[m][cat] = 0
+      })
+    }
+
+    // Count activities by month and category
+    logs.forEach((log) => {
+      if (!log.timestamp) return
+      const logDate = new Date(log.timestamp)
+      if (isNaN(logDate.getTime()) || logDate.getFullYear() !== year) return
+      const month = logDate.getMonth()
+      if (log.category && categories.includes(log.category as AuditCategory)) {
+        monthlyCounts[month][log.category as AuditCategory] += 1
+      }
+    })
+
+    // Convert to array format for charting
+    return categories.map(category => ({
+      category,
+      points: monthNames.map((label, idx) => ({
+        label,
+        month: idx,
+        value: monthlyCounts[idx][category]
+      }))
+    }))
+  }, [logs, year])
+
+  const categoryColors: Record<AuditCategory, string> = {
+    'Scans': '#2563EB',
+    'Users': '#60A5FA',
+    'Community': '#8B5CF6',
+    'Auth': '#10B981',
+    'Comments': '#EF4444',
+    'Orders': '#F59E0B'
+  }
+
+  const allValues = data.flatMap(d => d.points.map(p => p.value))
+  const maxValue = Math.max(...allValues, 1)
+  
+  const width = 720
+  const height = 230
+  const padding = { top: 12, right: 24, bottom: 40, left: 40 }
+  const chartWidth = width - padding.left - padding.right
+  const chartHeight = height - padding.top - padding.bottom
+
+  return (
+    <div className="h-full flex flex-col">
+      <div className="flex-1 flex flex-col relative min-h-0 w-full">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
+          {/* Grid lines and Y-axis */}
+          {[1, 0.75, 0.5, 0.25, 0].map((tick, i) => {
+            const y = padding.top + chartHeight - tick * chartHeight
+            const value = Math.round(maxValue * tick)
+            return (
+              <g key={i}>
+                <line
+                  x1={padding.left}
+                  y1={y}
+                  x2={width - padding.right}
+                  y2={y}
+                  stroke="#DBEAFE"
+                  strokeWidth="1"
+                />
+                <text x={padding.left - 6} y={y + 3} textAnchor="end" fontSize="10" fill="#64748B">
+                  {value}
+                </text>
+              </g>
+            )
+          })}
+
+          {/* Lines for each category */}
+          {data.map(({ category, points }) => {
+            const pathPoints = points.map((point, idx) => {
+              const x = padding.left + (idx / (points.length - 1)) * chartWidth
+              const y = padding.top + chartHeight - (point.value / maxValue) * chartHeight
+              return { x, y, value: point.value, label: point.label }
+            })
+
+            const path = pathPoints
+              .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`)
+              .join(' ')
+
+            return (
+              <g key={category}>
+                <path d={path} fill="none" stroke={categoryColors[category]} strokeWidth="2" />
+                {pathPoints.map((point, idx) => (
+                  <g
+                    key={`${category}-${idx}`}
+                    className="cursor-pointer"
+                    onMouseMove={(e) => setHover({ x: e.clientX, y: e.clientY, text: `${category} (${point.label}): ${point.value}` })}
+                    onMouseLeave={() => setHover(null)}
+                  >
+                    <circle cx={point.x} cy={point.y} r="3" fill={categoryColors[category]} />
+                  </g>
+                ))}
+              </g>
+            )
+          })}
+
+          {/* X-axis labels */}
+          {data[0]?.points.map((point, idx) => {
+            const x = padding.left + (idx / (data[0].points.length - 1)) * chartWidth
+            return (
+              <text
+                key={`label-${idx}`}
+                x={x}
+                y={height - 10}
+                textAnchor="middle"
+                fontSize="10"
+                fill="#64748B"
+              >
+                {point.label}
+              </text>
+            )
+          })}
+        </svg>
+        {hover && (
+          <div
+            className="fixed z-50 px-2 py-1 text-xs font-bold text-blue-900 bg-white border border-blue-200 rounded shadow-sm pointer-events-none"
+            style={{ left: hover.x + 12, top: hover.y + 12 }}
+          >
+            {hover.text}
+          </div>
+        )}
+      </div>
+      
+      {/* Legend */}
+      <div className="flex items-center justify-center gap-3 flex-wrap mt-2 flex-shrink-0">
+        {data.map(({ category }) => (
+          <div key={category} className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: categoryColors[category] }} />
+            <span className="text-xs text-slate-600">{category}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Activity Calendar Chart - shows daily activity counts in calendar format
+ */
+function ActivityCalendarChart({
+  year,
+  month,
+  logs,
+  variant = 'compact',
+}: {
+  year: number
+  month: number
+  logs: AdminAuditLogEntry[]
+  variant?: 'compact' | 'expanded'
+}) {
+  const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null)
+
+  const activitiesByDay = useMemo(() => {
+    const daysMap: Record<number, number> = {}
+    const daysData: Record<number, { day: number | null; count: number; isFuture?: boolean }> = {}
+    const today = new Date()
+    const isCurrentMonthYear = today.getFullYear() === year && today.getMonth() + 1 === month
+
+    logs.forEach((log) => {
+      if (log.timestamp) {
+        const logDate = new Date(log.timestamp)
+        if (!isNaN(logDate.getTime()) && logDate.getFullYear() === year && logDate.getMonth() + 1 === month) {
+          const day = logDate.getDate()
+          daysMap[day] = (daysMap[day] || 0) + 1
+        }
+      }
+    })
+
+    const firstDay = new Date(year, month - 1, 1)
+    const lastDay = new Date(year, month, 0)
+    const daysInMonth = lastDay.getDate()
+    const startingDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1
+
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      daysData[Object.keys(daysData).length] = { day: null, count: 0 }
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const isFuture = isCurrentMonthYear && day > today.getDate()
+      const count = isFuture ? 0 : (daysMap[day] || 0)
+      daysData[Object.keys(daysData).length] = { day, count, isFuture }
+    }
+
+    return Object.values(daysData)
+  }, [year, month, logs])
+
+  const maxCount = Math.max(...activitiesByDay.map((d) => d.count), 1)
+  const monthName = new Date(year, month - 1).toLocaleString('en-US', { month: 'long' })
+
+  const isExpanded = variant === 'expanded'
+  const headerTextClass = isExpanded ? 'text-xs' : 'text-[10px]'
+  const headerGapClass = isExpanded ? 'gap-1' : 'gap-0.5'
+  const headerMarginClass = isExpanded ? 'mb-1' : 'mb-0.5'
+  const cellHeightClass = isExpanded ? 'h-12' : 'h-8'
+  const cellTextClass = isExpanded ? 'text-xs' : 'text-[9px]'
+  const dayTextClass = isExpanded ? 'text-[10px]' : 'text-[8px]'
+  const countTextClass = isExpanded ? 'text-[9px]' : 'text-[7px]'
+  const legendTextClass = isExpanded ? 'text-xs' : 'text-[9px]'
+  const legendGapClass = isExpanded ? 'gap-1.5' : 'gap-0.5'
+  const legendBoxClass = isExpanded ? 'w-4 h-4' : 'w-2.5 h-2.5'
+
+  return (
+    <div className="space-y-2 h-full flex flex-col relative">
+      <div className={`${headerTextClass} text-slate-600`}>
+        {monthName} {year}
+      </div>
+      <div className="space-y-1 flex-1 overflow-y-auto min-h-0">
+        <div className={`grid grid-cols-7 ${headerGapClass} ${headerTextClass} text-slate-600 font-semibold ${headerMarginClass}`}>
+          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, idx) => (
+            <div key={`${d}-${idx}`} className="text-center">{d}</div>
+          ))}
+        </div>
+        <div className={`grid grid-cols-7 ${headerGapClass}`}>
+          {activitiesByDay.map((dayData, idx) => {
+            const intensity = dayData.day !== null && dayData.count > 0 ? dayData.count / maxCount : 0
+            const bgColor =
+              dayData.day === null ? 'bg-slate-50'
+              : dayData.isFuture ? 'bg-slate-50 text-slate-400'
+              : intensity > 0.7 ? 'bg-blue-600 text-white'
+              : intensity > 0.4 ? 'bg-blue-400 text-white'
+              : intensity > 0 ? 'bg-blue-200 text-blue-900'
+              : 'bg-blue-50 text-slate-600'
+
+            return (
+              <div
+                key={idx}
+                className={`${cellHeightClass} cursor-pointer relative flex items-center justify-center font-medium rounded border border-blue-200 ${cellTextClass} ${bgColor} transition-colors`}
+                onMouseMove={(e) => dayData.day !== null && !dayData.isFuture && dayData.count > 0 ? setHover({ x: e.clientX, y: e.clientY, text: `Activities: ${dayData.count}` }) : null}
+                onMouseLeave={() => setHover(null)}
+              >
+                {dayData.day !== null && !dayData.isFuture && dayData.count > 0 ? (
+                  <div className="text-center">
+                    <div className={dayTextClass}>{dayData.day}</div>
+                    <div className={`${countTextClass} font-bold`}>{dayData.count}</div>
+                  </div>
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      <div className={`${legendTextClass} text-slate-500 flex items-center ${legendGapClass} justify-center flex-shrink-0`}>
+        <span>Less</span>
+        {[0, 0.3, 0.6, 1].map((intensity) => (
+          <div
+            key={intensity}
+            className={`${legendBoxClass} rounded border border-blue-200`}
+            style={{
+              backgroundColor:
+                intensity === 0 ? '#EFF6FF'
+                : intensity < 0.5 ? '#BFDBFE'
+                : intensity < 0.8 ? '#60A5FA'
+                : '#1E40AF',
+            }}
+          />
+        ))}
+        <span>More</span>
+      </div>
+      {hover && (
+        <div
+          className="fixed z-50 px-2 py-1 text-xs font-bold text-blue-900 bg-white border border-blue-200 rounded shadow-sm pointer-events-none"
+          style={{ left: hover.x + 12, top: hover.y + 12 }}
+        >
+          {hover.text}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function AdminAuditLogsPage() {
   const currentYear = new Date().getFullYear()
+  const currentMonth = new Date().getMonth() + 1
+  
+  // Graph state
+  const [graphType, setGraphType] = useState<'category' | 'calendar'>('category')
+  const [graphYear, setGraphYear] = useState(currentYear)
+  const [graphMonth, setGraphMonth] = useState(currentMonth)
+  const [showGraphModal, setShowGraphModal] = useState(false)
+  
+  // Legacy chart state (can be removed if not needed elsewhere)
   const [year, setYear] = useState(currentYear)
   const [range, setRange] = useState<'12m' | '6m'>('12m')
   const [halfYear, setHalfYear] = useState<'H1' | 'H2'>('H1')
@@ -184,19 +480,36 @@ export default function AdminAuditLogsPage() {
 
   const kpis = useMemo(() => {
     const total = logs.length
+    
+    // Last 24h activities
     const recent = logs.filter((log) => {
       const d = new Date(log.timestamp)
       const diff = Date.now() - d.getTime()
       return diff <= 24 * 60 * 60 * 1000
     }).length
-    const topActor = logs[0]?.actor || 'N/A'
-    const categories = [...new Set(logs.map((log) => log.category))]
-    const topCategory = categories.length > 0 ? categories[0] : 'N/A'
+    
+    // Most active user
+    const actorCounts: Record<string, number> = {}
+    logs.forEach(log => {
+      actorCounts[log.actor] = (actorCounts[log.actor] || 0) + 1
+    })
+    const topActorEntry = Object.entries(actorCounts).sort((a, b) => b[1] - a[1])[0]
+    const topActor = topActorEntry ? `${topActorEntry[0]} (${topActorEntry[1]})` : 'N/A'
+    
+    // Most active category
+    const categoryCounts: Record<string, number> = {}
+    logs.forEach(log => {
+      if (log.category) {
+        categoryCounts[log.category] = (categoryCounts[log.category] || 0) + 1
+      }
+    })
+    const topCategoryEntry = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]
+    const topCategory = topCategoryEntry ? `${topCategoryEntry[0]} (${topCategoryEntry[1]})` : 'N/A'
 
     return [
-      { label: 'Total Events', value: total.toString() },
+      { label: 'Total Activities', value: total.toString() },
       { label: 'Last 24h', value: recent.toString() },
-      { label: 'Top Actor', value: topActor },
+      { label: 'Most Active User', value: topActor },
       { label: 'Top Category', value: topCategory },
     ]
   }, [logs])
@@ -226,148 +539,130 @@ export default function AdminAuditLogsPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        {kpis.map((kpi) => (
-          <div key={kpi.label} className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-4 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="text-xs font-semibold text-blue-600">{kpi.label}</div>
-            <div className="text-3xl font-bold text-slate-900 mt-2">{kpi.value}</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Activities */}
+        <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm font-bold text-blue-700">Total Activities</div>
+            <Activity className="w-6 h-6 text-blue-600" />
           </div>
-        ))}
+          <div className="text-3xl font-bold text-slate-900">{kpis[0].value}</div>
+          <div className="text-xs text-blue-600 mt-2">All system events</div>
+        </div>
+
+        {/* Last 24h */}
+        <div className="bg-gradient-to-br from-white to-green-50 border border-green-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm font-bold text-green-700">Last 24h</div>
+            <Clock className="w-6 h-6 text-green-600" />
+          </div>
+          <div className="text-3xl font-bold text-green-600">{kpis[1].value}</div>
+          <div className="text-xs text-green-600 mt-2">Recent activity</div>
+        </div>
+
+        {/* Most Active User */}
+        <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm font-bold text-purple-700">Most Active User</div>
+            <User className="w-6 h-6 text-purple-600" />
+          </div>
+          <div className="text-lg font-bold text-purple-600">{kpis[2].value}</div>
+          <div className="text-xs text-purple-600 mt-2">Top contributor</div>
+        </div>
+
+        {/* Top Category */}
+        <div className="bg-gradient-to-br from-white to-orange-50 border border-orange-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm font-bold text-orange-700">Top Category</div>
+            <Tag className="w-6 h-6 text-orange-600" />
+          </div>
+          <div className="text-lg font-bold text-orange-600">{kpis[3].value}</div>
+          <div className="text-xs text-orange-600 mt-2">Most active type</div>
+        </div>
       </div>
 
-      {/* Chart with Date Range Controls */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-4 lg:col-span-3 rounded-lg relative">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-lg font-bold text-blue-900">Activity Trend</div>
-                <div className="text-xs text-slate-600">{range === '6m' ? `H${halfYear === 'H1' ? '1' : '2'} ${year}` : `Year ${year}`}</div>
-              </div>
-              <button
-                onClick={() => setChartModalOpen(true)}
-                className="p-2 hover:bg-blue-100 rounded transition-colors"
-                title="Expand chart"
-              >
-                <Maximize2 className="w-5 h-5 text-blue-600" />
-              </button>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <select
-                value={year}
-                onChange={(e) => setYear(parseInt(e.target.value))}
-                className="px-2 py-1 border border-black shadow-md bg-white text-xs font-semibold rounded"
-              >
-                {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-              <div className="flex gap-1">
-                <button
-                  onClick={() => setRange('12m')}
-                  className={`px-2 py-1 text-xs font-semibold rounded ${range === '12m'
-                    ? 'border border-black shadow-md bg-slate-900 text-white'
-                    : 'border border-black shadow-md bg-white text-slate-900'}`}
-                >
-                  12m
-                </button>
-                <button
-                  onClick={() => setRange('6m')}
-                  className={`px-2 py-1 text-xs font-semibold rounded ${range === '6m'
-                    ? 'border border-black shadow-md bg-slate-900 text-white'
-                    : 'border border-black shadow-md bg-white text-slate-900'}`}
-                >
-                  6m
-                </button>
-              </div>
-              {range === '6m' && (
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setHalfYear('H1')}
-                    className={`px-2 py-1 text-xs font-semibold rounded ${halfYear === 'H1'
-                      ? 'border border-black shadow-md bg-slate-900 text-white'
-                      : 'border border-black shadow-md bg-white text-slate-900'}`}
-                  >
-                    H1
-                  </button>
-                  <button
-                    onClick={() => setHalfYear('H2')}
-                    className={`px-2 py-1 text-xs font-semibold rounded ${halfYear === 'H2'
-                      ? 'border border-black shadow-md bg-slate-900 text-white'
-                      : 'border border-black shadow-md bg-white text-slate-900'}`}
-                  >
-                    H2
-                  </button>
-                </div>
-              )}
-            </div>
+      {/* Analytics Graphs */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        {/* Category Line Chart */}
+        <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-4 rounded-lg">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm font-bold text-blue-900">Category Trends</div>
+            <button
+              onClick={() => { setGraphType('category'); setShowGraphModal(true) }}
+              className="p-1 hover:bg-blue-100 rounded transition-colors"
+              title="Expand graph"
+            >
+              <Maximize2 className="w-4 h-4 text-blue-600" />
+            </button>
+          </div>
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <select
+              value={graphYear}
+              onChange={(e) => setGraphYear(parseInt(e.target.value))}
+              className="px-2 py-1 border border-black shadow-md bg-white text-xs font-semibold rounded"
+            >
+              {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
           </div>
           {logsLoading ? (
-            <div className="h-44 flex items-center justify-center text-sm text-slate-500">Loading activity…</div>
+            <div className="h-40 flex items-center justify-center text-xs text-slate-500">Loading...</div>
           ) : logsError ? (
-            <div className="h-44 flex items-center justify-center text-sm text-red-600">{logsError}</div>
+            <div className="h-40 flex items-center justify-center text-xs text-red-600">{logsError}</div>
           ) : (
-            <>
-              <div className="relative w-full h-44">
-                <svg viewBox={`0 0 ${chartPoints.width} ${chartPoints.height}`} preserveAspectRatio="none" className="w-full h-full">
-                  {chartPoints.points.map((point, idx) => {
-                    const barWidth = chartPoints.points.length > 1
-                      ? (chartPoints.width - chartPoints.padding * 2) / chartPoints.points.length - 8
-                      : 24
-                    const barX = point.x - barWidth / 2
-                    const barHeight = chartPoints.height - chartPoints.padding - point.y
-                    const isHovered = hoveredIndex === idx
-                    return (
-                      <g
-                        key={`bar-${idx}`}
-                        onMouseEnter={(e) => {
-                          setHoveredIndex(idx)
-                          const svg = e.currentTarget.closest('svg')
-                          if (svg) {
-                            const rect = svg.getBoundingClientRect()
-                            const svgX = (point.x / chartPoints.width) * rect.width
-                            const svgY = (point.y / chartPoints.height) * rect.height
-                            setTooltipPos({ x: rect.left + svgX, y: rect.top + svgY - 50 })
-                          }
-                        }}
-                        onMouseLeave={() => setHoveredIndex(null)}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <rect
-                          x={barX}
-                          y={point.y}
-                          width={barWidth}
-                          height={barHeight}
-                          rx={4}
-                          fill={isHovered ? '#2563EB' : '#3B82F6'}
-                        />
-                      </g>
-                    )
-                  })}
-                </svg>
-                {hoveredIndex !== null && (
-                  <div
-                    className="fixed bg-slate-800 text-white px-3 py-2 rounded text-xs whitespace-nowrap shadow-lg pointer-events-none z-50"
-                    style={{
-                      left: tooltipPos.x,
-                      top: tooltipPos.y,
-                      transform: 'translateX(-50%)',
-                    }}
-                  >
-                    <div className="font-semibold">{chartData[hoveredIndex!].key}</div>
-                    <div>{chartData[hoveredIndex!].count} events</div>
-                  </div>
-                )}
-              </div>
-              <div className="flex justify-between text-[11px] text-slate-500 mt-2">
-                {chartData.map((d) => (
-                  <span key={d.key}>{d.label}</span>
-                ))}
-              </div>
-            </>
+            <div className="h-56">
+              <ActivityCategoryLineChart logs={isFiltered ? filteredLogs : logs} year={graphYear} />
+            </div>
           )}
         </div>
 
+        {/* Activity Calendar */}
+        <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-4 rounded-lg">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm font-bold text-blue-900">Activity Calendar</div>
+            <button
+              onClick={() => { setGraphType('calendar'); setShowGraphModal(true) }}
+              className="p-1 hover:bg-blue-100 rounded transition-colors"
+              title="Expand graph"
+            >
+              <Maximize2 className="w-4 h-4 text-blue-600" />
+            </button>
+          </div>
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <select
+              value={graphYear}
+              onChange={(e) => setGraphYear(parseInt(e.target.value))}
+              className="px-2 py-1 border border-black shadow-md bg-white text-xs font-semibold rounded"
+            >
+              {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+            <select
+              value={graphMonth}
+              onChange={(e) => setGraphMonth(parseInt(e.target.value))}
+              className="px-2 py-1 border border-black shadow-md bg-white text-xs font-semibold rounded"
+            >
+              {Array.from({ length: 12 }, (_, i) => (
+                <option key={i + 1} value={i + 1}>
+                  {new Date(0, i).toLocaleString('en-US', { month: 'short' })}
+                </option>
+              ))}
+            </select>
+          </div>
+          {logsLoading ? (
+            <div className="h-40 flex items-center justify-center text-xs text-slate-500">Loading...</div>
+          ) : logsError ? (
+            <div className="h-40 flex items-center justify-center text-xs text-red-600">{logsError}</div>
+          ) : (
+            <div className="h-56">
+              <ActivityCalendarChart year={graphYear} month={graphMonth} logs={isFiltered ? filteredLogs : logs} />
+            </div>
+          )}
+        </div>
+
+        {/* Filter Options Panel */}
         <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-4 rounded-lg">
           <div className="text-sm font-bold text-blue-900 mb-3">Filter Options</div>
           <div className="space-y-3">
@@ -624,17 +919,21 @@ export default function AdminAuditLogsPage() {
         </div>
       </div>
 
-      {/* Chart Modal */}
-      {chartModalOpen && (
+      {/* Expandable Graph Modal */}
+      {showGraphModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-auto">
+          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-auto">
             <div className="sticky top-0 flex items-center justify-between px-6 py-4 border-b border-blue-200 bg-white">
               <div>
-                <h3 className="text-lg font-bold text-blue-900">Activity Trend</h3>
-                <p className="text-xs text-slate-600 mt-1">{range === '6m' ? `H${halfYear === 'H1' ? '1' : '2'} ${year}` : `Year ${year}`}</p>
+                <h3 className="text-lg font-bold text-blue-900">
+                  {graphType === 'category' ? 'Activity Category Trends' : 'Activity Calendar'}
+                </h3>
+                <p className="text-xs text-slate-600 mt-1">
+                  {graphType === 'category' ? `Year ${graphYear}` : `${new Date(graphYear, graphMonth - 1).toLocaleString('en-US', { month: 'long' })} ${graphYear}`}
+                </p>
               </div>
               <button
-                onClick={() => setChartModalOpen(false)}
+                onClick={() => setShowGraphModal(false)}
                 className="p-1 hover:bg-slate-100 rounded transition-colors"
               >
                 <X className="w-6 h-6 text-slate-600" />
@@ -644,117 +943,41 @@ export default function AdminAuditLogsPage() {
             <div className="p-6">
               <div className="flex items-center gap-4 mb-6 flex-wrap">
                 <select
-                  value={year}
-                  onChange={(e) => setYear(parseInt(e.target.value))}
+                  value={graphYear}
+                  onChange={(e) => setGraphYear(parseInt(e.target.value))}
                   className="px-2 py-1 border border-black shadow-md bg-white text-xs font-semibold rounded"
                 >
                   {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
                     <option key={y} value={y}>{y}</option>
                   ))}
                 </select>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setRange('12m')}
-                    className={`px-2 py-1 text-xs font-semibold rounded ${range === '12m'
-                      ? 'border border-black shadow-md bg-slate-900 text-white'
-                      : 'border border-black shadow-md bg-white text-slate-900'}`}
+                {graphType === 'calendar' && (
+                  <select
+                    value={graphMonth}
+                    onChange={(e) => setGraphMonth(parseInt(e.target.value))}
+                    className="px-2 py-1 border border-black shadow-md bg-white text-xs font-semibold rounded"
                   >
-                    12m
-                  </button>
-                  <button
-                    onClick={() => setRange('6m')}
-                    className={`px-2 py-1 text-xs font-semibold rounded ${range === '6m'
-                      ? 'border border-black shadow-md bg-slate-900 text-white'
-                      : 'border border-black shadow-md bg-white text-slate-900'}`}
-                  >
-                    6m
-                  </button>
-                </div>
-                {range === '6m' && (
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => setHalfYear('H1')}
-                      className={`px-2 py-1 text-xs font-semibold rounded ${halfYear === 'H1'
-                        ? 'border border-black shadow-md bg-slate-900 text-white'
-                        : 'border border-black shadow-md bg-white text-slate-900'}`}
-                    >
-                      H1
-                    </button>
-                    <button
-                      onClick={() => setHalfYear('H2')}
-                      className={`px-2 py-1 text-xs font-semibold rounded ${halfYear === 'H2'
-                        ? 'border border-black shadow-md bg-slate-900 text-white'
-                        : 'border border-black shadow-md bg-white text-slate-900'}`}
-                    >
-                      H2
-                    </button>
-                  </div>
+                    {Array.from({ length: 12 }, (_, i) => (
+                      <option key={i + 1} value={i + 1}>
+                        {new Date(0, i).toLocaleString('en-US', { month: 'long' })}
+                      </option>
+                    ))}
+                  </select>
                 )}
               </div>
 
               {logsLoading ? (
-                <div className="h-96 flex items-center justify-center text-sm text-slate-500">Loading activity…</div>
+                <div className="h-96 flex items-center justify-center text-sm text-slate-500">Loading...</div>
               ) : logsError ? (
                 <div className="h-96 flex items-center justify-center text-sm text-red-600">{logsError}</div>
               ) : (
-                <>
-                  <div className="relative w-full h-96">
-                    <svg viewBox={`0 0 ${chartPoints.width} ${chartPoints.height}`} preserveAspectRatio="none" className="w-full h-full">
-                      {chartPoints.points.map((point, idx) => {
-                        const barWidth = chartPoints.points.length > 1
-                          ? (chartPoints.width - chartPoints.padding * 2) / chartPoints.points.length - 8
-                          : 24
-                        const barX = point.x - barWidth / 2
-                        const barHeight = chartPoints.height - chartPoints.padding - point.y
-                        const isHovered = hoveredIndex === idx
-                        return (
-                          <g
-                            key={`bar-${idx}`}
-                            onMouseEnter={(e) => {
-                              setHoveredIndex(idx)
-                              const svg = e.currentTarget.closest('svg')
-                              if (svg) {
-                                const rect = svg.getBoundingClientRect()
-                                const svgX = (point.x / chartPoints.width) * rect.width
-                                const svgY = (point.y / chartPoints.height) * rect.height
-                                setTooltipPos({ x: rect.left + svgX, y: rect.top + svgY - 50 })
-                              }
-                            }}
-                            onMouseLeave={() => setHoveredIndex(null)}
-                            style={{ cursor: 'pointer' }}
-                          >
-                            <rect
-                              x={barX}
-                              y={point.y}
-                              width={barWidth}
-                              height={barHeight}
-                              rx={4}
-                              fill={isHovered ? '#2563EB' : '#3B82F6'}
-                            />
-                          </g>
-                        )
-                      })}
-                    </svg>
-                    {hoveredIndex !== null && (
-                      <div
-                        className="fixed bg-slate-800 text-white px-3 py-2 rounded text-xs whitespace-nowrap shadow-lg pointer-events-none z-50"
-                        style={{
-                          left: tooltipPos.x,
-                          top: tooltipPos.y,
-                          transform: 'translateX(-50%)',
-                        }}
-                      >
-                        <div className="font-semibold">{chartData[hoveredIndex!].key}</div>
-                        <div>{chartData[hoveredIndex!].count} events</div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex justify-between text-[11px] text-slate-500 mt-4">
-                    {chartData.map((d) => (
-                      <span key={d.key}>{d.label}</span>
-                    ))}
-                  </div>
-                </>
+                <div className="h-96">
+                  {graphType === 'category' ? (
+                    <ActivityCategoryLineChart logs={isFiltered ? filteredLogs : logs} year={graphYear} />
+                  ) : (
+                    <ActivityCalendarChart year={graphYear} month={graphMonth} logs={isFiltered ? filteredLogs : logs} variant="expanded" />
+                  )}
+                </div>
               )}
             </div>
           </div>

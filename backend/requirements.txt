@@ -10,5 +10,8 @@ ultralytics
 pymongo
 bcrypt
 python-jose[cryptography]
+# Firebase Admin SDK (verify ID tokens)
+firebase-admin
 # for web backend (contact form - EmailStr validation)
 email-validator
+reportlab

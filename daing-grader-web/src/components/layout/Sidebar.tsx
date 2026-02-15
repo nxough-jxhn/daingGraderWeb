@@ -25,35 +25,34 @@ import {
   Grid,
   Heart,
   Truck,
+  Info,
+  HelpCircle,
+  Gift,
+  DollarSign,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
 const SIDEBAR_LOGO_SRC = '/assets/logos/dainggrader-logo.png'
 
+// Main navigation items
 const navItems = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin'] },
   { to: '/', label: 'Home', icon: Home },
   { to: '/grade', label: 'Grade', icon: ScanLine },
   { to: '/history', label: 'History', icon: History },
-  { to: '/forum', label: 'Community Forum', icon: MessageCircle },
+  { to: '/profile', label: 'Profile', icon: User },
+]
+
+// Market dropdown items
+const marketItems = [
   { to: '/catalog', label: 'Product Catalog', icon: Grid },
   { to: '/sellers', label: 'Stores', icon: Store },
   { to: '/wishlist', label: 'Wishlist', icon: Heart, roles: ['user'] },
   { to: '/orders', label: 'Orders', icon: Truck, roles: ['user'] },
   { to: '/cart', label: 'Cart', icon: ShoppingBag, roles: ['user'] },
-  // Dataset hidden for now: { to: '/dataset', label: 'Dataset', icon: Database },
-  { to: '/about', label: 'About Us', icon: Users },
-  { to: '/contact', label: 'Contact Us', icon: Mail },
-  { to: '/profile', label: 'Profile', icon: User },
 ]
 
-const sellerPanelItems = [
-  { to: '/seller/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/seller/products', label: 'Products', icon: Package },
-  { to: '/seller/orders', label: 'Orders', icon: ClipboardList },
-  { to: '/seller/reviews', label: 'Reviews', icon: Star },
-]
-
+// Information dropdown items (About Daing types)
 const aboutDaingItems = [
   { to: '/about-daing/espada', label: 'Espada' },
   { to: '/about-daing/danggit', label: 'Danggit' },
@@ -62,17 +61,38 @@ const aboutDaingItems = [
   { to: '/about-daing/bisugo', label: 'Bisugo' },
 ]
 
+// Information dropdown items (Publications)
 const publicationItems = [
   { to: '/publications/local', label: 'Local' },
   { to: '/publications/foreign', label: 'Foreign' },
 ]
 
+// Support dropdown items
+const supportItems = [
+  { to: '/about', label: 'About Us', icon: Users },
+  { to: '/contact', label: 'Contact Us', icon: Mail },
+  { to: '/forum', label: 'Community Forum', icon: MessageCircle },
+]
+
+// Seller Panel items
+const sellerPanelItems = [
+  { to: '/seller/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/seller/products', label: 'Products', icon: Package },
+  { to: '/seller/orders', label: 'Orders', icon: ClipboardList },
+  { to: '/seller/reviews', label: 'Reviews', icon: Star },
+  { to: '/seller/discounts', label: 'Vouchers', icon: Gift },
+  { to: '/seller/earnings', label: 'Earnings', icon: DollarSign },
+]
+
+// Management items (Admin only)
 const managementItems = [
   { to: '/admin/users', label: 'Users' },
   { to: '/admin/posts', label: 'Community Posts' },
   { to: '/admin/scans', label: 'Scans' },
   { to: '/admin/audit-logs', label: 'Audit Logs' },
   { to: '/admin/orders', label: 'Orders' },
+  { to: '/admin/discounts', label: 'Vouchers' },
+  { to: '/admin/payouts', label: 'Payouts' },
 ]
 
 interface SidebarProps {
@@ -83,12 +103,55 @@ interface SidebarProps {
 export default function Sidebar({ open, onOpenChange }: SidebarProps) {
   const { isLoggedIn, logout, user } = useAuth()
   const navigate = useNavigate()
+  
+  // Dropdown states
+  const [marketOpen, setMarketOpen] = useState(false)
+  const [infoOpen, setInfoOpen] = useState(false)
+  const [supportOpen, setSupportOpen] = useState(false)
   const [aboutDaingOpen, setAboutDaingOpen] = useState(false)
   const [publicationsOpen, setPublicationsOpen] = useState(false)
   const [managementOpen, setManagementOpen] = useState(false)
   const [sellerPanelOpen, setSellerPanelOpen] = useState(false)
+  
   const role = user?.role ?? 'user'
   const visibleNavItems = navItems.filter((item) => !item.roles || item.roles.includes(role))
+  const visibleMarketItems = marketItems.filter((item) => !item.roles || item.roles.includes(role))
+
+  // Auto-close other dropdowns when one opens
+  const handleDropdownToggle = (dropdownName: string) => {
+    // Check if this is a sub-dropdown (About Daing or Publications under Information)
+    const isSubDropdown = ['aboutDaing', 'publications'].includes(dropdownName)
+    
+    if (!isSubDropdown) {
+      // For top-level dropdowns, close all others
+      if (dropdownName !== 'market') setMarketOpen(false)
+      if (dropdownName !== 'info') setInfoOpen(false)
+      if (dropdownName !== 'support') setSupportOpen(false)
+      if (dropdownName !== 'management') setManagementOpen(false)
+      if (dropdownName !== 'sellerPanel') setSellerPanelOpen(false)
+    } else {
+      // For sub-dropdowns, close all top-level dropdowns but keep the parent info open
+      setMarketOpen(false)
+      setSupportOpen(false)
+      setManagementOpen(false)
+      setSellerPanelOpen(false)
+      
+      // Close other sub-dropdowns
+      if (dropdownName !== 'aboutDaing') setAboutDaingOpen(false)
+      if (dropdownName !== 'publications') setPublicationsOpen(false)
+    }
+
+    // Toggle the selected dropdown
+    switch (dropdownName) {
+      case 'market': setMarketOpen(!marketOpen); break
+      case 'info': setInfoOpen(!infoOpen); break
+      case 'support': setSupportOpen(!supportOpen); break
+      case 'aboutDaing': setAboutDaingOpen(!aboutDaingOpen); break
+      case 'publications': setPublicationsOpen(!publicationsOpen); break
+      case 'management': setManagementOpen(!managementOpen); break
+      case 'sellerPanel': setSellerPanelOpen(!sellerPanelOpen); break
+    }
+  }
 
   const handleLogout = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -157,6 +220,7 @@ export default function Sidebar({ open, onOpenChange }: SidebarProps) {
           {open && (
             <nav className="flex-1 overflow-y-auto py-4 overflow-x-hidden" onClick={(e) => e.stopPropagation()}>
               <div className="px-3 space-y-0.5">
+                {/* Main navigation items */}
                 {visibleNavItems.map(({ to, label, icon: Icon }) => (
                   <NavLink
                     key={to}
@@ -172,48 +236,120 @@ export default function Sidebar({ open, onOpenChange }: SidebarProps) {
                   </NavLink>
                 ))}
 
-                {/* About Daing dropdown */}
+                {/* Market dropdown */}
+                {visibleMarketItems.length > 0 && (
+                  <div className="pt-2">
+                    <button
+                      onClick={() => handleDropdownToggle('market')}
+                      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-white/90 hover:bg-sidebar-hover hover:text-white"
+                    >
+                      <ShoppingBag className="w-5 h-5 shrink-0 opacity-90" />
+                      <span className="flex-1 text-left">Market</span>
+                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${marketOpen ? '' : '-rotate-90'}`} />
+                    </button>
+                    {marketOpen && (
+                      <div className="mt-1 ml-4 space-y-0.5 border-l border-white/20 pl-3">
+                        {visibleMarketItems.map(({ to, label, icon: Icon }) => (
+                          <NavLink
+                            key={to}
+                            to={to}
+                            onClick={() => onOpenChange(false)}
+                            className={({ isActive }) =>
+                              `flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-all duration-200
+                              ${isActive ? 'bg-sidebar-active-bg text-white' : 'text-white/85 hover:bg-sidebar-hover'}`
+                            }
+                          >
+                            <Icon className="w-4 h-4 shrink-0 opacity-90" />
+                            {label}
+                          </NavLink>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Information dropdown */}
                 <div className="pt-2">
                   <button
-                    onClick={() => setAboutDaingOpen(!aboutDaingOpen)}
+                    onClick={() => handleDropdownToggle('info')}
                     className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-white/90 hover:bg-sidebar-hover hover:text-white"
                   >
-                    <BookOpen className="w-5 h-5 shrink-0 opacity-90" />
-                    <span className="flex-1 text-left">About Daing</span>
-                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${aboutDaingOpen ? '' : '-rotate-90'}`} />
+                    <Info className="w-5 h-5 shrink-0 opacity-90" />
+                    <span className="flex-1 text-left">Information</span>
+                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${infoOpen ? '' : '-rotate-90'}`} />
                   </button>
-                  {aboutDaingOpen && (
-                    <div className="mt-1 ml-4 space-y-0.5 border-l border-white/20 pl-3">
-                      {aboutDaingItems.map(({ to, label }) => (
-                        <NavLink
-                          key={to}
-                          to={to}
-                          onClick={() => onOpenChange(false)}
-                          className={({ isActive }) =>
-                            `flex items-center gap-2 px-2 py-2 rounded-lg text-sm transition-all duration-200
-                            ${isActive ? 'bg-sidebar-active-bg text-white' : 'text-white/85 hover:bg-sidebar-hover'}`
-                          }
-                        >
-                          {label}
-                        </NavLink>
-                      ))}
+                  {infoOpen && (
+                    <div className="mt-1 ml-4 space-y-1">
+                      {/* About Daing sub-dropdown */}
+                      <button
+                        onClick={() => handleDropdownToggle('aboutDaing')}
+                        className="flex items-center gap-2 w-full px-2 py-2 rounded-lg text-sm transition-all duration-200 text-white/85 hover:bg-sidebar-hover"
+                      >
+                        <BookOpen className="w-4 h-4 shrink-0 opacity-90" />
+                        <span className="flex-1 text-left">About Daing</span>
+                        <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${aboutDaingOpen ? '' : '-rotate-90'}`} />
+                      </button>
+                      {aboutDaingOpen && (
+                        <div className="ml-4 space-y-0.5 border-l border-white/20 pl-3">
+                          {aboutDaingItems.map(({ to, label }) => (
+                            <NavLink
+                              key={to}
+                              to={to}
+                              onClick={() => onOpenChange(false)}
+                              className={({ isActive }) =>
+                                `block px-2 py-1.5 rounded-lg text-sm transition-all duration-200
+                                ${isActive ? 'bg-sidebar-active-bg text-white' : 'text-white/85 hover:bg-sidebar-hover'}`
+                              }
+                            >
+                              {label}
+                            </NavLink>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Publications sub-dropdown */}
+                      <button
+                        onClick={() => handleDropdownToggle('publications')}
+                        className="flex items-center gap-2 w-full px-2 py-2 rounded-lg text-sm transition-all duration-200 text-white/85 hover:bg-sidebar-hover"
+                      >
+                        <FileText className="w-4 h-4 shrink-0 opacity-90" />
+                        <span className="flex-1 text-left">Publications</span>
+                        <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${publicationsOpen ? '' : '-rotate-90'}`} />
+                      </button>
+                      {publicationsOpen && (
+                        <div className="ml-4 space-y-0.5 border-l border-white/20 pl-3">
+                          {publicationItems.map(({ to, label }) => (
+                            <NavLink
+                              key={to}
+                              to={to}
+                              onClick={() => onOpenChange(false)}
+                              className={({ isActive }) =>
+                                `block px-2 py-1.5 rounded-lg text-sm transition-all duration-200
+                                ${isActive ? 'bg-sidebar-active-bg text-white' : 'text-white/85 hover:bg-sidebar-hover'}`
+                              }
+                            >
+                              {label}
+                            </NavLink>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
 
-                {/* Publications dropdown */}
+                {/* Support dropdown */}
                 <div className="pt-2">
                   <button
-                    onClick={() => setPublicationsOpen(!publicationsOpen)}
+                    onClick={() => handleDropdownToggle('support')}
                     className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-white/90 hover:bg-sidebar-hover hover:text-white"
                   >
-                    <FileText className="w-5 h-5 shrink-0 opacity-90" />
-                    <span className="flex-1 text-left">Publications</span>
-                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${publicationsOpen ? '' : '-rotate-90'}`} />
+                    <HelpCircle className="w-5 h-5 shrink-0 opacity-90" />
+                    <span className="flex-1 text-left">Support</span>
+                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${supportOpen ? '' : '-rotate-90'}`} />
                   </button>
-                  {publicationsOpen && (
+                  {supportOpen && (
                     <div className="mt-1 ml-4 space-y-0.5 border-l border-white/20 pl-3">
-                      {publicationItems.map(({ to, label }) => (
+                      {supportItems.map(({ to, label, icon: Icon }) => (
                         <NavLink
                           key={to}
                           to={to}
@@ -223,6 +359,7 @@ export default function Sidebar({ open, onOpenChange }: SidebarProps) {
                             ${isActive ? 'bg-sidebar-active-bg text-white' : 'text-white/85 hover:bg-sidebar-hover'}`
                           }
                         >
+                          <Icon className="w-4 h-4 shrink-0 opacity-90" />
                           {label}
                         </NavLink>
                       ))}
@@ -234,7 +371,7 @@ export default function Sidebar({ open, onOpenChange }: SidebarProps) {
                 {role === 'seller' && (
                   <div className="pt-2">
                     <button
-                      onClick={() => setSellerPanelOpen(!sellerPanelOpen)}
+                      onClick={() => handleDropdownToggle('sellerPanel')}
                       className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-white/90 hover:bg-sidebar-hover hover:text-white"
                     >
                       <LayoutDashboard className="w-5 h-5 shrink-0 opacity-90" />
@@ -266,7 +403,7 @@ export default function Sidebar({ open, onOpenChange }: SidebarProps) {
                 {role === 'admin' && (
                   <div className="pt-2">
                     <button
-                      onClick={() => setManagementOpen(!managementOpen)}
+                      onClick={() => handleDropdownToggle('management')}
                       className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-white/90 hover:bg-sidebar-hover hover:text-white"
                     >
                       <Settings className="w-5 h-5 shrink-0 opacity-90" />
@@ -310,22 +447,52 @@ export default function Sidebar({ open, onOpenChange }: SidebarProps) {
                   <Icon className="w-5 h-5 shrink-0 opacity-90" />
                 </Link>
               ))}
+              
+              {/* Market icon */}
+              {visibleMarketItems.length > 0 && (
+                <Link
+                  to="/catalog"
+                  onClick={(e) => { e.stopPropagation(); onOpenChange(true); }}
+                  className="flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 text-white/90 hover:bg-sidebar-hover hover:text-white hover:scale-110"
+                  title="Market"
+                >
+                  <ShoppingBag className="w-5 h-5 shrink-0 opacity-90" />
+                </Link>
+              )}
+              
+              {/* Information icon */}
               <Link
                 to="/about-daing/espada"
                 onClick={(e) => { e.stopPropagation(); onOpenChange(true); }}
                 className="flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 text-white/90 hover:bg-sidebar-hover hover:text-white hover:scale-110"
-                title="About Daing"
+                title="Information"
               >
-                <BookOpen className="w-5 h-5 shrink-0 opacity-90" />
+                <Info className="w-5 h-5 shrink-0 opacity-90" />
               </Link>
+              
+              {/* Support icon */}
               <Link
-                to="/publications/local"
+                to="/about"
                 onClick={(e) => { e.stopPropagation(); onOpenChange(true); }}
                 className="flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 text-white/90 hover:bg-sidebar-hover hover:text-white hover:scale-110"
-                title="Publications"
+                title="Support"
               >
-                <FileText className="w-5 h-5 shrink-0 opacity-90" />
+                <HelpCircle className="w-5 h-5 shrink-0 opacity-90" />
               </Link>
+              
+              {/* Seller Panel icon */}
+              {role === 'seller' && (
+                <Link
+                  to="/seller/dashboard"
+                  onClick={(e) => { e.stopPropagation(); onOpenChange(true); }}
+                  className="flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 text-white/90 hover:bg-sidebar-hover hover:text-white hover:scale-110"
+                  title="Seller Panel"
+                >
+                  <LayoutDashboard className="w-5 h-5 shrink-0 opacity-90" />
+                </Link>
+              )}
+              
+              {/* Management icon */}
               {role === 'admin' && (
                 <Link
                   to="/admin/users"

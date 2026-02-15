@@ -14,18 +14,21 @@ import {
   Star,
   RefreshCcw,
 } from 'lucide-react'
-import { getOrders, markOrderDelivered, type OrderDetail } from '../services/api'
+import { downloadOrderReceipt, getOrders, markOrderDelivered, cancelOrder, type OrderDetail } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import PageTitleHero from '../components/layout/PageTitleHero'
 
-type OrderStatus = 'on_shipping' | 'arrived' | 'cancelled'
+type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'cancelled' | 'arrived'
 
 const normalizeStatus = (status: string): OrderStatus => {
   const value = (status || '').toLowerCase()
   if (['cancelled', 'canceled', 'failed'].includes(value)) return 'cancelled'
   if (['arrived', 'delivered', 'completed'].includes(value)) return 'arrived'
-  return 'on_shipping'
+  if (['shipped', 'on_shipping', 'on_delivery'].includes(value)) return 'shipped'
+  if (['confirmed'].includes(value)) return 'confirmed'
+  if (['pending'].includes(value)) return 'pending'
+  return 'pending'
 }
 
 const formatAddress = (address?: OrderDetail['address']) => {
@@ -36,7 +39,11 @@ const formatAddress = (address?: OrderDetail['address']) => {
 
 const getStatusIcon = (status: string) => {
   switch (status) {
-    case 'on_shipping':
+    case 'pending':
+      return <Truck className="w-4 h-4 text-blue-600" />
+    case 'confirmed':
+      return <CheckCircle className="w-4 h-4 text-blue-600" />
+    case 'shipped':
       return <Truck className="w-4 h-4 text-orange-600" />
     case 'arrived':
       return <CheckCircle className="w-4 h-4 text-green-600" />
@@ -49,10 +56,14 @@ const getStatusIcon = (status: string) => {
 
 const getStatusLabel = (status: string) => {
   switch (status) {
-    case 'on_shipping':
-      return { label: 'On Delivery', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' }
+    case 'pending':
+      return { label: 'Pending', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' }
+    case 'confirmed':
+      return { label: 'Confirmed', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' }
+    case 'shipped':
+      return { label: 'Shipped', color: 'text-orange-600', bg: 'bg-orange-50', border: 'border-orange-200' }
     case 'arrived':
-      return { label: 'Arrived', color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200' }
+      return { label: 'Delivered', color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200' }
     case 'cancelled':
       return { label: 'Canceled', color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' }
     default:
@@ -68,6 +79,8 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<OrderDetail[]>([])
   const [loading, setLoading] = useState(true)
   const [markingDelivered, setMarkingDelivered] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   const loadOrders = async () => {
     setLoading(true)
@@ -109,8 +122,51 @@ export default function OrdersPage() {
     }
   }
 
+  const handleCancelOrder = async () => {
+    if (!selectedOrder) return
+    const currentStatus = (selectedOrder.status || '').toLowerCase()
+    if (!['pending', 'confirmed'].includes(currentStatus)) {
+      showToast('Only pending or confirmed orders can be cancelled')
+      return
+    }
+    if (!confirm('Are you sure you want to cancel this order?')) {
+      return
+    }
+    setCancelling(true)
+    try {
+      const res = await cancelOrder(selectedOrder.id)
+      setOrders((prev) => prev.map((o) => (o.id === selectedOrder.id ? res.order : o)))
+      setSelectedOrder(res.order)
+      showToast('Order cancelled successfully')
+    } catch (err: any) {
+      showToast(err?.response?.data?.detail || 'Failed to cancel order')
+    } finally {
+      setCancelling(false)
+    }
+  }
+
   const handleReviewProduct = (productId: string) => {
     navigate(`/catalog/${productId}`)
+  }
+
+  const handleDownloadReceipt = async () => {
+    if (!selectedOrder) return
+    setDownloadingId(selectedOrder.id)
+    try {
+      const { blob, filename } = await downloadOrderReceipt(selectedOrder.id)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (err: any) {
+      showToast(err?.response?.data?.detail || 'Failed to download receipt')
+    } finally {
+      setDownloadingId(null)
+    }
   }
 
   if (!isLoggedIn) {
@@ -130,6 +186,7 @@ export default function OrdersPage() {
   const canMarkDelivered = selectedOrder && (selectedOrder.status || '').toLowerCase() === 'shipped'
   const isDelivered =
     selectedOrder && ['delivered', 'arrived', 'completed'].includes((selectedOrder.status || '').toLowerCase())
+  const canCancel = selectedOrder && ['pending', 'confirmed'].includes((selectedOrder.status || '').toLowerCase())
 
   return (
     <div className="min-h-screen w-full bg-slate-50 pb-6">
@@ -271,6 +328,13 @@ export default function OrdersPage() {
                           : '—'}
                       </p>
                     </div>
+                        <button
+                          onClick={handleDownloadReceipt}
+                          disabled={downloadingId === selectedOrder.id}
+                          className="inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold border border-blue-200 text-blue-700 rounded-md hover:bg-blue-50 transition-colors disabled:opacity-60"
+                        >
+                          {downloadingId === selectedOrder.id ? 'Preparing...' : 'Download Receipt'}
+                        </button>
                   </div>
                 </div>
 
@@ -329,7 +393,7 @@ export default function OrdersPage() {
                         </div>
                       </div>
 
-                      {/* Mark as Delivered Button */}
+                      {/* Action Buttons */}
                       {canMarkDelivered && (
                         <button
                           onClick={handleMarkDelivered}
@@ -338,6 +402,16 @@ export default function OrdersPage() {
                         >
                           <CheckCircle className="w-5 h-5" />
                           {markingDelivered ? 'Updating...' : 'Mark as Delivered'}
+                        </button>
+                      )}
+                      {canCancel && (
+                        <button
+                          onClick={handleCancelOrder}
+                          disabled={cancelling}
+                          className="w-full px-4 py-3 bg-red-600 text-white rounded-md font-semibold hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          <XCircle className="w-5 h-5" />
+                          {cancelling ? 'Cancelling...' : 'Cancel Order'}
                         </button>
                       )}
                     </div>

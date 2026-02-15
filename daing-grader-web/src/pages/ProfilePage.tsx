@@ -45,6 +45,7 @@ interface User {
   city: string
   street_address: string
   province: string
+  postal_code: string
   gender: string
   avatar_url?: string | null
   role?: 'user' | 'seller' | 'admin'
@@ -191,6 +192,7 @@ export default function ProfilePage() {
     city: '',
     street_address: '',
     province: '',
+    postal_code: '',
     gender: '',
   })
   const [loading, setLoading] = useState(true)
@@ -242,6 +244,7 @@ export default function ProfilePage() {
         city: currentUser.city || '',
         street_address: currentUser.street_address || '',
         province: currentUser.province || '',
+        postal_code: currentUser.postal_code || '',
         gender: currentUser.gender || '',
         avatar_url: currentUser.avatar_url ?? null,
         role: currentUser.role ?? 'user',
@@ -254,6 +257,7 @@ export default function ProfilePage() {
         city: '',
         street_address: '',
         province: '',
+        postal_code: '',
         gender: '',
         role: 'user',
       })
@@ -440,6 +444,7 @@ export default function ProfilePage() {
         city: user.city,
         street_address: user.street_address,
         province: user.province,
+        postal_code: user.postal_code,
         gender: user.gender,
       })
       setUser((u) => ({
@@ -450,6 +455,7 @@ export default function ProfilePage() {
         city: updated.city ?? u.city,
         street_address: updated.street_address ?? u.street_address,
         province: updated.province ?? u.province,
+        postal_code: updated.postal_code ?? u.postal_code,
         gender: updated.gender ?? u.gender,
       }))
       setAuthUser((prev) =>
@@ -461,6 +467,8 @@ export default function ProfilePage() {
             }
           : null
       )
+      // Reload user data from server to ensure everything is synced
+      await loadUser()
       hideToast()
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
@@ -804,6 +812,13 @@ export default function ProfilePage() {
                   error={formErrors.province}
                 />
               </div>
+              <Input
+                label="Postal Code"
+                value={user.postal_code}
+                onChange={(e) => setUser({ ...user, postal_code: e.target.value })}
+                placeholder="ZIP/Postal Code"
+                error={formErrors.postal_code}
+              />
             </div>
 
             <div className="mt-3 text-xs text-slate-500">

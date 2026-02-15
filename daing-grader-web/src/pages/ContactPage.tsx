@@ -3,6 +3,7 @@ import Input from '../components/ui/Input'
 import Button from '../components/ui/Button'
 import { sendContactMessage } from '../services/api'
 import { Loader2 } from 'lucide-react'
+import { validateName, validateEmail, validatePhone, validateRequired, validateLength } from '../utils/validation'
 
 export default function ContactPage() {
   const [name, setName] = useState('')
@@ -13,27 +14,39 @@ export default function ContactPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setSuccess(false)
-    if (!name.trim()) {
-      setError('Name is required.')
+    setFieldErrors({})
+    
+    // Validate all fields
+    const errors: Record<string, string> = {}
+    
+    const nameValidation = validateName(name, 'Name')
+    if (!nameValidation.valid) errors.name = nameValidation.error!
+    
+    const emailValidation = validateEmail(email)
+    if (!emailValidation.valid) errors.email = emailValidation.error!
+    
+    if (contactNumber.trim()) {
+      const phoneValidation = validatePhone(contactNumber)
+      if (!phoneValidation.valid) errors.contactNumber = phoneValidation.error!
+    }
+    
+    const subjectValidation = validateLength(subject, 3, 200, 'Subject')
+    if (!subjectValidation.valid) errors.subject = subjectValidation.error!
+    
+    const messageValidation = validateLength(message, 10, 2000, 'Message')
+    if (!messageValidation.valid) errors.message = messageValidation.error!
+    
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
       return
     }
-    if (!email.trim()) {
-      setError('Email is required.')
-      return
-    }
-    if (!subject.trim()) {
-      setError('Subject is required.')
-      return
-    }
-    if (!message.trim()) {
-      setError('Message is required.')
-      return
-    }
+    
     setLoading(true)
     try {
       await sendContactMessage({
@@ -49,6 +62,7 @@ export default function ContactPage() {
       setContactNumber('')
       setSubject('')
       setMessage('')
+      setFieldErrors({})
     } catch (err: any) {
       const detail = err.response?.data?.detail
       setError(
@@ -68,18 +82,56 @@ export default function ContactPage() {
       <div className="card bg-gradient-to-b from-white to-blue-50 border border-blue-200 shadow-lg">
         <h2 className="text-xl font-semibold text-blue-900">Contact Us</h2>
         <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
-          <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
-          <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          <Input label="Contact Number" placeholder="e.g. +63 912 345 6789" value={contactNumber} onChange={(e) => setContactNumber(e.target.value)} />
-          <Input label="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} required />
+          <div>
+            <Input 
+              label="Name" 
+              value={name} 
+              onChange={(e) => setName(e.target.value)} 
+              required 
+              error={fieldErrors.name || null}
+            />
+          </div>
+          <div>
+            <Input 
+              label="Email" 
+              type="email" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+              required 
+              error={fieldErrors.email || null}
+            />
+          </div>
+          <div>
+            <Input 
+              label="Contact Number" 
+              placeholder="e.g. +63 912 345 6789" 
+              value={contactNumber} 
+              onChange={(e) => setContactNumber(e.target.value)}
+              error={fieldErrors.contactNumber || null}
+            />
+          </div>
+          <div>
+            <Input 
+              label="Subject" 
+              value={subject} 
+              onChange={(e) => setSubject(e.target.value)} 
+              required 
+              error={fieldErrors.subject || null}
+            />
+          </div>
           <div>
             <label className="text-sm text-slate-700 font-medium mb-1 block">Message</label>
             <textarea
-              className="w-full p-3 border border-blue-300 bg-white text-slate-900 rounded-md h-36 shadow-sm hover:shadow-md focus:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-all"
+              className={`w-full p-3 border bg-white text-slate-900 rounded-md h-36 shadow-sm hover:shadow-md focus:shadow-md focus:outline-none focus:ring-2 focus:border-blue-500 transition-all ${
+                fieldErrors.message ? 'border-red-300 focus:ring-red-500/40' : 'border-blue-300 focus:ring-blue-500/40'
+              }`}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               required
             />
+            {fieldErrors.message && (
+              <p className="mt-1 text-xs text-red-600">{fieldErrors.message}</p>
+            )}
           </div>
           {error && (
             <div className="text-sm text-red-700 bg-red-50 border border-red-300 rounded-lg px-3 py-2 shadow-sm">

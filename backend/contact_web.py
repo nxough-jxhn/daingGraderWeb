@@ -9,6 +9,12 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr
+from email_sender import (
+    send_email,
+    send_verification_email,
+    send_item_disabled_email,
+    send_item_enabled_email,
+)
 
 router = APIRouter()
 

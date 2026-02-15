@@ -2,7 +2,7 @@
  * Admin Community Posts Management Page
  * Features: posts table with image carousel, status filtering, disable modal, comment viewer
  */
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   Search,
   ChevronLeft,
@@ -12,6 +12,7 @@ import {
   Eye,
   X,
   Calendar,
+  BarChart3,
   MessageCircle,
   Heart,
   Image as ImageIcon,
@@ -20,6 +21,8 @@ import {
   CheckCircle,
   Trash2,
   User,
+  Users,
+  FileText,
   Copy,
   Check,
 } from 'lucide-react'
@@ -138,6 +141,233 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
+function PostCreationCalendarChart({
+  year,
+  month,
+  posts,
+  variant = 'compact',
+}: {
+  year: number
+  month: number
+  posts: AdminPost[]
+  variant?: 'compact' | 'expanded'
+}) {
+  const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null)
+
+  const postsByDay = useMemo(() => {
+    const daysMap: Record<number, number> = {}
+    const daysData: Record<number, { day: number | null; count: number; isFuture?: boolean }> = {}
+    const today = new Date()
+    const isCurrentMonthYear = today.getFullYear() === year && today.getMonth() + 1 === month
+
+    posts.forEach((post) => {
+      if (post.created_at) {
+        const createdDate = new Date(post.created_at)
+        if (!isNaN(createdDate.getTime()) && createdDate.getFullYear() === year && createdDate.getMonth() + 1 === month) {
+          const day = createdDate.getDate()
+          daysMap[day] = (daysMap[day] || 0) + 1
+        }
+      }
+    })
+
+    const firstDay = new Date(year, month - 1, 1)
+    const lastDay = new Date(year, month, 0)
+    const daysInMonth = lastDay.getDate()
+    const startingDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1
+
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      daysData[Object.keys(daysData).length] = { day: null, count: 0 }
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const isFuture = isCurrentMonthYear && day > today.getDate()
+      const count = isFuture ? 0 : (daysMap[day] || 0)
+      daysData[Object.keys(daysData).length] = { day, count, isFuture }
+    }
+
+    return Object.values(daysData)
+  }, [year, month, posts])
+
+  const maxCount = Math.max(...postsByDay.map((d) => d.count), 1)
+  const monthName = new Date(year, month - 1).toLocaleString('en-US', { month: 'long' })
+
+  const isExpanded = variant === 'expanded'
+  const headerTextClass = isExpanded ? 'text-xs' : 'text-[10px]'
+  const headerGapClass = isExpanded ? 'gap-1' : 'gap-0.5'
+  const headerMarginClass = isExpanded ? 'mb-1' : 'mb-0.5'
+  const cellHeightClass = isExpanded ? 'h-12' : 'h-8'
+  const cellTextClass = isExpanded ? 'text-xs' : 'text-[9px]'
+  const dayTextClass = isExpanded ? 'text-[10px]' : 'text-[8px]'
+  const countTextClass = isExpanded ? 'text-[9px]' : 'text-[7px]'
+  const legendTextClass = isExpanded ? 'text-xs' : 'text-[9px]'
+  const legendGapClass = isExpanded ? 'gap-1.5' : 'gap-0.5'
+  const legendBoxClass = isExpanded ? 'w-4 h-4' : 'w-2.5 h-2.5'
+
+  return (
+    <div className="space-y-2 h-full flex flex-col relative">
+      <div className={`${headerTextClass} text-slate-600`}>
+        {monthName} {year}
+      </div>
+      <div className="space-y-1 flex-1 overflow-y-auto min-h-0">
+        <div className={`grid grid-cols-7 ${headerGapClass} ${headerTextClass} text-slate-600 font-semibold ${headerMarginClass}`}>
+          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, idx) => (
+            <div key={`${d}-${idx}`} className="text-center">{d}</div>
+          ))}
+        </div>
+        <div className={`grid grid-cols-7 ${headerGapClass}`}>
+          {postsByDay.map((dayData, idx) => {
+            const intensity = dayData.day !== null && dayData.count > 0 ? dayData.count / maxCount : 0
+            const bgColor =
+              dayData.day === null ? 'bg-slate-50'
+              : dayData.isFuture ? 'bg-slate-50 text-slate-400'
+              : intensity > 0.7 ? 'bg-blue-600 text-white'
+              : intensity > 0.4 ? 'bg-blue-400 text-white'
+              : intensity > 0 ? 'bg-blue-200 text-blue-900'
+              : 'bg-blue-50 text-slate-600'
+
+            return (
+              <div
+                key={idx}
+                className={`${cellHeightClass} cursor-pointer relative flex items-center justify-center font-medium rounded border border-blue-200 ${cellTextClass} ${bgColor} transition-colors`}
+                onMouseMove={(e) => dayData.day !== null && !dayData.isFuture && dayData.count > 0 ? setHover({ x: e.clientX, y: e.clientY, text: `Posts: ${dayData.count}` }) : null}
+                onMouseLeave={() => setHover(null)}
+              >
+                {dayData.day !== null && !dayData.isFuture && dayData.count > 0 ? (
+                  <div className="text-center">
+                    <div className={dayTextClass}>{dayData.day}</div>
+                    <div className={`${countTextClass} font-bold`}>{dayData.count}</div>
+                  </div>
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      <div className={`${legendTextClass} text-slate-500 flex items-center ${legendGapClass} justify-center flex-shrink-0`}>
+        <span>Less</span>
+        {[0, 0.3, 0.6, 1].map((intensity) => (
+          <div
+            key={intensity}
+            className={`${legendBoxClass} rounded border border-blue-200`}
+            style={{
+              backgroundColor:
+                intensity === 0 ? '#EFF6FF'
+                : intensity < 0.5 ? '#BFDBFE'
+                : intensity < 0.8 ? '#60A5FA'
+                : '#1E40AF',
+            }}
+          />
+        ))}
+        <span>More</span>
+      </div>
+      {hover && (
+        <div
+          className="fixed z-50 px-2 py-1 text-xs font-bold text-blue-900 bg-white border border-blue-200 rounded shadow-sm pointer-events-none"
+          style={{ left: hover.x + 12, top: hover.y + 12 }}
+        >
+          {hover.text}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PostCategoryDistributionChart({ posts, year }: { posts: AdminPost[]; year: number }) {
+  const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null)
+
+  const data = useMemo(() => {
+    const counts: Record<string, number> = {}
+    posts.forEach((post) => {
+      if (!post.created_at) return
+      const createdDate = new Date(post.created_at)
+      if (isNaN(createdDate.getTime()) || createdDate.getFullYear() !== year) return
+      const category = post.category || 'Uncategorized'
+      counts[category] = (counts[category] || 0) + 1
+    })
+
+    return Object.entries(counts).map(([label, value], index) => ({
+      label,
+      value,
+      color: ['#2563EB', '#60A5FA', '#8B5CF6', '#0EA5E9', '#1D4ED8'][index % 5],
+    }))
+  }, [posts, year])
+
+  if (data.length === 0) {
+    return <div className="h-40 flex items-center justify-center text-slate-500">No data</div>
+  }
+
+  const maxValue = Math.max(...data.map((d) => d.value), 1)
+  const chartHeight = 150
+
+  return (
+    <div className="space-y-2 h-full flex flex-col relative">
+      <div className="flex-1 flex flex-col relative min-h-0">
+        <div className="flex-1 flex flex-col justify-between absolute left-0 top-0 bottom-0 w-10 text-[10px] text-slate-500">
+          {[1, 0.75, 0.5, 0.25, 0].map((tick, i) => {
+            const value = Math.round(maxValue * tick)
+            return (
+              <div key={i} className="text-right pr-2">
+                {value}
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="flex-1 flex items-end justify-around gap-4 px-3 pb-6 ml-10 relative">
+          {[1, 0.75, 0.5, 0.25].map((tick, i) => (
+            <div
+              key={`grid-${i}`}
+              className="absolute left-0 right-0 border-t border-blue-100"
+              style={{ bottom: `${(tick * 100) / (1.2)}%` }}
+            />
+          ))}
+
+          {data.map((item) => {
+            const percentage = (item.value / maxValue) * 100
+            const barHeight = (percentage / 100) * chartHeight
+            return (
+              <div
+                key={item.label}
+                className="flex flex-col items-center gap-1 relative z-10 cursor-pointer"
+                onMouseMove={(e) => setHover({ x: e.clientX, y: e.clientY, text: `${item.label}: ${item.value}` })}
+                onMouseLeave={() => setHover(null)}
+              >
+                <div className="text-xs font-bold text-slate-900">{item.value}</div>
+                <div
+                  className="rounded-sm shadow-md transition-all duration-300 hover:shadow-lg"
+                  style={{
+                    backgroundColor: item.color,
+                    width: '50px',
+                    height: `${Math.max(barHeight, 15)}px`,
+                    border: `2px solid ${item.color}`,
+                  }}
+                />
+                <div className="text-[10px] font-semibold text-slate-700 text-center max-w-[70px]">
+                  {item.label}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-center gap-2 text-[10px] text-slate-600 flex-shrink-0">
+        <div>Posts</div>
+        <div>&rarr; Categories</div>
+      </div>
+
+      {hover && (
+        <div
+          className="fixed z-50 px-2 py-1 text-xs font-bold text-blue-900 bg-white border border-blue-200 rounded shadow-sm pointer-events-none"
+          style={{ left: hover.x + 12, top: hover.y + 12 }}
+        >
+          {hover.text}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function AdminPostsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all')
@@ -151,6 +381,8 @@ export default function AdminPostsPage() {
   const [stats, setStats] = useState<AdminPostsStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [analyticsPosts, setAnalyticsPosts] = useState<AdminPost[]>([])
+  const [analyticsLoading, setAnalyticsLoading] = useState(false)
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -171,6 +403,13 @@ export default function AdminPostsPage() {
   const [commentDisableReason, setCommentDisableReason] = useState('')
   const [commentDisableLoading, setCommentDisableLoading] = useState(false)
 
+  // Graph state
+  const today = new Date()
+  const [graphType, setGraphType] = useState<'calendar' | 'category'>('calendar')
+  const [graphYear, setGraphYear] = useState(today.getFullYear())
+  const [graphMonth, setGraphMonth] = useState(today.getMonth() + 1)
+  const [showGraphModal, setShowGraphModal] = useState(false)
+
   // Fetch posts
   useEffect(() => {
     fetchPosts()
@@ -179,6 +418,10 @@ export default function AdminPostsPage() {
   // Fetch stats on mount
   useEffect(() => {
     fetchStats()
+  }, [])
+
+  useEffect(() => {
+    fetchAnalyticsPosts()
   }, [])
 
   const fetchPosts = async () => {
@@ -204,6 +447,31 @@ export default function AdminPostsPage() {
     }
   }
 
+  const fetchAnalyticsPosts = async () => {
+    setAnalyticsLoading(true)
+    try {
+      const pageSize = 200
+      let pageIndex = 1
+      let allPosts: AdminPost[] = []
+      let total = 0
+
+      while (true) {
+        const res = await getAdminPosts(pageIndex, pageSize, 'all', '', 'all')
+        allPosts = allPosts.concat(res.posts || [])
+        total = res.total || 0
+        if (allPosts.length >= total || (res.posts || []).length === 0) break
+        pageIndex += 1
+      }
+
+      setAnalyticsPosts(allPosts)
+    } catch (e) {
+      console.error('Failed to load analytics posts')
+      setAnalyticsPosts([])
+    } finally {
+      setAnalyticsLoading(false)
+    }
+  }
+
   // Search with debounce
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -217,6 +485,14 @@ export default function AdminPostsPage() {
   }, [searchQuery])
 
   const totalPages = Math.ceil(totalPosts / pageSize)
+
+  const totalLikes = useMemo(() => {
+    return analyticsPosts.reduce((sum, post) => sum + (post.likes || 0), 0)
+  }, [analyticsPosts])
+
+  const activeUsers = useMemo(() => {
+    return new Set(analyticsPosts.map((post) => post.author_id).filter(Boolean)).size
+  }, [analyticsPosts])
 
   // Bulk selection handlers
   const handleToggleSelect = (id: string) => {
@@ -263,6 +539,7 @@ export default function AdminPostsPage() {
       }
       await fetchPosts()
       await fetchStats()
+      await fetchAnalyticsPosts()
       setDisableModal({ post: null, open: false })
     } catch (e) {
       alert('Failed to update post status')
@@ -333,39 +610,116 @@ export default function AdminPostsPage() {
         backgroundImage="/assets/page-hero/hero-bg.jpg"
       />
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
-        <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="text-sm font-bold text-blue-700 mb-1">Total Posts</div>
-          <div className="text-2xl font-bold text-slate-900">{stats?.total_posts ?? '-'}</div>
+      {/* KPI + Graph Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* KPIs on the left - 2x2 grid */}
+        <div className="grid grid-cols-2 gap-4 lg:items-start">
+          <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold text-blue-700">Total Posts</div>
+              <FileText className="w-6 h-6 text-blue-600" />
+            </div>
+            <div className="text-3xl font-bold text-slate-900">{stats?.total_posts ?? '-'}</div>
+            <div className="text-xs text-blue-600 mt-2">All posts</div>
+          </div>
+          <div className="bg-gradient-to-br from-white to-green-50 border border-green-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold text-green-700">Total Comments</div>
+              <MessageCircle className="w-6 h-6 text-green-600" />
+            </div>
+            <div className="text-3xl font-bold text-green-700">{stats?.total_comments ?? '-'}</div>
+            <div className="text-xs text-green-600 mt-2">All comments</div>
+          </div>
+          <div className="bg-gradient-to-br from-white to-rose-50 border border-rose-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold text-rose-700">Total Likes</div>
+              <Heart className="w-6 h-6 text-rose-600" />
+            </div>
+            <div className="text-3xl font-bold text-rose-600">{analyticsLoading ? '-' : totalLikes}</div>
+            <div className="text-xs text-rose-600 mt-2">All likes</div>
+          </div>
+          <div className="bg-gradient-to-br from-white to-indigo-50 border border-indigo-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold text-indigo-700">Active Users</div>
+              <Users className="w-6 h-6 text-indigo-600" />
+            </div>
+            <div className="text-3xl font-bold text-indigo-700">{analyticsLoading ? '-' : activeUsers}</div>
+            <div className="text-xs text-indigo-600 mt-2">Posted at least once</div>
+          </div>
         </div>
-        <div className="bg-gradient-to-br from-white to-green-50 border border-green-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="text-sm font-bold text-green-700 mb-1">Active</div>
-          <div className="text-2xl font-bold text-green-600">{stats?.active_posts ?? '-'}</div>
-        </div>
-        <div className="bg-gradient-to-br from-white to-red-50 border border-red-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="text-sm font-bold text-red-700 mb-1">Deleted</div>
-          <div className="text-2xl font-bold text-red-600">{stats?.deleted_posts ?? '-'}</div>
-        </div>
-        <div className="bg-gradient-to-br from-white to-orange-50 border border-orange-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="text-sm font-bold text-orange-700 mb-1">Disabled</div>
-          <div className="text-2xl font-bold text-orange-600">{stats?.disabled_posts ?? '-'}</div>
-        </div>
-        <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="text-sm font-bold text-blue-700 mb-1">Comments</div>
-          <div className="text-2xl font-bold text-slate-900">{stats?.total_comments ?? '-'}</div>
-        </div>
-        <div className="bg-gradient-to-br from-white to-green-50 border border-green-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="text-sm font-bold text-green-700 mb-1">Active Cmts</div>
-          <div className="text-2xl font-bold text-green-600">{stats?.active_comments ?? '-'}</div>
-        </div>
-        <div className="bg-gradient-to-br from-white to-red-50 border border-red-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="text-sm font-bold text-red-700 mb-1">Del. Cmts</div>
-          <div className="text-2xl font-bold text-red-600">{stats?.deleted_comments ?? '-'}</div>
-        </div>
-        <div className="bg-gradient-to-br from-white to-orange-50 border border-orange-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="text-sm font-bold text-orange-700 mb-1">Dis. Cmts</div>
-          <div className="text-2xl font-bold text-orange-600">{stats?.disabled_comments ?? '-'}</div>
+
+        {/* Graph on the right */}
+        <div className="lg:col-span-2 bg-white border border-blue-200 shadow-md p-3 rounded-lg max-h-[300px] flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold text-blue-900">Community Post Analytics</h3>
+            <button
+              onClick={() => setShowGraphModal(true)}
+              className="p-2 text-blue-600 hover:bg-blue-50 transition-colors border border-blue-300 rounded"
+              title="Expand view"
+            >
+              <BarChart3 className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Graph Type Toggle + Filter Controls on same row */}
+          <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+            <button
+              onClick={() => setGraphType('calendar')}
+              className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
+                graphType === 'calendar'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+              }`}
+            >
+              <Calendar className="w-3 h-3 inline mr-0.5" />
+              Post Calendar
+            </button>
+            <button
+              onClick={() => setGraphType('category')}
+              className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
+                graphType === 'category'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+              }`}
+            >
+              <BarChart3 className="w-3 h-3 inline mr-0.5" />
+              Category Distribution
+            </button>
+            <select
+              value={graphYear}
+              onChange={(e) => setGraphYear(Number(e.target.value))}
+              className="px-1.5 py-1 border border-blue-300 bg-white text-xs rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            >
+              {[today.getFullYear(), today.getFullYear() - 1, today.getFullYear() - 2].map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+            {graphType === 'calendar' && (
+              <select
+                value={graphMonth}
+                onChange={(e) => setGraphMonth(Number(e.target.value))}
+                className="px-1.5 py-1 border border-blue-300 bg-white text-xs rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              >
+                {[
+                  { val: 1, name: 'January' }, { val: 2, name: 'February' }, { val: 3, name: 'March' },
+                  { val: 4, name: 'April' }, { val: 5, name: 'May' }, { val: 6, name: 'June' },
+                  { val: 7, name: 'July' }, { val: 8, name: 'August' }, { val: 9, name: 'September' },
+                  { val: 10, name: 'October' }, { val: 11, name: 'November' }, { val: 12, name: 'December' },
+                ].map((m) => (
+                  <option key={m.val} value={m.val}>{m.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Graph Display */}
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {graphType === 'calendar' ? (
+              <PostCreationCalendarChart year={graphYear} month={graphMonth} posts={analyticsPosts} />
+            ) : (
+              <PostCategoryDistributionChart posts={analyticsPosts} year={graphYear} />
+            )}
+          </div>
         </div>
       </div>
 
@@ -635,6 +989,89 @@ export default function AdminPostsPage() {
           </div>
         )}
       </div>
+
+      {/* Graph Expansion Modal */}
+      {showGraphModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowGraphModal(false)}>
+          <div
+            className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-blue-200 shadow-xl rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-6 border-b border-blue-200 sticky top-0 bg-white z-10">
+              <h2 className="text-xl font-bold text-blue-900">Community Post Analytics - Expanded View</h2>
+              <button
+                onClick={() => setShowGraphModal(false)}
+                className="p-2 hover:bg-blue-50 transition-colors rounded"
+              >
+                <X className="w-5 h-5 text-slate-600" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => setGraphType('calendar')}
+                  className={`px-4 py-2 text-sm font-semibold border rounded transition-colors ${
+                    graphType === 'calendar'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4 inline mr-1" />
+                  Post Calendar
+                </button>
+                <button
+                  onClick={() => setGraphType('category')}
+                  className={`px-4 py-2 text-sm font-semibold border rounded transition-colors ${
+                    graphType === 'category'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  }`}
+                >
+                  <BarChart3 className="w-4 h-4 inline mr-1" />
+                  Category Distribution
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3 flex-wrap">
+                <select
+                  value={graphYear}
+                  onChange={(e) => setGraphYear(Number(e.target.value))}
+                  className="px-4 py-2 border border-blue-300 bg-white text-sm rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                >
+                  {[today.getFullYear(), today.getFullYear() - 1, today.getFullYear() - 2].map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+                {graphType === 'calendar' && (
+                  <select
+                    value={graphMonth}
+                    onChange={(e) => setGraphMonth(Number(e.target.value))}
+                    className="px-4 py-2 border border-blue-300 bg-white text-sm rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  >
+                    {[
+                      { val: 1, name: 'January' }, { val: 2, name: 'February' }, { val: 3, name: 'March' },
+                      { val: 4, name: 'April' }, { val: 5, name: 'May' }, { val: 6, name: 'June' },
+                      { val: 7, name: 'July' }, { val: 8, name: 'August' }, { val: 9, name: 'September' },
+                      { val: 10, name: 'October' }, { val: 11, name: 'November' }, { val: 12, name: 'December' },
+                    ].map((m) => (
+                      <option key={m.val} value={m.val}>{m.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div className="p-8 bg-gradient-to-br from-white to-blue-50 border border-blue-200 rounded-lg">
+                {graphType === 'calendar' ? (
+                  <PostCreationCalendarChart year={graphYear} month={graphMonth} posts={analyticsPosts} variant="expanded" />
+                ) : (
+                  <PostCategoryDistributionChart posts={analyticsPosts} year={graphYear} />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Post Detail Modal with Comments */}
       {detailModal.open && (

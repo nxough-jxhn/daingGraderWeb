@@ -1,14 +1,19 @@
 # This file is for web backend: signup/login/auth API used by the daing-grader-web frontend.
 
 import io
+import json
 import os
 import re
+import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
+
+# Import email sending
+from email_sender import send_verification_email
 
 # --- for web backend: password hashing (bcrypt directly) and JWT ---
 try:
@@ -20,6 +25,15 @@ try:
 except ImportError:
     jwt = None
     JWTError = Exception
+
+# --- Firebase Admin (verify ID tokens) ---
+try:
+    import firebase_admin
+    from firebase_admin import credentials, auth as firebase_auth
+except ImportError:
+    firebase_admin = None
+    credentials = None
+    firebase_auth = None
 
 # for web backend: Cloudinary for profile avatar upload
 try:
@@ -51,20 +65,88 @@ if cloudinary and os.getenv("CLOUDINARY_CLOUD_NAME"):
     )
 
 
-def _get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
-    """for web backend: get current user from JWT Bearer token."""
+def _init_firebase_admin() -> bool:
+    if not firebase_admin or not credentials:
+        return False
+    if firebase_admin._apps:
+        return True
+
+    service_json = (os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON") or "").strip()
+    service_path = (os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH") or "").strip()
+
+    try:
+        if service_json:
+            info = json.loads(service_json)
+            cred = credentials.Certificate(info)
+        elif service_path:
+            cred = credentials.Certificate(service_path)
+        else:
+            return False
+        firebase_admin.initialize_app(cred)
+        return True
+    except Exception:
+        return False
+
+
+def _verify_firebase_token(token: str) -> dict:
+    if not _init_firebase_admin() or not firebase_auth:
+        raise HTTPException(status_code=500, detail="Firebase auth not configured")
+    try:
+        return firebase_auth.verify_id_token(token)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
+def _get_firebase_claims(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> dict:
     if not credentials or not credentials.credentials:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    return _verify_firebase_token(credentials.credentials)
+
+
+def _get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    """for web backend: get current user from Firebase ID token (fallback to JWT)."""
+    if not credentials or not credentials.credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    token = credentials.credentials
+    db = get_db()
+
+    if _init_firebase_admin():
+        decoded = _verify_firebase_token(token)
+        firebase_uid = decoded.get("uid")
+        email = (decoded.get("email") or "").strip().lower()
+
+        user = None
+        if firebase_uid:
+            user = db["users"].find_one({"firebase_uid": firebase_uid})
+        if not user and email:
+            user = db["users"].find_one({"email": email})
+        if not user:
+            raise HTTPException(status_code=401, detail="User not registered")
+
+        updates = {}
+        if firebase_uid and user.get("firebase_uid") != firebase_uid:
+            updates["firebase_uid"] = firebase_uid
+        if email and (user.get("email") or "").strip().lower() != email:
+            updates["email"] = email
+        if "email_verified" in decoded:
+            updates["email_verified"] = bool(decoded.get("email_verified"))
+
+        if updates:
+            db["users"].update_one({"_id": user["_id"]}, {"$set": updates})
+            user = db["users"].find_one({"_id": user["_id"]})
+
+        return user
+
     if not jwt:
         raise HTTPException(status_code=500, detail="Auth not configured")
     try:
-        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id = payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-    db = get_db()
     try:
         user = db["users"].find_one({"_id": ObjectId(user_id)})
     except Exception:
@@ -83,7 +165,15 @@ class RegisterBody(BaseModel):
     city: Optional[str] = None
     street_address: Optional[str] = None
     province: Optional[str] = None
+    postal_code: Optional[str] = None
     gender: Optional[str] = None
+    role: Optional[str] = None
+    admin_code: Optional[str] = None
+
+
+class RegisterFirebaseBody(BaseModel):
+    name: str
+    email: str
     role: Optional[str] = None
     admin_code: Optional[str] = None
 
@@ -102,6 +192,7 @@ class ProfileUpdateBody(BaseModel):
     city: Optional[str] = None
     street_address: Optional[str] = None
     province: Optional[str] = None
+    postal_code: Optional[str] = None
     gender: Optional[str] = None
 
 
@@ -147,6 +238,105 @@ def _create_token(user_id: str, email: str) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
+@router.post("/register-firebase")
+async def register_firebase(body: RegisterFirebaseBody, claims: dict = Depends(_get_firebase_claims)):
+    """Register a new user using Firebase Auth (creates MongoDB user profile)."""
+    name = (body.name or "").strip()
+    email = (body.email or "").strip().lower()
+    requested_role = (body.role or "user").strip().lower() if body.role else "user"
+    admin_code = (body.admin_code or "").strip()
+
+    if not name or len(name) < 2:
+        raise HTTPException(status_code=400, detail="Name must be at least 2 characters")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+
+    claim_email = (claims.get("email") or "").strip().lower()
+    if not claim_email or claim_email != email:
+        raise HTTPException(status_code=400, detail="Email does not match Firebase account")
+
+    if admin_code:
+        if admin_code != ADMIN_CODE:
+            raise HTTPException(status_code=401, detail="Invalid admin code")
+        requested_role = "admin"
+
+    if requested_role not in ALLOWED_ROLES:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    if requested_role == "admin" and not admin_code:
+        raise HTTPException(status_code=401, detail="Admin code is required")
+
+    db = get_db()
+    users = db["users"]
+    firebase_uid = claims.get("uid")
+    email_verified = bool(claims.get("email_verified"))
+
+    existing = None
+    if firebase_uid:
+        existing = users.find_one({"firebase_uid": firebase_uid})
+    if not existing:
+        existing = users.find_one({"email": email})
+
+    if existing:
+        updates = {}
+        if firebase_uid and existing.get("firebase_uid") != firebase_uid:
+            updates["firebase_uid"] = firebase_uid
+        if email_verified != existing.get("email_verified"):
+            updates["email_verified"] = email_verified
+        if updates:
+            users.update_one({"_id": existing["_id"]}, {"$set": updates})
+            existing = users.find_one({"_id": existing["_id"]})
+        uid = str(existing["_id"])
+        return {
+            "id": uid,
+            "name": existing.get("name") or "",
+            "full_name": existing.get("full_name") or existing.get("name") or "",
+            "email": existing.get("email") or "",
+            "avatar_url": existing.get("avatar_url") or None,
+            "phone": existing.get("phone") or "",
+            "city": existing.get("city") or "",
+            "street_address": existing.get("street_address") or "",
+            "province": existing.get("province") or "",
+            "postal_code": existing.get("postal_code") or "",
+            "gender": existing.get("gender") or "",
+            "role": (existing.get("role") or "user").strip().lower(),
+            "email_verified": bool(existing.get("email_verified")),
+        }
+
+    doc = {
+        "name": name,
+        "full_name": name,
+        "email": email,
+        "phone": "",
+        "city": "",
+        "street_address": "",
+        "province": "",
+        "postal_code": "",
+        "gender": "",
+        "firebase_uid": firebase_uid,
+        "email_verified": email_verified,
+        "created_at": datetime.utcnow().isoformat(),
+        "role": requested_role,
+    }
+
+    result = users.insert_one(doc)
+    user_id = str(result.inserted_id)
+    return {
+        "id": user_id,
+        "name": doc.get("name") or "",
+        "full_name": doc.get("full_name") or doc.get("name") or "",
+        "email": doc.get("email") or "",
+        "avatar_url": doc.get("avatar_url") or None,
+        "phone": doc.get("phone") or "",
+        "city": doc.get("city") or "",
+        "street_address": doc.get("street_address") or "",
+        "province": doc.get("province") or "",
+        "postal_code": doc.get("postal_code") or "",
+        "gender": doc.get("gender") or "",
+        "role": (doc.get("role") or "user").strip().lower(),
+        "email_verified": bool(doc.get("email_verified")),
+    }
+
+
 @router.post("/register")
 async def register(body: RegisterBody):
     """Web backend: register a new user. Stores in MongoDB users collection."""
@@ -183,6 +373,9 @@ async def register(body: RegisterBody):
         raise HTTPException(status_code=400, detail="Email already registered")
 
     hashed = _hash_password(password)
+    # Generate email verification token
+    email_verify_token = secrets.token_urlsafe(32)
+    
     doc = {
         "name": name,
         "full_name": (body.full_name or name).strip(),
@@ -191,10 +384,14 @@ async def register(body: RegisterBody):
         "city": (body.city or "").strip(),
         "street_address": (body.street_address or "").strip(),
         "province": (body.province or "").strip(),
+        "postal_code": (body.postal_code or "").strip(),
         "gender": (body.gender or "").strip(),
         "password_hash": hashed,
         "created_at": datetime.utcnow().isoformat(),
         "role": requested_role,
+        "email_verified": False,
+        "email_verify_token": email_verify_token,
+        "email_verify_token_expires": (datetime.utcnow() + timedelta(hours=24)).isoformat(),
     }
     if doc["phone"] and not _validate_phone(doc["phone"]):
         raise HTTPException(status_code=400, detail="Invalid phone number")
@@ -203,10 +400,21 @@ async def register(body: RegisterBody):
     result = users.insert_one(doc)
     user_id = str(result.inserted_id)
 
+    # Create verification link (adjust URL as needed for your frontend)
+    verification_link = f"https://daiing-grader.com/verify-email?token={email_verify_token}&user_id={user_id}"
+    
+    # Send verification email
+    try:
+        send_verification_email(email, name, verification_link)
+    except Exception as e:
+        print(f"[WARNING] Failed to send verification email to {email}: {str(e)}")
+        # Don't fail - user can still use account, just email not sent
+
     token = _create_token(user_id, email)
     return {
         "token": token,
         "user": {"id": user_id, "name": name, "email": email},
+        "message": "Account created successfully. Please check your email to verify your account."
     }
 
 
@@ -246,6 +454,53 @@ async def login(body: LoginBody):
     }
 
 
+@router.post("/verify-email")
+async def verify_email(token: str, user_id: str):
+    """Verify user email using token sent to their email."""
+    if not token or not user_id:
+        raise HTTPException(status_code=400, detail="Token and user_id required")
+    
+    db = get_db()
+    users = db["users"]
+    
+    try:
+        from bson import ObjectId
+        user = users.find_one({"_id": ObjectId(user_id)})
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid user_id")
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if token matches
+    if user.get("email_verify_token") != token:
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+    
+    # Check if token has expired
+    token_expires = user.get("email_verify_token_expires")
+    if token_expires:
+        try:
+            expires_at = datetime.fromisoformat(token_expires)
+            if datetime.utcnow() > expires_at:
+                raise HTTPException(status_code=400, detail="Verification token has expired")
+        except ValueError:
+            pass
+    
+    # Mark email as verified
+    users.update_one(
+        {"_id": ObjectId(user_id)},
+        {
+            "$set": {
+                "email_verified": True,
+                "email_verify_token": None,
+                "email_verify_token_expires": None,
+            }
+        }
+    )
+    
+    return {"status": "success", "message": "Email verified successfully"}
+
+
 @router.get("/me")
 async def get_me(user=Depends(_get_current_user)):
     """for web backend: return current user (id, name, email, avatar_url)."""
@@ -260,9 +515,18 @@ async def get_me(user=Depends(_get_current_user)):
         "city": user.get("city") or "",
         "street_address": user.get("street_address") or "",
         "province": user.get("province") or "",
+        "postal_code": user.get("postal_code") or "",
         "gender": user.get("gender") or "",
         "role": (user.get("role") or "user").strip().lower(),
+        "email_verified": bool(user.get("email_verified")),
     }
+
+
+@router.get("/firebase/health")
+async def firebase_health():
+    """Health check for Firebase Admin initialization."""
+    ok = _init_firebase_admin()
+    return {"status": "ok" if ok else "error", "firebase_admin": ok}
 
 
 @router.patch("/profile")
@@ -288,6 +552,8 @@ async def update_profile(body: ProfileUpdateBody, user=Depends(_get_current_user
         updates["street_address"] = (body.street_address or "").strip()
     if body.province is not None:
         updates["province"] = (body.province or "").strip()
+    if body.postal_code is not None:
+        updates["postal_code"] = (body.postal_code or "").strip()
     if body.gender is not None:
         gender = (body.gender or "").strip()
         if gender not in ALLOWED_GENDERS:
@@ -315,6 +581,7 @@ async def update_profile(body: ProfileUpdateBody, user=Depends(_get_current_user
         "city": updated.get("city") or "",
         "street_address": updated.get("street_address") or "",
         "province": updated.get("province") or "",
+        "postal_code": updated.get("postal_code") or "",
         "gender": updated.get("gender") or "",
         "role": (updated.get("role") or "user").strip().lower(),
     }

@@ -1,6 +1,6 @@
 /**
  * Admin Users Management Page
- * Features: collapsible tables with role filtering, bulk selection, status toggle modal, user detail modal
+ * Features: KPI dashboard with analytics graphs, collapsible tables, role filtering
  */
 import React, { useState, useMemo, useEffect } from 'react'
 import {
@@ -14,6 +14,7 @@ import {
   Shield,
   ShoppingBag,
   User,
+  Users,
   Eye,
   X,
   Mail,
@@ -22,6 +23,8 @@ import {
   ShoppingCart,
   ScanLine,
   AlertCircle,
+  BarChart3,
+  Maximize2,
 } from 'lucide-react'
 import PageTitleHero from '../components/layout/PageTitleHero'
 import {
@@ -53,6 +56,236 @@ const roleLabels: Record<UserRole, string> = {
   admin: 'Administrators',
   seller: 'Sellers',
   user: 'Users',
+}
+
+/**
+ * Bar Chart Component for User Role Distribution
+ */
+function RoleDistributionChart({ stats }: { stats: AdminUsersStats | null }) {
+  const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null)
+
+  if (!stats) return <div className="h-48 flex items-center justify-center text-slate-500">Loading...</div>
+
+  const data = [
+    { label: 'Admin', value: stats.admins, color: '#8B5CF6' },
+    { label: 'Seller', value: stats.sellers, color: '#2563EB' },
+    { label: 'User', value: stats.users, color: '#60A5FA' },
+  ]
+
+  const maxValue = Math.max(...data.map((d) => d.value), 1)
+  const chartHeight = 250
+
+  return (
+    <div className="space-y-2 h-full flex flex-col relative">
+      <div className="flex-1 flex flex-col relative min-h-0">
+        {/* Grid lines and Y-axis labels */}
+        <div className="flex-1 flex flex-col justify-between absolute left-0 top-0 bottom-0 w-10 text-[10px] text-slate-500">
+          {[1, 0.75, 0.5, 0.25, 0].map((tick, i) => {
+            const value = Math.round(maxValue * tick)
+            return (
+              <div key={i} className="text-right pr-2">
+                {value}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Chart area with gridlines */}
+        <div className="flex-1 flex items-end justify-around gap-6 px-4 pb-8 ml-12 relative">
+          {/* Horizontal grid lines */}
+          {[1, 0.75, 0.5, 0.25].map((tick, i) => (
+            <div
+              key={`grid-${i}`}
+              className="absolute left-0 right-0 border-t border-blue-100"
+              style={{ bottom: `${(tick * 100) / (1.2)}%` }}
+            />
+          ))}
+
+          {data.map((item) => {
+            const percentage = (item.value / maxValue) * 100
+            const barHeight = (percentage / 100) * chartHeight
+            return (
+              <div
+                key={item.label}
+                className="flex flex-col items-center gap-1 relative z-10 cursor-pointer"
+                onMouseMove={(e) => setHover({ x: e.clientX, y: e.clientY, text: `${item.label}: ${item.value}` })}
+                onMouseLeave={() => setHover(null)}
+              >
+                <div className="text-xs font-bold text-slate-900">{item.value}</div>
+                <div
+                  className="rounded-sm shadow-md transition-all duration-300 hover:shadow-lg"
+                  style={{
+                    backgroundColor: item.color,
+                    width: '50px',
+                    height: `${Math.max(barHeight, 15)}px`,
+                    border: `2px solid ${item.color}`,
+                  }}
+                />
+                <div className="text-[10px] font-semibold text-slate-700 text-center">{item.label}</div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Legend and axis labels */}
+      <div className="flex items-center justify-center gap-2 text-[10px] text-slate-600 flex-shrink-0">
+        <div>Users</div>
+        <div>→ Roles</div>
+      </div>
+
+      {hover && (
+        <div
+          className="fixed z-50 px-2 py-1 text-xs font-bold text-blue-900 bg-white border border-blue-200 rounded shadow-sm pointer-events-none"
+          style={{ left: hover.x + 12, top: hover.y + 12 }}
+        >
+          {hover.text}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Calendar Chart Component for Registration Activity
+ */
+function RegistrationActivityChart({
+  year,
+  month,
+  users,
+  variant = 'compact',
+}: {
+  year: number
+  month: number
+  users: AdminUser[]
+  variant?: 'compact' | 'expanded'
+}) {
+  const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null)
+
+  // Filter users registered in the specified month/year - using actual backend data
+  const usersByDay = useMemo(() => {
+    const daysMap: Record<number, number> = {}
+    const daysData: Record<number, { day: number | null; count: number; isFuture?: boolean }> = {}
+    const today = new Date()
+    const isCurrentMonthYear = today.getFullYear() === year && today.getMonth() + 1 === month
+
+    // Count registrations by day from actual user data
+    users.forEach((user) => {
+      if (user.joined_at) {
+        const joinDate = new Date(user.joined_at)
+        // Ensure we parse the date correctly
+        if (!isNaN(joinDate.getTime()) && joinDate.getFullYear() === year && joinDate.getMonth() + 1 === month) {
+          const day = joinDate.getDate()
+          daysMap[day] = (daysMap[day] || 0) + 1
+        }
+      }
+    })
+
+    // Build calendar grid with proper week starting
+    const firstDay = new Date(year, month - 1, 1)
+    const lastDay = new Date(year, month, 0)
+    const daysInMonth = lastDay.getDate()
+    const startingDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1 // Monday = 0, Sunday = 6
+
+    // Fill in empty days before month starts
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      daysData[Object.keys(daysData).length] = { day: null, count: 0 }
+    }
+
+    // Fill in days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const isFuture = isCurrentMonthYear && day > today.getDate()
+      const count = isFuture ? 0 : (daysMap[day] || 0)
+      daysData[Object.keys(daysData).length] = { day, count, isFuture }
+    }
+
+    return Object.values(daysData)
+  }, [year, month, users])
+
+  const maxCount = Math.max(...usersByDay.map((d) => d.count), 1)
+  const monthName = new Date(year, month - 1).toLocaleString('en-US', { month: 'long' })
+
+  const isExpanded = variant === 'expanded'
+  const headerTextClass = isExpanded ? 'text-xs' : 'text-[10px]'
+  const headerGapClass = isExpanded ? 'gap-1' : 'gap-0.5'
+  const headerMarginClass = isExpanded ? 'mb-1' : 'mb-0.5'
+  const cellHeightClass = isExpanded ? 'h-12' : 'h-8'
+  const cellTextClass = isExpanded ? 'text-xs' : 'text-[9px]'
+  const dayTextClass = isExpanded ? 'text-[10px]' : 'text-[8px]'
+  const countTextClass = isExpanded ? 'text-[9px]' : 'text-[7px]'
+  const legendTextClass = isExpanded ? 'text-xs' : 'text-[9px]'
+  const legendGapClass = isExpanded ? 'gap-1.5' : 'gap-0.5'
+  const legendBoxClass = isExpanded ? 'w-4 h-4' : 'w-2.5 h-2.5'
+
+  return (
+    <div className="space-y-2 h-full flex flex-col relative">
+      <div className={`${headerTextClass} text-slate-600`}>
+        {monthName} {year}
+      </div>
+      <div className="space-y-1 flex-1 overflow-y-auto min-h-0">
+        {/* Day headers */}
+        <div className={`grid grid-cols-7 ${headerGapClass} ${headerTextClass} text-slate-600 font-semibold ${headerMarginClass}`}>
+          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, idx) => (
+            <div key={`${d}-${idx}`} className="text-center">{d}</div>
+          ))}
+        </div>
+        {/* Calendar grid */}
+        <div className={`grid grid-cols-7 ${headerGapClass}`}>
+          {usersByDay.map((dayData, idx) => {
+            const intensity = dayData.day !== null && dayData.count > 0 ? dayData.count / maxCount : 0
+            const bgColor =
+              dayData.day === null ? 'bg-slate-50'
+              : dayData.isFuture ? 'bg-slate-50 text-slate-400'
+              : intensity > 0.7 ? 'bg-blue-600 text-white'
+              : intensity > 0.4 ? 'bg-blue-400 text-white'
+              : intensity > 0 ? 'bg-blue-200 text-blue-900'
+              : 'bg-blue-50 text-slate-600'
+
+            return (
+              <div
+                key={idx}
+                className={`${cellHeightClass} cursor-pointer relative flex items-center justify-center font-medium rounded border border-blue-200 ${cellTextClass} ${bgColor} transition-colors`}
+                onMouseMove={(e) => dayData.day !== null && !dayData.isFuture && dayData.count > 0 ? setHover({ x: e.clientX, y: e.clientY, text: `Registrations: ${dayData.count}` }) : null}
+                onMouseLeave={() => setHover(null)}
+              >
+                {dayData.day !== null && !dayData.isFuture && dayData.count > 0 ? (
+                  <div className="text-center">
+                    <div className={dayTextClass}>{dayData.day}</div>
+                    <div className={`${countTextClass} font-bold`}>{dayData.count}</div>
+                  </div>
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      <div className={`${legendTextClass} text-slate-500 flex items-center ${legendGapClass} justify-center flex-shrink-0`}>
+        <span>Less</span>
+        {[0, 0.3, 0.6, 1].map((intensity) => (
+          <div
+            key={intensity}
+            className={`${legendBoxClass} rounded border border-blue-200`}
+            style={{
+              backgroundColor:
+                intensity === 0 ? '#EFF6FF'
+                : intensity < 0.5 ? '#BFDBFE'
+                : intensity < 0.8 ? '#60A5FA'
+                : '#1E40AF',
+            }}
+          />
+        ))}
+        <span>More</span>
+      </div>
+      {hover && (
+        <div
+          className="fixed z-50 px-2 py-1 text-xs font-bold text-blue-900 bg-white border border-blue-200 rounded shadow-sm pointer-events-none"
+          style={{ left: hover.x + 12, top: hover.y + 12 }}
+        >
+          {hover.text}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function UserTable({
@@ -330,6 +563,13 @@ export default function AdminUsersPage() {
     user: false,
   })
 
+  // Graph states
+  const [graphType, setGraphType] = useState<'roles' | 'registrations'>('roles')
+  const [graphYear, setGraphYear] = useState(new Date().getFullYear())
+  const [graphMonth, setGraphMonth] = useState(new Date().getMonth() + 1)
+  const [showGraphModal, setShowGraphModal] = useState(false)
+  const currentYear = new Date().getFullYear()
+
   const toggleSection = (role: UserRole) => {
     setCollapsedSections((prev) => ({ ...prev, [role]: !prev[role] }))
   }
@@ -448,7 +688,7 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <div className="space-y-6 w-full min-h-screen">
+    <div className="space-y-6 w-full min-h-screen px-[3%]">
       {/* Page Hero */}
       <PageTitleHero
         title="User Management"
@@ -456,23 +696,124 @@ export default function AdminUsersPage() {
         backgroundImage="/assets/page-hero/hero-bg.jpg"
       />
 
-      {/* Quick Stats - Simple clean boxes */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="text-sm font-bold text-blue-700 mb-1">Total Users</div>
-          <div className="text-3xl font-bold text-slate-900">{stats?.total ?? '-'}</div>
+      {/* KPI + Graph Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* KPIs on the left - 2x2 grid */}
+        <div className="grid grid-cols-2 gap-4 lg:items-start">
+          {/* Total Users - Top Left */}
+          <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold text-blue-700">Total Users</div>
+              <Users className="w-6 h-6 text-blue-600" />
+            </div>
+            <div className="text-3xl font-bold text-slate-900">{stats?.total ?? '-'}</div>
+            <div className="text-xs text-blue-600 mt-2">All users</div>
+          </div>
+
+          {/* Admins - Top Right */}
+          <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold text-purple-700">Admins</div>
+              <Shield className="w-6 h-6 text-purple-600" />
+            </div>
+            <div className="text-3xl font-bold text-purple-600">{stats?.admins ?? '-'}</div>
+            <div className="text-xs text-purple-600 mt-2">{((stats?.admins || 0) / (stats?.total || 1) * 100).toFixed(1)}%</div>
+          </div>
+
+          {/* Sellers - Bottom Left */}
+          <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold text-blue-700">Sellers</div>
+              <ShoppingBag className="w-6 h-6 text-blue-600" />
+            </div>
+            <div className="text-3xl font-bold text-blue-600">{stats?.sellers ?? '-'}</div>
+            <div className="text-xs text-blue-600 mt-2">{((stats?.sellers || 0) / (stats?.total || 1) * 100).toFixed(1)}%</div>
+          </div>
+
+          {/* Regular Users - Bottom Right */}
+          <div className="bg-gradient-to-br from-white to-slate-50 border border-slate-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-bold text-slate-700">Users</div>
+              <User className="w-6 h-6 text-slate-600" />
+            </div>
+            <div className="text-3xl font-bold text-slate-900">{stats?.users ?? '-'}</div>
+            <div className="text-xs text-slate-600 mt-2">{((stats?.users || 0) / (stats?.total || 1) * 100).toFixed(1)}%</div>
+          </div>
         </div>
-        <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="text-sm font-bold text-purple-700 mb-1">Admins</div>
-          <div className="text-3xl font-bold text-purple-600">{stats?.admins ?? '-'}</div>
-        </div>
-        <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="text-sm font-bold text-blue-700 mb-1">Sellers</div>
-          <div className="text-3xl font-bold text-blue-600">{stats?.sellers ?? '-'}</div>
-        </div>
-        <div className="bg-gradient-to-br from-white to-slate-50 border border-slate-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="text-sm font-bold text-slate-700 mb-1">Users</div>
-          <div className="text-3xl font-bold text-slate-900">{stats?.users ?? '-'}</div>
+
+        {/* Graph on the right */}
+        <div className="lg:col-span-2 bg-white border border-blue-200 shadow-md p-3 rounded-lg max-h-[300px] flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-bold text-blue-900">User Analytics</h3>
+            <button
+              onClick={() => setShowGraphModal(true)}
+              className="p-2 text-blue-600 hover:bg-blue-50 transition-colors border border-blue-300 rounded"
+              title="Expand view"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Graph Type Toggle + Filter Controls on same row */}
+          <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+            <button
+              onClick={() => setGraphType('roles')}
+              className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
+                graphType === 'roles'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+              }`}
+            >
+              <BarChart3 className="w-3 h-3 inline mr-0.5" />
+              User Roles
+            </button>
+            <button
+              onClick={() => setGraphType('registrations')}
+              className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
+                graphType === 'registrations'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+              }`}
+            >
+              <Calendar className="w-3 h-3 inline mr-0.5" />
+              Registration Activity
+            </button>
+            {/* Year Filter */}
+            <select
+              value={graphYear}
+              onChange={(e) => setGraphYear(Number(e.target.value))}
+              className="px-1.5 py-1 border border-blue-300 bg-white text-xs rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            >
+              {[currentYear, currentYear - 1, currentYear - 2].map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+            {graphType === 'registrations' && (
+              <select
+                value={graphMonth}
+                onChange={(e) => setGraphMonth(Number(e.target.value))}
+                className="px-1.5 py-1 border border-blue-300 bg-white text-xs rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              >
+                {[
+                  { val: 1, name: 'January' }, { val: 2, name: 'February' }, { val: 3, name: 'March' },
+                  { val: 4, name: 'April' }, { val: 5, name: 'May' }, { val: 6, name: 'June' },
+                  { val: 7, name: 'July' }, { val: 8, name: 'August' }, { val: 9, name: 'September' },
+                  { val: 10, name: 'October' }, { val: 11, name: 'November' }, { val: 12, name: 'December' },
+                ].map((m) => (
+                  <option key={m.val} value={m.val}>{m.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Graph Display */}
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {graphType === 'roles' ? (
+              <RoleDistributionChart stats={stats} />
+            ) : (
+              <RegistrationActivityChart year={graphYear} month={graphMonth} users={users} />
+            )}
+          </div>
         </div>
       </div>
 
@@ -581,6 +922,92 @@ export default function AdminUsersPage() {
               />
             </div>
           )}
+        </div>
+      )}
+
+      {/* Graph Expansion Modal */}
+      {showGraphModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowGraphModal(false)}>
+          <div
+            className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-blue-200 shadow-xl rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-6 border-b border-blue-200 sticky top-0 bg-white z-10">
+              <h2 className="text-xl font-bold text-blue-900">User Analytics - Expanded View</h2>
+              <button
+                onClick={() => setShowGraphModal(false)}
+                className="p-2 hover:bg-blue-50 transition-colors rounded"
+              >
+                <X className="w-5 h-5 text-slate-600" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Graph Type Toggle */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => setGraphType('roles')}
+                  className={`px-4 py-2 text-sm font-semibold border rounded transition-colors ${
+                    graphType === 'roles'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  }`}
+                >
+                  <BarChart3 className="w-4 h-4 inline mr-1" />
+                  User Roles
+                </button>
+                <button
+                  onClick={() => setGraphType('registrations')}
+                  className={`px-4 py-2 text-sm font-semibold border rounded transition-colors ${
+                    graphType === 'registrations'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4 inline mr-1" />
+                  Registration Activity
+                </button>
+              </div>
+
+              {/* Expanded Filters */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <select
+                  value={graphYear}
+                  onChange={(e) => setGraphYear(Number(e.target.value))}
+                  className="px-4 py-2 border border-blue-300 bg-white text-sm rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                >
+                  {[currentYear, currentYear - 1, currentYear - 2].map((y) => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+                {graphType === 'registrations' && (
+                  <select
+                    value={graphMonth}
+                    onChange={(e) => setGraphMonth(Number(e.target.value))}
+                    className="px-4 py-2 border border-blue-300 bg-white text-sm rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  >
+                    {[
+                      { val: 1, name: 'January' }, { val: 2, name: 'February' }, { val: 3, name: 'March' },
+                      { val: 4, name: 'April' }, { val: 5, name: 'May' }, { val: 6, name: 'June' },
+                      { val: 7, name: 'July' }, { val: 8, name: 'August' }, { val: 9, name: 'September' },
+                      { val: 10, name: 'October' }, { val: 11, name: 'November' }, { val: 12, name: 'December' },
+                    ].map((m) => (
+                      <option key={m.val} value={m.val}>{m.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Expanded Graph Display */}
+              <div className="p-8 bg-gradient-to-br from-white to-blue-50 border border-blue-200 rounded-lg">
+                {graphType === 'roles' ? (
+                  <RoleDistributionChart stats={stats} />
+                ) : (
+                  <RegistrationActivityChart year={graphYear} month={graphMonth} users={users} variant="expanded" />
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

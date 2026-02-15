@@ -28,6 +28,7 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import PageTitleHero from '../components/layout/PageTitleHero'
+import { validateReview, censorBadWords } from '../utils/validation'
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -209,19 +210,10 @@ export default function ProductDetailPage() {
 
   const totalReviewPages = Math.ceil(totalReviews / reviewsPerPage)
 
-  const reviewCommentRegex = /^[A-Za-z0-9\s.,!?'"-]{5,500}$/
-
   const validateReviewForm = () => {
-    const errors: Record<string, string> = {}
-    if (reviewRating < 1 || reviewRating > 5) {
-      errors.rating = 'Rating must be between 1 and 5.'
-    }
-    const comment = reviewComment.trim()
-    if (!reviewCommentRegex.test(comment)) {
-      errors.comment = 'Review must be 5-500 characters and use letters, numbers, and basic punctuation.'
-    }
+    const { valid, errors } = validateReview(reviewRating, reviewComment)
     setReviewErrors(errors)
-    return Object.keys(errors).length === 0
+    return valid
   }
 
   const handleSubmitReview = async () => {
@@ -243,17 +235,20 @@ export default function ProductDetailPage() {
 
     setReviewSubmitting(true)
     try {
+      // Censor bad words in review comment
+      const cleanComment = censorBadWords(reviewComment.trim())
+      
       if (myReview) {
         const res = await updateMyProductReview(id, {
           rating: reviewRating,
-          comment: reviewComment.trim(),
+          comment: cleanComment,
         })
         setMyReview(res.review)
         showToast('Review updated')
       } else {
         const res = await createProductReview(id, {
           rating: reviewRating,
-          comment: reviewComment.trim(),
+          comment: cleanComment,
         })
         setMyReview(res.review)
         showToast('Review submitted')

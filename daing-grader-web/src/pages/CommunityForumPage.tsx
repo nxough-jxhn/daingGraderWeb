@@ -48,6 +48,7 @@ import {
   type CommunityComment,
   type CommunityStats,
 } from '../services/api'
+import { validatePostTitle, validatePostDescription, validateComment, censorBadWords } from '../utils/validation'
 
 // Netflix-style Horizontal Carousel Component
 function PostCarousel({ 
@@ -198,6 +199,7 @@ export default function CommunityForumPage() {
   const [newCategory, setNewCategory] = useState('Discussion')
   const [newImages, setNewImages] = useState<File[]>([])
   const [creating, setCreating] = useState(false)
+  const [createErrors, setCreateErrors] = useState<{ title?: string; description?: string }>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Edit post modal
@@ -207,6 +209,7 @@ export default function CommunityForumPage() {
   const [editDescription, setEditDescription] = useState('')
   const [editCategory, setEditCategory] = useState('')
   const [isEditing, setIsEditing] = useState(false)
+  const [editErrors, setEditErrors] = useState<{ title?: string; description?: string }>({})
 
   // Post detail modal with comments
   const [selectedPost, setSelectedPost] = useState<CommunityPost | null>(null)
@@ -214,6 +217,7 @@ export default function CommunityForumPage() {
   const [loadingComments, setLoadingComments] = useState(false)
   const [newComment, setNewComment] = useState('')
   const [addingComment, setAddingComment] = useState(false)
+  const [commentError, setCommentError] = useState<string>('')
   const [carouselIndex, setCarouselIndex] = useState(0)
 
   // Netflix-style carousels: filtered by category + most liked
@@ -288,15 +292,30 @@ export default function CommunityForumPage() {
   }
 
   const handleCreatePost = async () => {
-    if (!newTitle.trim() || !newDescription.trim()) return
+    // Validate title and description
+    const titleValidation = validatePostTitle(newTitle)
+    const descValidation = validatePostDescription(newDescription)
+    
+    const errors: { title?: string; description?: string } = {}
+    if (!titleValidation.valid) errors.title = titleValidation.error
+    if (!descValidation.valid) errors.description = descValidation.error
+    
+    setCreateErrors(errors)
+    if (Object.keys(errors).length > 0) return
+    
     setCreating(true)
     try {
-      await createCommunityPost(newTitle, newDescription, newCategory, newImages)
+      // Censor bad words before posting
+      const cleanTitle = censorBadWords(newTitle.trim())
+      const cleanDescription = censorBadWords(newDescription.trim())
+      
+      await createCommunityPost(cleanTitle, cleanDescription, newCategory, newImages)
       setShowCreateModal(false)
       setNewTitle('')
       setNewDescription('')
       setNewCategory('Discussion')
       setNewImages([])
+      setCreateErrors({})
       setPage(1)
       fetchPosts()
     } catch (e) {
@@ -375,12 +394,29 @@ export default function CommunityForumPage() {
   }
 
   const handleEditPost = async () => {
-    if (!editingPost || !editTitle.trim() || !editDescription.trim()) return
+    if (!editingPost) return
+    
+    // Validate title and description
+    const titleValidation = validatePostTitle(editTitle)
+    const descValidation = validatePostDescription(editDescription)
+    
+    const errors: { title?: string; description?: string } = {}
+    if (!titleValidation.valid) errors.title = titleValidation.error
+    if (!descValidation.valid) errors.description = descValidation.error
+    
+    setEditErrors(errors)
+    if (Object.keys(errors).length > 0) return
+    
     setIsEditing(true)
     try {
-      await editCommunityPost(editingPost.id, editTitle, editDescription, editCategory)
+      // Censor bad words before updating
+      const cleanTitle = censorBadWords(editTitle.trim())
+      const cleanDescription = censorBadWords(editDescription.trim())
+      
+      await editCommunityPost(editingPost.id, cleanTitle, cleanDescription, editCategory)
       setShowEditModal(false)
       setEditingPost(null)
+      setEditErrors({})
       fetchPosts()
     } catch (e) {
       alert('Failed to update post')
@@ -410,10 +446,22 @@ export default function CommunityForumPage() {
   }
 
   const handleAddComment = async () => {
-    if (!selectedPost || !newComment.trim()) return
+    if (!selectedPost) return
+    
+    // Validate comment
+    const validation = validateComment(newComment)
+    if (!validation.valid) {
+      setCommentError(validation.error || '')
+      return
+    }
+    
+    setCommentError('')
     setAddingComment(true)
     try {
-      const result = await addComment(selectedPost.id, newComment)
+      // Censor bad words before posting comment
+      const cleanComment = censorBadWords(newComment.trim())
+      
+      const result = await addComment(selectedPost.id, cleanComment)
       setPostComments((prev) => [...prev, result.comment])
       setNewComment('')
       // Update comment count in posts list
@@ -455,7 +503,7 @@ export default function CommunityForumPage() {
       <PageTitleHero
         title="Community Forum"
         subtitle="Share tips, ask questions, and connect with fellow daing enthusiasts."
-        backgroundImage="/assets/page-hero/community.jpg"
+        backgroundImage="/assets/page-hero/hero-bg.jpg"
       />
 
       {/* Filter bar - aligned in one row */}
@@ -948,9 +996,14 @@ export default function CommunityForumPage() {
                   type="text"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  className="w-full px-3 py-2 border border-blue-300 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded"
+                  className={`w-full px-3 py-2 border bg-white text-sm focus:outline-none focus:ring-1 rounded ${
+                    createErrors.title ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-blue-300 focus:ring-blue-500 focus:border-blue-500'
+                  }`}
                   placeholder="What's on your mind?"
                 />
+                {createErrors.title && (
+                  <p className="mt-1 text-xs text-red-600">{createErrors.title}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
@@ -958,9 +1011,14 @@ export default function CommunityForumPage() {
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}
                   rows={4}
-                  className="w-full px-3 py-2 border border-blue-300 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded resize-none"
+                  className={`w-full px-3 py-2 border bg-white text-sm focus:outline-none focus:ring-1 rounded resize-none ${
+                    createErrors.description ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-blue-300 focus:ring-blue-500 focus:border-blue-500'
+                  }`}
                   placeholder="Share your thoughts, tips, or questions..."
                 />
+                {createErrors.description && (
+                  <p className="mt-1 text-xs text-red-600">{createErrors.description}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
@@ -1044,8 +1102,13 @@ export default function CommunityForumPage() {
                   type="text"
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full px-3 py-2 border border-blue-300 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded"
+                  className={`w-full px-3 py-2 border bg-white text-sm focus:outline-none focus:ring-1 rounded ${
+                    editErrors.title ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-blue-300 focus:ring-blue-500 focus:border-blue-500'
+                  }`}
                 />
+                {editErrors.title && (
+                  <p className="mt-1 text-xs text-red-600">{editErrors.title}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
@@ -1053,8 +1116,13 @@ export default function CommunityForumPage() {
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
                   rows={4}
-                  className="w-full px-3 py-2 border border-blue-300 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded resize-none"
+                  className={`w-full px-3 py-2 border bg-white text-sm focus:outline-none focus:ring-1 rounded resize-none ${
+                    editErrors.description ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-blue-300 focus:ring-blue-500 focus:border-blue-500'
+                  }`}
                 />
+                {editErrors.description && (
+                  <p className="mt-1 text-xs text-red-600">{editErrors.description}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
@@ -1194,18 +1262,25 @@ export default function CommunityForumPage() {
               {isLoggedIn ? (
                 <div className="p-4 border-t border-blue-200 bg-gradient-to-r from-blue-50 to-white">
                   <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      placeholder="Write a comment..."
-                      className="flex-1 px-3 py-2 border border-blue-300 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded"
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
-                    />
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        placeholder="Write a comment..."
+                        className={`w-full px-3 py-2 border bg-white text-sm focus:outline-none focus:ring-1 rounded ${
+                          commentError ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-blue-300 focus:ring-blue-500 focus:border-blue-500'
+                        }`}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
+                      />
+                      {commentError && (
+                        <p className="mt-1 text-xs text-red-600">{commentError}</p>
+                      )}
+                    </div>
                     <button
                       onClick={handleAddComment}
-                      disabled={addingComment || !newComment.trim()}
-                      className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded"
+                      disabled={addingComment}
+                      className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded self-start"
                     >
                       <Send className="w-4 h-4" />
                     </button>
