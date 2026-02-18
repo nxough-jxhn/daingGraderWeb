@@ -12,6 +12,8 @@ from email_templates import (
     build_email_verification_html,
     build_item_disabled_email_html,
     build_item_enabled_email_html,
+    build_order_shipped_email_html,
+    build_order_cancelled_email_html,
 )
 
 
@@ -196,3 +198,59 @@ def send_item_enabled_email(
         )
     
     return user_email_sent, admin_email_sent
+
+
+def send_order_shipped_email(
+    customer_email: str,
+    customer_name: str,
+    order_number: str,
+    items: list,
+    total: float,
+    address: dict,
+) -> bool:
+    """
+    Send notification email to the customer when their order is shipped.
+    
+    Returns:
+        True if email sent successfully, False otherwise
+    """
+    html_body = build_order_shipped_email_html(
+        customer_name=customer_name,
+        order_number=order_number,
+        items=items,
+        total=total,
+        address=address,
+    )
+    return send_email(
+        recipient_email=customer_email,
+        subject=f"[DaingGrader] Your Order #{order_number} Has Been Shipped!",
+        html_body=html_body,
+    )
+
+
+def send_order_cancelled_email(
+    customer_email: str,
+    customer_name: str,
+    order_number: str,
+    items: list,
+    total: float,
+    reason: str = None,
+) -> bool:
+    """
+    Send notification email to the customer when their order is cancelled.
+    
+    Returns:
+        True if email sent successfully, False otherwise
+    """
+    html_body = build_order_cancelled_email_html(
+        customer_name=customer_name,
+        order_number=order_number,
+        items=items,
+        total=total,
+        reason=reason,
+    )
+    return send_email(
+        recipient_email=customer_email,
+        subject=f"[DaingGrader] Your Order #{order_number} Has Been Cancelled",
+        html_body=html_body,
+    )

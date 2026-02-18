@@ -16,6 +16,7 @@ import PublicationsPage from './pages/PublicationsPage'
 import CommunityForumPage from './pages/CommunityForumPage'
 import EcommercePage from './pages/EcommercePage'
 import AdminDashboardPage from './pages/AdminDashboardPage'
+import AdminDashboardPageNew from './pages/AdminDashboardPageNew'
 import AdminUsersPage from './pages/AdminUsersPage'
 import AdminPostsPage from './pages/AdminPostsPage'
 import AdminScansPage from './pages/AdminScansPage'
@@ -88,6 +89,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Layout><HomePage /></Layout>} />
       <Route path="/admin" element={<Layout><RoleRoute allowed={['admin']}><AdminDashboardPage /></RoleRoute></Layout>} />
+      <Route path="/admin/new" element={<Layout><RoleRoute allowed={['admin']}><AdminDashboardPageNew /></RoleRoute></Layout>} />
       <Route path="/admin/users" element={<Layout><RoleRoute allowed={['admin']}><AdminUsersPage /></RoleRoute></Layout>} />
       <Route path="/admin/orders" element={<Layout><RoleRoute allowed={['admin']}><AdminOrdersPage /></RoleRoute></Layout>} />
       <Route path="/admin/posts" element={<Layout><RoleRoute allowed={['admin']}><AdminPostsPage /></RoleRoute></Layout>} />

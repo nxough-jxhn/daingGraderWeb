@@ -366,3 +366,176 @@ def build_item_enabled_email_html(
         """
         + get_email_footer()
     )
+
+
+def build_order_shipped_email_html(
+    customer_name: str,
+    order_number: str,
+    items: list,
+    total: float,
+    address: dict,
+) -> str:
+    """Build HTML for order shipped notification email sent to the customer."""
+    timestamp = datetime.now().strftime("%B %d, %Y at %H:%M")
+    items_rows = "".join(
+        f"""
+        <tr>
+            <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #334155;">{i.get('name', 'Item')}</td>
+            <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #334155; text-align: center;">{i.get('qty', 1)}</td>
+            <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #0f172a; font-weight: 600; text-align: right;">&#8369;{float(i.get('price', 0)) * int(i.get('qty', 1)):,.2f}</td>
+        </tr>
+        """
+        for i in items
+    )
+    delivery_addr = ", ".join(
+        filter(None, [address.get("address_line"), address.get("city"), address.get("province"), address.get("postal_code")])
+    ) or "N/A"
+
+    return (
+        get_email_header()
+        + f"""
+        <div class="email-header" style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);">
+            <h1>DaingGrader</h1>
+            <p>Your Order Has Been Shipped!</p>
+        </div>
+
+        <div class="email-body">
+            <h2>&#128666; Order Shipped</h2>
+
+            <p>Hi <strong>{customer_name}</strong>,</p>
+
+            <p>Great news! Your order <strong>#{order_number}</strong> has been shipped and is on its way to you.</p>
+
+            <div class="highlight-box" style="background-color: #fff7ed; border-left-color: #f97316;">
+                <p style="color: #9a3412;">&#128666; Your package is on the way. Once you receive it, please mark it as <strong>Delivered</strong> in your orders page.</p>
+            </div>
+
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-item-label">Order Number</div>
+                    <div class="info-item-value">#{order_number}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Status</div>
+                    <div class="info-item-value" style="color: #ea580c;">Shipped</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Delivery Address</div>
+                    <div class="info-item-value" style="font-size: 13px;">{delivery_addr}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Date</div>
+                    <div class="info-item-value" style="font-size: 13px;">{timestamp}</div>
+                </div>
+            </div>
+
+            <h3 style="color: #0f172a; font-size: 16px; margin: 24px 0 12px 0;">Order Items</h3>
+            <table style="width: 100%; border-collapse: collapse; background: #f8fafc; border-radius: 8px; overflow: hidden;">
+                <thead>
+                    <tr style="background: #e2e8f0;">
+                        <th style="padding: 10px 8px; text-align: left; font-size: 12px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">Item</th>
+                        <th style="padding: 10px 8px; text-align: center; font-size: 12px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">Qty</th>
+                        <th style="padding: 10px 8px; text-align: right; font-size: 12px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {items_rows}
+                </tbody>
+                <tfoot>
+                    <tr style="background: #e2e8f0;">
+                        <td colspan="2" style="padding: 12px 8px; font-weight: 700; font-size: 14px; color: #0f172a;">Total</td>
+                        <td style="padding: 12px 8px; font-weight: 700; font-size: 16px; color: #ea580c; text-align: right;">&#8369;{total:,.2f}</td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <div class="divider"></div>
+            <p>Thank you for shopping with us! If you have any questions, contact our support team.</p>
+            <p>Best regards,<br><strong>DaingGrader Team</strong></p>
+        </div>
+        """
+        + get_email_footer()
+    )
+
+
+def build_order_cancelled_email_html(
+    customer_name: str,
+    order_number: str,
+    items: list,
+    total: float,
+    reason: str = None,
+) -> str:
+    """Build HTML for order cancelled notification email sent to the customer."""
+    timestamp = datetime.now().strftime("%B %d, %Y at %H:%M")
+    items_rows = "".join(
+        f"""
+        <tr>
+            <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #334155;">{i.get('name', 'Item')}</td>
+            <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #334155; text-align: center;">{i.get('qty', 1)}</td>
+            <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; font-size: 14px; color: #0f172a; font-weight: 600; text-align: right;">&#8369;{float(i.get('price', 0)) * int(i.get('qty', 1)):,.2f}</td>
+        </tr>
+        """
+        for i in items
+    )
+
+    return (
+        get_email_header()
+        + f"""
+        <div class="email-header" style="background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);">
+            <h1>DaingGrader</h1>
+            <p>Order Cancellation Notice</p>
+        </div>
+
+        <div class="email-body">
+            <h2>&#10060; Order Cancelled</h2>
+
+            <p>Hi <strong>{customer_name}</strong>,</p>
+
+            <p>We're sorry to inform you that your order <strong>#{order_number}</strong> has been cancelled.</p>
+
+            {f'<div class="highlight-box" style="background-color: #fee2e2; border-left-color: #ef4444;"><p style="color: #991b1b;"><strong>Reason:</strong> {reason}</p></div>' if reason else ''}
+
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-item-label">Order Number</div>
+                    <div class="info-item-value">#{order_number}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Status</div>
+                    <div class="info-item-value" style="color: #dc2626;">Cancelled</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Cancelled On</div>
+                    <div class="info-item-value" style="font-size: 13px;">{timestamp}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-item-label">Order Total</div>
+                    <div class="info-item-value">&#8369;{total:,.2f}</div>
+                </div>
+            </div>
+
+            <h3 style="color: #0f172a; font-size: 16px; margin: 24px 0 12px 0;">Cancelled Items</h3>
+            <table style="width: 100%; border-collapse: collapse; background: #f8fafc; border-radius: 8px; overflow: hidden;">
+                <thead>
+                    <tr style="background: #e2e8f0;">
+                        <th style="padding: 10px 8px; text-align: left; font-size: 12px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">Item</th>
+                        <th style="padding: 10px 8px; text-align: center; font-size: 12px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">Qty</th>
+                        <th style="padding: 10px 8px; text-align: right; font-size: 12px; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {items_rows}
+                </tbody>
+            </table>
+
+            <div class="highlight-box" style="margin-top: 24px;">
+                <p>If you have already made a payment, a refund will be processed within 3–5 business days. For assistance, please contact our support team.</p>
+            </div>
+
+            <div class="divider"></div>
+            <p>We apologize for the inconvenience. We hope to serve you again soon.</p>
+            <p>Best regards,<br><strong>DaingGrader Team</strong></p>
+        </div>
+        """
+        + get_email_footer()
+    )

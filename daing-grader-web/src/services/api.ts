@@ -838,6 +838,162 @@ export async function getAdminUserDetail(userId: string): Promise<{ status: stri
   return response.data
 }
 
+// --- Admin User Analytics (New Dashboard) ---
+
+export interface AdminUserKpis {
+  total_users: number
+  active_users: number
+  verified_sellers: number
+  disabled_users: number
+  total_change: number
+  active_change: number
+  sellers_change: number
+  disabled_change: number
+}
+
+export interface AdminUserChartPoint {
+  period: string
+  'New Users': number
+  'New Sellers': number
+  'New Admins': number
+}
+
+export interface AdminUserCalendarDay {
+  day: number | null
+  count: number
+}
+
+export interface AdminUserCalendarResponse {
+  status: string
+  year: number
+  month: number
+  month_name: string
+  weeks: AdminUserCalendarDay[][]
+  max_count: number
+}
+
+export interface AdminUserSegmentation {
+  total: number
+  roles: Record<string, number>
+  statuses: Record<string, number>
+}
+
+export async function getAdminUserKpis(): Promise<{ status: string; kpis: AdminUserKpis }> {
+  const response = await api.get('/admin/analytics/users/kpis')
+  return response.data
+}
+
+export async function getAdminUserChart(params: {
+  granularity?: string
+  days?: number
+  start_date?: string
+  end_date?: string
+}): Promise<{ status: string; data: AdminUserChartPoint[] }> {
+  const response = await api.get('/admin/analytics/users/chart', { params })
+  return response.data
+}
+
+export async function getAdminUserCalendar(year?: number, month?: number): Promise<AdminUserCalendarResponse> {
+  const response = await api.get('/admin/analytics/users/calendar', { params: { year, month } })
+  return response.data
+}
+
+export async function getAdminUserSegmentation(): Promise<{ status: string } & AdminUserSegmentation> {
+  const response = await api.get('/admin/analytics/users/segmentation')
+  return response.data
+}
+
+// --- Admin Market Analytics ---
+
+export interface AdminMarketKpis {
+  total_revenue: number
+  total_sales: number
+  total_orders: number
+  delivered_orders: number
+  pending_orders: number
+  cancelled_orders: number
+  avg_order_value: number
+  total_products: number
+  active_products: number
+  total_stock: number
+  out_of_stock: number
+  total_sellers: number
+  active_sellers: number
+  revenue_change: number
+  orders_change: number
+}
+
+export interface AdminMarketChartPoint {
+  period: string
+  Orders: number
+  Revenue: number
+}
+
+export interface AdminMarketSegmentation {
+  total_orders: number
+  order_statuses: Record<string, number>
+  category_breakdown: Record<string, number>
+  top_sellers: { seller_id: string; seller_name: string; order_count: number; revenue: number }[]
+}
+
+export interface AdminMarketProduct {
+  id: string
+  name: string
+  seller_id: string
+  seller_name: string
+  category_name: string
+  price: number
+  stock_qty: number
+  sold_count: number
+  status: string
+  created_at: string
+}
+
+export interface AdminMarketTableResponse {
+  status: string
+  products: AdminMarketProduct[]
+  total: number
+  page: number
+  page_size: number
+  sellers: { id: string; name: string }[]
+  categories: string[]
+}
+
+export async function getAdminMarketKpis(): Promise<{ status: string; kpis: AdminMarketKpis }> {
+  const response = await api.get('/admin/analytics/market/kpis')
+  return response.data
+}
+
+export async function getAdminMarketChart(params: {
+  granularity?: string
+  days?: number
+  start_date?: string
+  end_date?: string
+  seller_id?: string
+}): Promise<{ status: string; data: AdminMarketChartPoint[] }> {
+  const response = await api.get('/admin/analytics/market/chart', { params })
+  return response.data
+}
+
+export async function getAdminMarketSegmentation(): Promise<{ status: string } & AdminMarketSegmentation> {
+  const response = await api.get('/admin/analytics/market/segmentation')
+  return response.data
+}
+
+export async function getAdminMarketTable(params: {
+  page?: number
+  page_size?: number
+  seller_id?: string
+  category?: string
+  status?: string
+  min_price?: number
+  max_price?: number
+  search?: string
+}): Promise<AdminMarketTableResponse> {
+  const response = await api.get('/admin/analytics/market/table', { params })
+  return response.data
+}
+
 // --- Admin Community Posts Management ---
 
 export interface AdminPost {
@@ -961,6 +1117,19 @@ export interface SellerKPIs {
   total_orders: number
   total_earnings: number
   average_rating: number
+  products_change: number
+  orders_change: number
+  earnings_change: number
+  rating_change: number
+}
+
+export interface SellerReview {
+  id: string
+  user_name: string
+  rating: number
+  comment: string
+  product_name: string
+  created_at: string
 }
 
 export interface RecentOrder {
@@ -970,6 +1139,7 @@ export interface RecentOrder {
   total: number
   status: string
   created_at: string
+  items_count?: number
 }
 
 export interface TopProduct {
@@ -1013,6 +1183,26 @@ export async function getSellerSalesCategories(): Promise<{ status: string; cate
   return response.data
 }
 
+export interface SellerStoreDetails {
+  store: {
+    total_stock: number
+    overall_rating: number
+    total_reviews: number
+    max_stock_reference: number
+  }
+  orders: {
+    total_sales: number
+    avg_sales: number
+    avg_orders: number
+    max_sales_reference: number
+  }
+}
+
+export async function getSellerStoreDetails(): Promise<{ status: string } & SellerStoreDetails> {
+  const response = await api.get<{ status: string } & SellerStoreDetails>('/seller/analytics/store/details')
+  return response.data
+}
+
 export interface SalesOverviewData {
   period: string
   amount: number
@@ -1024,12 +1214,29 @@ export interface SalesOverviewResponse {
   half: number | null
   available_years: number[]
   data: SalesOverviewData[]
+  total_orders?: number
 }
 
-export async function getSellerSalesOverview(year?: number, half?: number): Promise<SalesOverviewResponse> {
+export async function getSellerSalesOverview(params?: {
+  granularity?: 'daily' | 'monthly' | 'yearly'
+  year?: number
+  half?: number
+  days?: number
+  count?: number
+  start_date?: string
+  end_date?: string
+}): Promise<SalesOverviewResponse> {
   const response = await api.get<SalesOverviewResponse>(
     '/seller/analytics/sales/overview',
-    { params: { year, half } }
+    { params }
+  )
+  return response.data
+}
+
+export async function getSellerRecentReviews(limit = 5): Promise<{ status: string; reviews: SellerReview[] }> {
+  const response = await api.get<{ status: string; reviews: SellerReview[] }>(
+    '/seller/analytics/reviews/recent',
+    { params: { limit } }
   )
   return response.data
 }

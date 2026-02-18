@@ -9,13 +9,24 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mantine/core": "^8.3.15",
+    "@mantine/dates": "^8.3.15",
+    "@mantine/form": "^8.3.15",
+    "@mantine/hooks": "^8.3.15",
+    "@mantine/notifications": "^8.3.15",
+    "@tanstack/react-table": "^8.21.3",
+    "@tremor/react": "^3.18.7",
     "axios": "^1.4.0",
+    "dayjs": "^1.11.19",
     "firebase": "^12.9.0",
     "framer-motion": "^10.12.8",
+    "jspdf": "^4.1.0",
+    "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.257.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "react-router-dom": "6.18.0"
+    "react-router-dom": "6.18.0",
+    "recharts": "^3.7.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.21",

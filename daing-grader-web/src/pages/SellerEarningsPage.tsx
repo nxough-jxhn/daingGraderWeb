@@ -13,7 +13,7 @@ interface CurrentEarnings {
   commission_percent: number
   commission_amount: number
   amount_to_pay: number
-  order_count: number
+  orders_count: number
 }
 
 interface PayoutRecord {
@@ -29,8 +29,8 @@ interface PayoutRecord {
 }
 
 interface EarningsData {
-  current_period: CurrentEarnings
-  payouts: PayoutRecord[]
+  earnings: CurrentEarnings
+  payout_history: PayoutRecord[]
 }
 
 const statusColors: Record<'pending' | 'completed', string> = {
@@ -93,8 +93,8 @@ export default function SellerEarningsPage() {
       </div>
     )
 
-  const current = earnings?.current_period
-  const payouts = earnings?.payouts || []
+  const current = earnings?.earnings
+  const payouts = earnings?.payout_history || []
 
   return (
     <div className="space-y-6 w-full min-h-screen pb-6">
@@ -122,7 +122,7 @@ export default function SellerEarningsPage() {
                   <TrendingUp className="w-5 h-5 text-blue-600" />
                 </div>
                 <div className="text-3xl font-bold text-slate-900">₱{formatCurrency(current.total_sales)}</div>
-                <div className="text-xs text-slate-600 mt-1">{current.order_count} orders</div>
+                <div className="text-xs text-slate-600 mt-1">{current.orders_count} orders</div>
               </div>
 
               {/* Commission Card */}

@@ -9,7 +9,6 @@ type OrderStatus = 'confirmed' | 'shipped' | 'delivered' | 'cancelled'
 const statusOptions: { value: OrderStatus; label: string }[] = [
   { value: 'confirmed', label: 'Confirmed' },
   { value: 'shipped', label: 'Shipped' },
-  { value: 'delivered', label: 'Delivered' },
   { value: 'cancelled', label: 'Cancelled' },
 ]
 
@@ -375,11 +374,9 @@ export default function SellerOrdersPage() {
                     onChange={(e) => handleStatusChange(selectedOrder.id, e.target.value as OrderStatus)}
                     className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    {statusOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
+                    <option value="confirmed">Confirmed</option>
+                    <option value="shipped">Shipped</option>
+                    <option value="cancelled">Cancelled</option>
                   </select>
                   <button
                     onClick={() => handleUpdate(selectedOrder.id)}
@@ -390,7 +387,7 @@ export default function SellerOrdersPage() {
                   </button>
                 </div>
                 <p className="text-xs text-slate-500 mt-2">
-                  Note: Changing status to "Shipped" or "Delivered" will automatically deduct inventory.
+                  Note: You can mark orders as <strong>Shipped</strong> or <strong>Cancelled</strong>. Customers will be notified by email. Once shipped, only the customer can mark it as Delivered.
                 </p>
               </div>
             </div>

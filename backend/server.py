@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 from ultralytics import YOLO  # <--- NEW IMPORT
 from mongodb import get_db
 from order_receipt import build_receipt_pdf_bytes, send_order_receipt_email
-from email_sender import send_item_disabled_email, send_item_enabled_email
+from email_sender import send_item_disabled_email, send_item_enabled_email, send_order_shipped_email, send_order_cancelled_email
 from paymongo import create_payment_intent_for_ewallet, create_payment_intent_for_card, retrieve_payment_intent
 
 # Load environment variables
@@ -2233,6 +2233,501 @@ def get_admin_user_detail(user_id: str, user=Depends(_require_admin_user)):
     }
   }
 
+# --- Admin User Analytics (New Dashboard) ---
+
+@app.get("/admin/analytics/users/kpis")
+def get_admin_user_analytics_kpis(user=Depends(_require_admin_user)):
+  """Get user KPI summary with percentage changes vs last 30 days."""
+  from datetime import datetime, timedelta
+  db = get_db()
+  users_collection = db["users"]
+
+  now = datetime.utcnow()
+  thirty_days_ago = (now - timedelta(days=30)).isoformat()
+  sixty_days_ago = (now - timedelta(days=60)).isoformat()
+
+  # Current totals
+  total_users = users_collection.count_documents({})
+  active_users = users_collection.count_documents({"status": {"$ne": "inactive"}})
+  verified_sellers = users_collection.count_documents({"role": "seller", "status": {"$ne": "inactive"}})
+  disabled_users = users_collection.count_documents({"status": "inactive"})
+
+  # Signups in last 30 days vs previous 30 days for % change
+  new_last_30 = users_collection.count_documents({"created_at": {"$gte": thirty_days_ago}})
+  new_prev_30 = users_collection.count_documents({
+    "created_at": {"$gte": sixty_days_ago, "$lt": thirty_days_ago}
+  })
+
+  # Sellers created in last/prev 30 days
+  seller_last_30 = users_collection.count_documents({
+    "role": "seller", "created_at": {"$gte": thirty_days_ago}
+  })
+  seller_prev_30 = users_collection.count_documents({
+    "role": "seller", "created_at": {"$gte": sixty_days_ago, "$lt": thirty_days_ago}
+  })
+
+  # Disabled in last/prev 30 days
+  disabled_last_30 = users_collection.count_documents({
+    "status": "inactive", "deactivated_at": {"$gte": thirty_days_ago}
+  })
+  disabled_prev_30 = users_collection.count_documents({
+    "status": "inactive", "deactivated_at": {"$gte": sixty_days_ago, "$lt": thirty_days_ago}
+  })
+
+  def pct_change(current, previous):
+    if previous == 0:
+      return 100.0 if current > 0 else 0.0
+    return round(((current - previous) / previous) * 100, 1)
+
+  return {
+    "status": "success",
+    "kpis": {
+      "total_users": total_users,
+      "active_users": active_users,
+      "verified_sellers": verified_sellers,
+      "disabled_users": disabled_users,
+      "total_change": pct_change(new_last_30, new_prev_30),
+      "active_change": pct_change(new_last_30, new_prev_30),
+      "sellers_change": pct_change(seller_last_30, seller_prev_30),
+      "disabled_change": pct_change(disabled_last_30, disabled_prev_30),
+    }
+  }
+
+
+@app.get("/admin/analytics/users/chart")
+def get_admin_user_analytics_chart(
+  granularity: str = "daily",
+  days: int = 7,
+  start_date: str = None,
+  end_date: str = None,
+  user=Depends(_require_admin_user)
+):
+  """Get user signup chart data with dual lines: New Users, New Sellers."""
+  from datetime import datetime, timedelta
+  import calendar as cal_mod
+  db = get_db()
+  users_collection = db["users"]
+
+  now = datetime.utcnow()
+
+  if start_date and end_date:
+    start = datetime.fromisoformat(start_date)
+    end = datetime.fromisoformat(end_date)
+  elif granularity == "daily":
+    start = now - timedelta(days=days)
+    end = now
+  elif granularity == "monthly":
+    start = datetime(now.year, 1, 1)
+    end = now
+  else:  # yearly
+    start = datetime(now.year - 4, 1, 1)
+    end = now
+
+  query = {"created_at": {"$gte": start.isoformat(), "$lte": end.isoformat()}}
+  users = list(users_collection.find(query, {"created_at": 1, "role": 1}))
+
+  data = []
+  if granularity == "daily":
+    current = start
+    while current <= end:
+      day_str = current.strftime("%b %d")
+      day_iso = current.strftime("%Y-%m-%d")
+      new_users = sum(1 for u in users if u.get("created_at", "").startswith(day_iso))
+      new_sellers = sum(1 for u in users if u.get("created_at", "").startswith(day_iso) and u.get("role") == "seller")
+      new_admins = sum(1 for u in users if u.get("created_at", "").startswith(day_iso) and u.get("role") == "admin")
+      data.append({"period": day_str, "New Users": new_users, "New Sellers": new_sellers, "New Admins": new_admins})
+      current += timedelta(days=1)
+  elif granularity == "monthly":
+    for m in range(1, 13):
+      month_prefix = f"{start.year}-{m:02d}"
+      month_name = cal_mod.month_abbr[m]
+      new_users = sum(1 for u in users if u.get("created_at", "").startswith(month_prefix))
+      new_sellers = sum(1 for u in users if u.get("created_at", "").startswith(month_prefix) and u.get("role") == "seller")
+      new_admins = sum(1 for u in users if u.get("created_at", "").startswith(month_prefix) and u.get("role") == "admin")
+      data.append({"period": month_name, "New Users": new_users, "New Sellers": new_sellers, "New Admins": new_admins})
+  else:  # yearly
+    for y in range(start.year, end.year + 1):
+      year_prefix = str(y)
+      new_users = sum(1 for u in users if u.get("created_at", "").startswith(year_prefix))
+      new_sellers = sum(1 for u in users if u.get("created_at", "").startswith(year_prefix) and u.get("role") == "seller")
+      new_admins = sum(1 for u in users if u.get("created_at", "").startswith(year_prefix) and u.get("role") == "admin")
+      data.append({"period": str(y), "New Users": new_users, "New Sellers": new_sellers, "New Admins": new_admins})
+
+  return {"status": "success", "data": data}
+
+
+@app.get("/admin/analytics/users/calendar")
+def get_admin_user_analytics_calendar(
+  year: int = None,
+  month: int = None,
+  user=Depends(_require_admin_user)
+):
+  """Get user signup heatmap data for calendar view."""
+  from datetime import datetime
+  import calendar as cal_mod
+  db = get_db()
+  users_collection = db["users"]
+
+  now = datetime.utcnow()
+  if year is None:
+    year = now.year
+  if month is None:
+    month = now.month
+
+  first_day = datetime(year, month, 1)
+  last_day_num = cal_mod.monthrange(year, month)[1]
+  last_day = datetime(year, month, last_day_num, 23, 59, 59)
+
+  query = {"created_at": {"$gte": first_day.isoformat(), "$lte": last_day.isoformat()}}
+  users = list(users_collection.find(query, {"created_at": 1}))
+
+  day_counts = {}
+  for u in users:
+    created_at = u.get("created_at", "")
+    if created_at:
+      try:
+        dt = datetime.fromisoformat(created_at.replace("Z", "+00:00").replace("+00:00", ""))
+        day = dt.day
+        key = str(day)
+        if key not in day_counts:
+          day_counts[key] = {"day": day, "count": 0}
+        day_counts[key]["count"] += 1
+      except:
+        pass
+
+  first_weekday = first_day.weekday()
+  weeks = []
+  current_day = 1
+
+  for week_idx in range(6):
+    week = []
+    for day_idx in range(7):
+      if week_idx == 0 and day_idx < first_weekday:
+        week.append({"day": None, "count": 0})
+      elif current_day > last_day_num:
+        week.append({"day": None, "count": 0})
+      else:
+        key = str(current_day)
+        data = day_counts.get(key, {"day": current_day, "count": 0})
+        week.append({"day": current_day, "count": data["count"]})
+        current_day += 1
+    weeks.append(week)
+    if current_day > last_day_num:
+      break
+
+  return {
+    "status": "success",
+    "year": year,
+    "month": month,
+    "month_name": cal_mod.month_name[month],
+    "weeks": weeks,
+    "max_count": max([d["count"] for w in weeks for d in w if d["day"] is not None], default=0)
+  }
+
+
+@app.get("/admin/analytics/users/segmentation")
+def get_admin_user_analytics_segmentation(user=Depends(_require_admin_user)):
+  """Get user segmentation data for donut and progress bars."""
+  db = get_db()
+  users_collection = db["users"]
+
+  total = users_collection.count_documents({})
+  roles = {
+    "Regular Users": users_collection.count_documents({"role": "user"}),
+    "Sellers": users_collection.count_documents({"role": "seller"}),
+    "Admins": users_collection.count_documents({"role": "admin"}),
+  }
+  statuses = {
+    "Active": users_collection.count_documents({"status": {"$ne": "inactive"}}),
+    "Inactive": users_collection.count_documents({"status": "inactive"}),
+  }
+
+  return {
+    "status": "success",
+    "total": total,
+    "roles": roles,
+    "statuses": statuses,
+  }
+
+
+# --- Admin Market Analytics ---
+
+@app.get("/admin/analytics/market/kpis")
+def get_admin_market_kpis(user=Depends(_require_admin_user)):
+  """Get market KPI summary: revenue, orders, products, sellers, stocks, avg order."""
+  from datetime import datetime, timedelta
+  db = get_db()
+  orders_col = _get_orders_collection()
+  products_col = _get_products_collection()
+  users_col = db["users"]
+
+  now = datetime.utcnow()
+  thirty_days_ago = (now - timedelta(days=30)).isoformat()
+  sixty_days_ago = (now - timedelta(days=60)).isoformat()
+
+  # Totals
+  total_orders = orders_col.count_documents({}) if orders_col is not None else 0
+  delivered_orders = orders_col.count_documents({"status": "delivered"}) if orders_col is not None else 0
+  pending_orders = orders_col.count_documents({"status": "pending"}) if orders_col is not None else 0
+  cancelled_orders = orders_col.count_documents({"status": "cancelled"}) if orders_col is not None else 0
+
+  # Revenue (delivered only)
+  revenue_docs = list(orders_col.find({"status": "delivered"}, {"total": 1})) if orders_col is not None else []
+  total_revenue = sum(float(d.get("total", 0)) for d in revenue_docs)
+
+  # Total sales (all orders)
+  all_order_docs = list(orders_col.find({}, {"total": 1})) if orders_col is not None else []
+  total_sales = sum(float(d.get("total", 0)) for d in all_order_docs)
+  avg_order_value = total_sales / total_orders if total_orders > 0 else 0
+
+  # Products & stock
+  total_products = products_col.count_documents({}) if products_col is not None else 0
+  active_products = products_col.count_documents({"is_disabled": {"$ne": True}}) if products_col is not None else 0
+  all_products = list(products_col.find({}, {"stock_qty": 1})) if products_col is not None else []
+  total_stock = sum(int(p.get("stock_qty", 0)) for p in all_products)
+  out_of_stock = products_col.count_documents({"stock_qty": {"$lte": 0}, "is_disabled": {"$ne": True}}) if products_col is not None else 0
+
+  # Sellers
+  total_sellers = users_col.count_documents({"role": "seller"})
+  active_sellers = users_col.count_documents({"role": "seller", "status": {"$ne": "inactive"}})
+
+  # % changes (orders last 30 vs prev 30)
+  orders_last_30 = orders_col.count_documents({"created_at": {"$gte": thirty_days_ago}}) if orders_col is not None else 0
+  orders_prev_30 = orders_col.count_documents({"created_at": {"$gte": sixty_days_ago, "$lt": thirty_days_ago}}) if orders_col is not None else 0
+
+  rev_last_30_docs = list(orders_col.find({"status": "delivered", "created_at": {"$gte": thirty_days_ago}}, {"total": 1})) if orders_col is not None else []
+  rev_prev_30_docs = list(orders_col.find({"status": "delivered", "created_at": {"$gte": sixty_days_ago, "$lt": thirty_days_ago}}, {"total": 1})) if orders_col is not None else []
+  rev_last_30 = sum(float(d.get("total", 0)) for d in rev_last_30_docs)
+  rev_prev_30 = sum(float(d.get("total", 0)) for d in rev_prev_30_docs)
+
+  def pct(c, p):
+    if p == 0: return 100.0 if c > 0 else 0.0
+    return round(((c - p) / p) * 100, 1)
+
+  return {
+    "status": "success",
+    "kpis": {
+      "total_revenue": round(total_revenue, 2),
+      "total_sales": round(total_sales, 2),
+      "total_orders": total_orders,
+      "delivered_orders": delivered_orders,
+      "pending_orders": pending_orders,
+      "cancelled_orders": cancelled_orders,
+      "avg_order_value": round(avg_order_value, 2),
+      "total_products": total_products,
+      "active_products": active_products,
+      "total_stock": total_stock,
+      "out_of_stock": out_of_stock,
+      "total_sellers": total_sellers,
+      "active_sellers": active_sellers,
+      "revenue_change": pct(rev_last_30, rev_prev_30),
+      "orders_change": pct(orders_last_30, orders_prev_30),
+    }
+  }
+
+
+@app.get("/admin/analytics/market/chart")
+def get_admin_market_chart(
+  granularity: str = "daily",
+  days: int = 7,
+  start_date: str = None,
+  end_date: str = None,
+  seller_id: str = None,
+  user=Depends(_require_admin_user),
+):
+  """Get market chart data: Orders count and Revenue per period."""
+  from datetime import datetime, timedelta
+  import calendar as cal_mod
+
+  orders_col = _get_orders_collection()
+  now = datetime.utcnow()
+
+  if start_date and end_date:
+    start = datetime.fromisoformat(start_date)
+    end = datetime.fromisoformat(end_date)
+  elif granularity == "daily":
+    start = now - timedelta(days=days)
+    end = now
+  elif granularity == "monthly":
+    start = datetime(now.year, 1, 1)
+    end = now
+  else:
+    start = datetime(now.year - 4, 1, 1)
+    end = now
+
+  query = {"created_at": {"$gte": start.isoformat(), "$lte": end.isoformat()}}
+  if seller_id:
+    query["seller_id"] = seller_id
+
+  orders = list(orders_col.find(query, {"created_at": 1, "total": 1, "status": 1})) if orders_col is not None else []
+
+  data = []
+  if granularity == "daily":
+    current = start
+    while current <= end:
+      day_str = current.strftime("%b %d")
+      day_iso = current.strftime("%Y-%m-%d")
+      day_orders = [o for o in orders if o.get("created_at", "").startswith(day_iso)]
+      data.append({
+        "period": day_str,
+        "Orders": len(day_orders),
+        "Revenue": round(sum(float(o.get("total", 0)) for o in day_orders if o.get("status") == "delivered"), 2),
+      })
+      current += timedelta(days=1)
+  elif granularity == "monthly":
+    for m in range(1, 13):
+      mp = f"{start.year}-{m:02d}"
+      month_orders = [o for o in orders if o.get("created_at", "").startswith(mp)]
+      data.append({
+        "period": cal_mod.month_abbr[m],
+        "Orders": len(month_orders),
+        "Revenue": round(sum(float(o.get("total", 0)) for o in month_orders if o.get("status") == "delivered"), 2),
+      })
+  else:
+    for y in range(start.year, end.year + 1):
+      yp = str(y)
+      year_orders = [o for o in orders if o.get("created_at", "").startswith(yp)]
+      data.append({
+        "period": str(y),
+        "Orders": len(year_orders),
+        "Revenue": round(sum(float(o.get("total", 0)) for o in year_orders if o.get("status") == "delivered"), 2),
+      })
+
+  return {"status": "success", "data": data}
+
+
+@app.get("/admin/analytics/market/segmentation")
+def get_admin_market_segmentation(
+  user=Depends(_require_admin_user),
+):
+  """Get market segmentation: orders by status, products by category, top sellers."""
+  orders_col = _get_orders_collection()
+  products_col = _get_products_collection()
+  categories_col = _get_categories_collection()
+
+  # Orders by status
+  order_statuses = {}
+  total_orders = 0
+  if orders_col is not None:
+    for s in ["pending", "confirmed", "shipped", "delivered", "cancelled"]:
+      c = orders_col.count_documents({"status": s})
+      order_statuses[s.capitalize()] = c
+      total_orders += c
+
+  # Products by category
+  category_breakdown = {}
+  if products_col is not None:
+    all_prods = list(products_col.find({"is_disabled": {"$ne": True}}, {"category_name": 1}))
+    for p in all_prods:
+      cat = p.get("category_name") or "Uncategorized"
+      category_breakdown[cat] = category_breakdown.get(cat, 0) + 1
+
+  # Top sellers by order count
+  top_sellers = []
+  if orders_col is not None:
+    pipeline = [
+      {"$group": {"_id": "$seller_id", "seller_name": {"$first": "$seller_name"}, "order_count": {"$sum": 1}, "revenue": {"$sum": {"$toDouble": "$total"}}}},
+      {"$sort": {"revenue": -1}},
+      {"$limit": 10},
+    ]
+    try:
+      agg = list(orders_col.aggregate(pipeline))
+      top_sellers = [{"seller_id": str(a["_id"]), "seller_name": a.get("seller_name", "Unknown"), "order_count": a["order_count"], "revenue": round(a["revenue"], 2)} for a in agg]
+    except:
+      pass
+
+  return {
+    "status": "success",
+    "total_orders": total_orders,
+    "order_statuses": order_statuses,
+    "category_breakdown": category_breakdown,
+    "top_sellers": top_sellers,
+  }
+
+
+@app.get("/admin/analytics/market/table")
+def get_admin_market_table(
+  page: int = 1,
+  page_size: int = 10,
+  seller_id: str = None,
+  category: str = None,
+  status: str = None,
+  min_price: float = None,
+  max_price: float = None,
+  search: str = None,
+  user=Depends(_require_admin_user),
+):
+  """Get market table data (products with seller info) with filters."""
+  products_col = _get_products_collection()
+  if products_col is None:
+    return {"status": "success", "products": [], "total": 0, "page": page, "page_size": page_size, "sellers": [], "categories": []}
+
+  query: Dict[str, Any] = {}
+  if seller_id and seller_id != "all":
+    query["seller_id"] = seller_id
+  if category and category != "all":
+    query["category_name"] = {"$regex": re.escape(category), "$options": "i"}
+  if status and status != "all":
+    if status == "in_stock":
+      query["stock_qty"] = {"$gt": 0}
+    elif status == "out_of_stock":
+      query["stock_qty"] = {"$lte": 0}
+    elif status == "disabled":
+      query["is_disabled"] = True
+  if min_price is not None:
+    query["price"] = query.get("price", {})
+    query["price"]["$gte"] = min_price
+  if max_price is not None:
+    query["price"] = query.get("price", {})
+    query["price"]["$lte"] = max_price
+  if search:
+    query["$or"] = [
+      {"name": {"$regex": re.escape(search), "$options": "i"}},
+      {"seller_name": {"$regex": re.escape(search), "$options": "i"}},
+    ]
+
+  total = products_col.count_documents(query)
+  docs = list(products_col.find(query).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size))
+
+  products = []
+  for d in docs:
+    products.append({
+      "id": str(d.get("_id")),
+      "name": d.get("name", ""),
+      "seller_id": d.get("seller_id", ""),
+      "seller_name": d.get("seller_name", ""),
+      "category_name": d.get("category_name", "Uncategorized"),
+      "price": float(d.get("price", 0)),
+      "stock_qty": int(d.get("stock_qty", 0)),
+      "sold_count": int(d.get("sold_count", 0)),
+      "status": "disabled" if d.get("is_disabled") else ("out_of_stock" if int(d.get("stock_qty", 0)) <= 0 else "available"),
+      "created_at": d.get("created_at", ""),
+    })
+
+  # Get unique sellers and categories for filter dropdowns
+  sellers_list = []
+  categories_list = []
+  try:
+    seller_ids = products_col.distinct("seller_id")
+    for sid in seller_ids:
+      doc = products_col.find_one({"seller_id": sid}, {"seller_name": 1})
+      if doc:
+        sellers_list.append({"id": sid, "name": doc.get("seller_name", "Unknown")})
+    categories_list = [c for c in products_col.distinct("category_name") if c]
+  except:
+    pass
+
+  return {
+    "status": "success",
+    "products": products,
+    "total": total,
+    "page": page,
+    "page_size": page_size,
+    "sellers": sellers_list,
+    "categories": categories_list,
+  }
+
+
 # --- Seller Products & Categories ---
 
 # --- Admin Orders Management ---
@@ -3750,13 +4245,20 @@ def get_seller_earnings(user=Depends(_require_seller_user)):
   current_orders_count = 0
   
   if not current_month_payout:
-    # Sum all orders for current seller this month
-    orders = list(orders_collection.find({"seller_id": seller_id}))
-    for order in orders:
-      order_date = order.get("created_at", "")
-      if order_date.startswith(current_period):
-        current_total_sales += float(order.get("total", 0))
-        current_orders_count += 1
+    # Sum orders for current seller this month by matching product IDs
+    products_collection = _get_products_collection()
+    if products_collection is not None:
+      seller_products = list(products_collection.find({"seller_id": seller_id}, {"_id": 1}))
+      seller_product_ids = {str(p.get("_id")) for p in seller_products}
+      all_orders = list(orders_collection.find({}))
+      for order in all_orders:
+        items = order.get("items", [])
+        seller_items = [it for it in items if it.get("product_id") in seller_product_ids]
+        if seller_items:
+          order_date = order.get("created_at", "")
+          if isinstance(order_date, str) and order_date.startswith(current_period):
+            current_total_sales += sum(float(it.get("price", 0)) * int(it.get("qty", 1)) for it in seller_items)
+            current_orders_count += 1
   else:
     current_total_sales = float(current_month_payout.get("total_sales", 0))
     current_orders_count = len(current_month_payout.get("orders", []))
@@ -3770,6 +4272,7 @@ def get_seller_earnings(user=Depends(_require_seller_user)):
   payout_history = []
   for payout in payouts:
     payout_history.append({
+      "id": str(payout.get("_id", "")),
       "period": payout.get("period", ""),
       "total_sales": float(payout.get("total_sales", 0)),
       "commission_percent": payout.get("commission_percent", 5),
@@ -4158,8 +4661,8 @@ def update_order_status(order_id: str, body: OrderStatusUpdateBody, user=Depends
     raise HTTPException(status_code=400, detail="Invalid order ID")
 
   status = (body.status or "").strip().lower()
-  if status not in {"confirmed", "shipped", "delivered", "cancelled"}:
-    raise HTTPException(status_code=400, detail="Invalid status value")
+  if status not in {"confirmed", "shipped", "cancelled"}:
+    raise HTTPException(status_code=400, detail="Invalid status value. Sellers can only set: confirmed, shipped, cancelled")
 
   doc = orders_collection.find_one({"_id": oid})
   if not doc:
@@ -4205,6 +4708,47 @@ def update_order_status(order_id: str, body: OrderStatusUpdateBody, user=Depends
 
   orders_collection.update_one({"_id": oid}, {"$set": updates})
   updated = orders_collection.find_one({"_id": oid})
+
+  # Send email notification to customer for shipped / cancelled
+  if status in {"shipped", "cancelled"}:
+    try:
+      db = get_db()
+      users_collection = db["users"] if db is not None else None
+      buyer_id = doc.get("user_id")
+      customer_email = None
+      customer_name = "Customer"
+      if users_collection and buyer_id:
+        try:
+          buyer = users_collection.find_one({"_id": ObjectId(buyer_id)})
+        except Exception:
+          buyer = None
+        if buyer:
+          customer_email = buyer.get("email")
+          customer_name = buyer.get("name", "Customer")
+      if customer_email:
+        order_number = doc.get("order_number") or order_id
+        items = doc.get("items", [])
+        total = float(doc.get("total", 0))
+        address = doc.get("address", {})
+        if status == "shipped":
+          send_order_shipped_email(
+            customer_email=customer_email,
+            customer_name=customer_name,
+            order_number=order_number,
+            items=items,
+            total=total,
+            address=address,
+          )
+        else:
+          send_order_cancelled_email(
+            customer_email=customer_email,
+            customer_name=customer_name,
+            order_number=order_number,
+            items=items,
+            total=total,
+          )
+    except Exception as _email_err:
+      print(f"[ORDER EMAIL] Failed to send status email: {_email_err}")
 
   _log_audit_event(
     actor=user.get("name", "Seller"),
@@ -4269,6 +4813,7 @@ def mark_order_delivered(order_id: str, user=Depends(_get_current_user)):
 @app.get("/orders/{order_id}")
 def get_order_detail(order_id: str, user=Depends(_get_current_user)):
   orders_collection = _get_orders_collection()
+  products_collection = _get_products_collection()
   if orders_collection is None:
     raise HTTPException(status_code=500, detail="Database not configured")
   try:
@@ -4277,14 +4822,33 @@ def get_order_detail(order_id: str, user=Depends(_get_current_user)):
     raise HTTPException(status_code=400, detail="Invalid order ID")
 
   user_id = str(user.get("_id"))
-  doc = orders_collection.find_one({"_id": oid, "user_id": user_id})
+  role = (user.get("role") or "user").strip().lower()
+
+  # Try to find the order directly by ID
+  doc = orders_collection.find_one({"_id": oid})
   if not doc:
     raise HTTPException(status_code=404, detail="Order not found")
+
+  # Access control: buyer can view their own order; seller can view if order contains their products
+  if role == "user":
+    if doc.get("user_id") != user_id:
+      raise HTTPException(status_code=404, detail="Order not found")
+  elif role == "seller":
+    if products_collection is None:
+      raise HTTPException(status_code=500, detail="Database not configured")
+    seller_products = list(products_collection.find({"seller_id": user_id}, {"_id": 1}))
+    seller_product_ids = {str(p.get("_id")) for p in seller_products}
+    items = doc.get("items", [])
+    if str(doc.get("seller_id", "")) != user_id and not any(it.get("product_id") in seller_product_ids for it in items):
+      raise HTTPException(status_code=404, detail="Order not found")
+  # admins can view any order
+
   return {"status": "success", "order": _normalize_order(doc)}
 
 @app.get("/orders/{order_id}/receipt.pdf")
 def get_order_receipt_pdf(order_id: str, user=Depends(_get_current_user)):
   orders_collection = _get_orders_collection()
+  products_collection = _get_products_collection()
   if orders_collection is None:
     raise HTTPException(status_code=500, detail="Database not configured")
   try:
@@ -4293,9 +4857,23 @@ def get_order_receipt_pdf(order_id: str, user=Depends(_get_current_user)):
     raise HTTPException(status_code=400, detail="Invalid order ID")
 
   user_id = str(user.get("_id"))
-  doc = orders_collection.find_one({"_id": oid, "user_id": user_id})
+  role = (user.get("role") or "user").strip().lower()
+
+  doc = orders_collection.find_one({"_id": oid})
   if not doc:
     raise HTTPException(status_code=404, detail="Order not found")
+
+  if role == "user":
+    if doc.get("user_id") != user_id:
+      raise HTTPException(status_code=404, detail="Order not found")
+  elif role == "seller":
+    if products_collection is None:
+      raise HTTPException(status_code=500, detail="Database not configured")
+    seller_products = list(products_collection.find({"seller_id": user_id}, {"_id": 1}))
+    seller_product_ids = {str(p.get("_id")) for p in seller_products}
+    items = doc.get("items", [])
+    if str(doc.get("seller_id", "")) != user_id and not any(it.get("product_id") in seller_product_ids for it in items):
+      raise HTTPException(status_code=404, detail="Order not found")
 
   order_payload = _normalize_order(doc)
   pdf_bytes = build_receipt_pdf_bytes(order_payload)
@@ -4909,13 +5487,85 @@ def get_seller_kpis(user=Depends(_require_seller_user)):
       if rating_result and rating_result[0].get("avg"):
         avg_rating = round(rating_result[0].get("avg", 0), 1)
     
+    # --- Month-over-month change calculations ---
+    now = datetime.utcnow()
+    curr_month_start = datetime(now.year, now.month, 1)
+    prev_month_start = datetime(now.year if now.month > 1 else now.year - 1, now.month - 1 if now.month > 1 else 12, 1)
+    prev_month_end = curr_month_start
+
+    # Products change (current month vs prev month)
+    curr_month_products = products_collection.count_documents({
+      "seller_id": seller_id,
+      "is_disabled": {"$ne": True},
+      "created_at": {"$gte": curr_month_start.isoformat()}
+    })
+    prev_month_products = products_collection.count_documents({
+      "seller_id": seller_id,
+      "is_disabled": {"$ne": True},
+      "created_at": {"$gte": prev_month_start.isoformat(), "$lt": prev_month_end.isoformat()}
+    })
+
+    # Orders & earnings change this month vs prev month
+    curr_month_orders = 0
+    curr_month_earnings = 0.0
+    prev_month_orders = 0
+    prev_month_earnings = 0.0
+
+    if seller_product_ids:
+      docs = list(orders_collection.find({}))
+      for doc in docs:
+        items = doc.get("items", [])
+        seller_items = [it for it in items if it.get("product_id") in seller_product_ids]
+        if seller_items:
+          created_raw = doc.get("created_at")
+          created_dt = None
+          if created_raw:
+            try:
+              if isinstance(created_raw, str):
+                created_dt = datetime.fromisoformat(created_raw.replace("Z", "+00:00")).replace(tzinfo=None)
+              else:
+                created_dt = created_raw
+            except:
+              created_dt = None
+          seller_total = sum(float(it.get("price", 0)) * int(it.get("qty", 1)) for it in seller_items)
+          if created_dt and created_dt >= curr_month_start:
+            curr_month_orders += 1
+            curr_month_earnings += seller_total
+          elif created_dt and prev_month_start <= created_dt < prev_month_end:
+            prev_month_orders += 1
+            prev_month_earnings += seller_total
+
+    def _pct_change(curr, prev):
+      if prev == 0:
+        return 100.0 if curr > 0 else 0.0
+      return round((curr - prev) / prev * 100, 1)
+
+    # Rating change: compare current month avg vs previous month avg
+    curr_avg_rating = 0.0
+    prev_avg_rating = 0.0
+    if reviews_collection is not None and seller_product_oids:
+      r_curr = list(reviews_collection.aggregate([
+        {"$match": {"product_id": {"$in": seller_product_oids}, "created_at": {"$gte": curr_month_start.isoformat()}}},
+        {"$group": {"_id": None, "avg": {"$avg": "$rating"}}},
+      ]))
+      r_prev = list(reviews_collection.aggregate([
+        {"$match": {"product_id": {"$in": seller_product_oids}, "created_at": {"$gte": prev_month_start.isoformat(), "$lt": prev_month_end.isoformat()}}},
+        {"$group": {"_id": None, "avg": {"$avg": "$rating"}}},
+      ]))
+      curr_avg_rating = round(r_curr[0].get("avg", 0), 1) if r_curr else 0.0
+      prev_avg_rating = round(r_prev[0].get("avg", 0), 1) if r_prev else 0.0
+
     return {
       "status": "success",
       "kpis": {
         "total_products": total_products,
         "total_orders": total_orders,
         "total_earnings": round(total_earnings, 2),
-        "average_rating": avg_rating
+        "average_rating": avg_rating,
+        "products_change": _pct_change(curr_month_products, prev_month_products),
+        "orders_change": _pct_change(curr_month_orders, prev_month_orders),
+        "earnings_change": _pct_change(curr_month_earnings, prev_month_earnings),
+        "rating_change": _pct_change(curr_avg_rating, prev_avg_rating),
       }
     }
   except Exception as e:
@@ -4968,6 +5618,49 @@ def get_seller_recent_orders(limit: int = 3, user=Depends(_require_seller_user))
     return {"status": "success", "orders": recent_orders}
   except Exception as e:
     print(f"❌ Error in get_seller_recent_orders: {e}")
+    import traceback
+    traceback.print_exc()
+    raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@app.get("/seller/analytics/reviews/recent")
+def get_seller_recent_reviews(limit: int = 5, user=Depends(_require_seller_user)):
+  """Get recent reviews across all of the seller's products."""
+  db = get_db()
+  products_collection = _get_products_collection()
+  if db is None or products_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+
+  seller_id = str(user.get("_id"))
+  try:
+    from bson import ObjectId
+    seller_products = list(products_collection.find({"seller_id": seller_id}, {"_id": 1, "name": 1}))
+    seller_product_oids = [p.get("_id") for p in seller_products if p.get("_id")]
+    product_names = {str(p.get("_id")): p.get("name", "Unknown Product") for p in seller_products}
+
+    if not seller_product_oids:
+      return {"status": "success", "reviews": []}
+
+    reviews_collection = db["product_reviews"]
+    docs = list(
+      reviews_collection.find({"product_id": {"$in": seller_product_oids}})
+      .sort("created_at", -1)
+      .limit(limit)
+    )
+
+    reviews = []
+    for doc in docs:
+      reviews.append({
+        "id": str(doc.get("_id")),
+        "user_name": doc.get("user_name", "Anonymous"),
+        "rating": doc.get("rating", 0),
+        "comment": doc.get("comment", ""),
+        "product_name": product_names.get(str(doc.get("product_id")), "Unknown Product"),
+        "created_at": doc.get("created_at", ""),
+      })
+    return {"status": "success", "reviews": reviews}
+  except Exception as e:
+    print(f"❌ Error in get_seller_recent_reviews: {e}")
     import traceback
     traceback.print_exc()
     raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
@@ -5026,6 +5719,76 @@ def get_seller_top_products(page: int = 1, page_size: int = 4, user=Depends(_req
     raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 
+@app.get("/seller/analytics/store/details")
+def get_seller_store_details(user=Depends(_require_seller_user)):
+  """Get store details: total stock, overall rating, total reviews, total sales, avg sales, avg orders."""
+  db = get_db()
+  products_collection = _get_products_collection()
+  orders_collection = _get_orders_collection()
+
+  if db is None or products_collection is None or orders_collection is None:
+    raise HTTPException(status_code=500, detail="Database not configured")
+
+  seller_id = str(user.get("_id"))
+
+  try:
+    # --- Store Details ---
+    products = list(products_collection.find({"seller_id": seller_id, "is_disabled": {"$ne": True}}))
+    seller_product_ids = {str(p.get("_id")) for p in products}
+    seller_product_oids = [p.get("_id") for p in products if p.get("_id")]
+
+    # Total stock / inventory
+    total_stock = sum(int(p.get("stock_qty", 0)) for p in products)
+    # Reference = total_stock itself (bar = 100%) or a minimum floor of 100
+    max_stock_reference = max(total_stock, 100)
+
+    reviews_collection = db["product_reviews"]
+    total_reviews = 0
+    overall_rating = 0.0
+    if seller_product_oids:
+      total_reviews_res = list(reviews_collection.aggregate([
+        {"$match": {"product_id": {"$in": seller_product_oids}}},
+        {"$group": {"_id": None, "count": {"$sum": 1}, "avg": {"$avg": "$rating"}}},
+      ]))
+      if total_reviews_res:
+        total_reviews = total_reviews_res[0].get("count", 0)
+        overall_rating = round(total_reviews_res[0].get("avg", 0.0), 1)
+
+    # --- Order Details ---
+    total_sales = 0.0
+    total_orders_count = 0
+    if seller_product_ids:
+      for doc in orders_collection.find({}):
+        items = doc.get("items", [])
+        seller_items = [it for it in items if it.get("product_id") in seller_product_ids]
+        if seller_items:
+          total_orders_count += 1
+          total_sales += sum(float(it.get("price", 0)) * int(it.get("qty", 1)) for it in seller_items)
+
+    avg_sales = round(total_sales / total_orders_count, 2) if total_orders_count > 0 else 0.0
+
+    return {
+      "status": "success",
+      "store": {
+        "total_stock": total_stock,
+        "overall_rating": overall_rating,
+        "total_reviews": total_reviews,
+        "max_stock_reference": max_stock_reference,
+      },
+      "orders": {
+        "total_sales": round(total_sales, 2),
+        "avg_sales": avg_sales,
+        "avg_orders": total_orders_count,
+        "max_sales_reference": max(round(total_sales), 1000),
+      }
+    }
+  except Exception as e:
+    print(f"❌ Error in get_seller_store_details: {e}")
+    import traceback
+    traceback.print_exc()
+    raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
 @app.get("/seller/analytics/sales/categories")
 def get_seller_sales_by_category(user=Depends(_require_seller_user)):
   """Get sales breakdown by category for seller dashboard."""
@@ -5075,27 +5838,30 @@ def get_seller_sales_by_category(user=Depends(_require_seller_user)):
 def get_seller_sales_overview(
     year: int = None,
     half: int = None,
+    granularity: str = "monthly",   # daily | monthly | yearly
+    days: int = 7,                  # for granularity=daily: last N days
+    count: int = 10,                # for granularity=yearly: last N years
+    start_date: str = None,         # ISO date string, for custom range (daily buckets)
+    end_date: str = None,           # ISO date string, for custom range (daily buckets)
     user=Depends(_require_seller_user)
 ):
   """
-  Get sales data for chart visualization.
-  - If year is provided, returns monthly sales for that year
-  - If half is 1, returns Jan-Jun of specified year
-  - If half is 2, returns Jul-Dec of specified year
-  - Returns available years for dropdown
+  Flexible sales chart data endpoint.
+  - granularity=daily  → last `days` days (default 7), or between start_date/end_date
+  - granularity=monthly → 12 months of `year` (default current year), filterable by half
+  - granularity=yearly  → last `count` years (default 10)
+  - start_date / end_date → override to daily buckets within that range
   """
-  from datetime import datetime
-  
+  from datetime import datetime, timedelta
+
   orders_col = _get_orders_collection()
   if orders_col is None:
     raise HTTPException(status_code=500, detail="Database not configured")
-  
+
   seller_id = str(user.get("_id"))
-  current_year = datetime.now().year
-  
-  if year is None:
-    year = current_year
-  
+  now = datetime.utcnow()
+  current_year = now.year
+
   try:
     products_collection = _get_products_collection()
     if products_collection is None:
@@ -5104,77 +5870,125 @@ def get_seller_sales_overview(
     seller_products = list(products_collection.find({"seller_id": seller_id}, {"_id": 1}))
     seller_product_ids = {str(p.get("_id")) for p in seller_products}
     seller_product_oids = [p.get("_id") for p in seller_products if p.get("_id")]
-    product_id_list = list(seller_product_ids) + seller_product_oids
 
-    # Get all orders that include this seller's products
+    # Fetch all relevant orders
     seller_orders = list(orders_col.find({
-      "items.product_id": {"$in": product_id_list},
+      "items.product_id": {"$in": list(seller_product_ids) + seller_product_oids},
       "status": {"$in": ["confirmed", "shipped", "delivered"]}
     }))
-    
-    # Find all available years
+
+    def _parse_created(raw):
+      if raw is None:
+        return None
+      if isinstance(raw, str):
+        try:
+          return datetime.fromisoformat(raw.replace("Z", "+00:00")).replace(tzinfo=None)
+        except:
+          return None
+      return raw
+
+    def _order_amount(order):
+      total = 0.0
+      for item in order.get("items", []):
+        pid = item.get("product_id")
+        if pid in seller_product_oids or str(pid) in seller_product_ids:
+          total += float(item.get("price", 0)) * int(item.get("qty", 0))
+      return total
+
+    # --- Available years ---
     years_set = set()
     for order in seller_orders:
-      created = order.get("created_at")
-      if created:
-        if isinstance(created, str):
-          try:
-            created = datetime.fromisoformat(created.replace("Z", "+00:00"))
-          except:
-            continue
-        years_set.add(created.year)
-    
-    available_years = sorted(years_set, reverse=True)
-    if not available_years:
-      available_years = [current_year]
-    
-    # Build monthly data
+      dt = _parse_created(order.get("created_at"))
+      if dt:
+        years_set.add(dt.year)
+    available_years = sorted(years_set, reverse=True) or [current_year]
+
+    # === Branch by granularity ===
+
+    # --- Custom date range (daily buckets) ---
+    if start_date and end_date:
+      try:
+        range_start = datetime.fromisoformat(start_date)
+        range_end = datetime.fromisoformat(end_date).replace(hour=23, minute=59, second=59)
+      except:
+        raise HTTPException(status_code=400, detail="Invalid start_date or end_date")
+      num_days = (range_end.date() - range_start.date()).days + 1
+      daily_totals = {}
+      cur = range_start.date()
+      for _ in range(num_days):
+        daily_totals[cur] = 0.0
+        cur += timedelta(days=1)
+      for order in seller_orders:
+        dt = _parse_created(order.get("created_at"))
+        if dt and range_start <= dt <= range_end:
+          daily_totals[dt.date()] = daily_totals.get(dt.date(), 0.0) + _order_amount(order)
+      sales_data = [
+        {"period": d.strftime("%b %d"), "amount": round(daily_totals[d], 2)}
+        for d in sorted(daily_totals)
+      ]
+      total_orders_in_range = sum(1 for order in seller_orders if (lambda dt: dt and range_start <= dt <= range_end)(_parse_created(order.get("created_at"))))
+      return {"status": "success", "year": current_year, "half": None, "available_years": available_years, "data": sales_data, "total_orders": total_orders_in_range}
+
+    # --- Daily (last N days) ---
+    if granularity == "daily":
+      day_count = max(1, min(days, 365))
+      today = now.date()
+      daily_totals = {}
+      for i in range(day_count - 1, -1, -1):
+        d = today - timedelta(days=i)
+        daily_totals[d] = 0.0
+      for order in seller_orders:
+        dt = _parse_created(order.get("created_at"))
+        if dt and dt.date() in daily_totals:
+          daily_totals[dt.date()] += _order_amount(order)
+      sales_data = [
+        {"period": d.strftime("%b %d"), "amount": round(daily_totals[d], 2)}
+        for d in sorted(daily_totals)
+      ]
+      today_date = now.date()
+      range_s = today_date - timedelta(days=day_count - 1)
+      total_orders_in_range = sum(1 for order in seller_orders if (lambda dt: dt and range_s <= dt.date() <= today_date)(_parse_created(order.get("created_at"))))
+      return {"status": "success", "year": current_year, "half": None, "available_years": available_years, "data": sales_data, "total_orders": total_orders_in_range}
+
+    # --- Yearly (last N years) ---
+    if granularity == "yearly":
+      year_count = max(1, min(count, 20))
+      yearly_totals = {y: 0.0 for y in range(current_year - year_count + 1, current_year + 1)}
+      for order in seller_orders:
+        dt = _parse_created(order.get("created_at"))
+        if dt and dt.year in yearly_totals:
+          yearly_totals[dt.year] += _order_amount(order)
+      sales_data = [
+        {"period": str(y), "amount": round(yearly_totals[y], 2)}
+        for y in sorted(yearly_totals)
+      ]
+      total_orders_in_range = sum(1 for order in seller_orders if (lambda dt: dt and dt.year in yearly_totals)(_parse_created(order.get("created_at"))))
+      return {"status": "success", "year": current_year, "half": None, "available_years": available_years, "data": sales_data, "total_orders": total_orders_in_range}
+
+    # --- Monthly (default) ---
+    if year is None:
+      year = current_year
     month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     monthly_totals = {i: 0.0 for i in range(1, 13)}
-    
     for order in seller_orders:
-      created = order.get("created_at")
-      if not created:
-        continue
-      
-      if isinstance(created, str):
-        try:
-          created = datetime.fromisoformat(created.replace("Z", "+00:00"))
-        except:
-          continue
-      
-      if created.year != year:
-        continue
-      
-      # Sum only items from this seller
-      order_total = 0.0
-      for item in order.get("items", []):
-        item_product_id = item.get("product_id")
-        if item_product_id in seller_product_oids or str(item_product_id) in seller_product_ids:
-          order_total += item.get("price", 0) * item.get("qty", 0)
-      
-      monthly_totals[created.month] += order_total
-    
-    # Filter by half if specified
+      dt = _parse_created(order.get("created_at"))
+      if dt and dt.year == year:
+        monthly_totals[dt.month] += _order_amount(order)
     if half == 1:
-      months = list(range(1, 7))  # Jan-Jun
+      months = list(range(1, 7))
     elif half == 2:
-      months = list(range(7, 13))  # Jul-Dec
+      months = list(range(7, 13))
     else:
       months = list(range(1, 13))
-    
     sales_data = [
       {"period": month_names[m - 1], "amount": round(monthly_totals[m], 2)}
       for m in months
     ]
-    
-    return {
-      "status": "success",
-      "year": year,
-      "half": half,
-      "available_years": available_years,
-      "data": sales_data
-    }
+    total_orders_in_range = sum(1 for order in seller_orders if (lambda dt: dt and dt.year == year and dt.month in months)(_parse_created(order.get("created_at"))))
+    return {"status": "success", "year": year, "half": half, "available_years": available_years, "data": sales_data, "total_orders": total_orders_in_range}
+
+  except HTTPException:
+    raise
   except Exception as e:
     print(f"❌ Error in get_seller_sales_overview: {e}")
     import traceback
