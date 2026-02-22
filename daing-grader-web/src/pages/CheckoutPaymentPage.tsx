@@ -319,8 +319,8 @@ export default function CheckoutPaymentPage() {
     <div className="min-h-screen w-full bg-slate-50 pb-6">
       <PageTitleHero
         title="Payment"
-        subtitle="Confirm your payment method and place the order"
-        backgroundImage="/assets/daing/danggit/slide1.jfif"
+        description="Confirm your payment method and place the order"
+        breadcrumb="Checkout"
       />
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6">

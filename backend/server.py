@@ -10,7 +10,7 @@ import json
 import re
 from pathlib import Path
 from starlette.responses import StreamingResponse
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from jose import jwt, JWTError
 from bson import ObjectId
@@ -58,10 +58,11 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Fish-Type", "X-Grade", "X-Score", "X-Detected"],
 )
 
 # --- for web backend: auth routes (signup/login) ---
-from auth_web import router as auth_router, _get_current_user, JWT_SECRET, JWT_ALGORITHM
+from auth_web import router as auth_router, _get_current_user, JWT_SECRET, JWT_ALGORITHM, _init_firebase_admin, _verify_firebase_token
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 
 # --- 🧠 LOAD YOUR AI MODEL HERE ---
@@ -193,7 +194,7 @@ def _fetch_scan_entries_from_db():
         "id": entry_id,
         "timestamp": doc.get("timestamp") or "",
         "url": doc.get("url") or None,
-        "fish_type": doc.get("fish_type") or "Unknown",
+        "fish_type": _normalize_fish_type(doc.get("fish_type") or "Unknown"),
         "grade": doc.get("grade") or "Unknown",
         "score": doc.get("score"),
         "user_name": doc.get("user_name") or "Unknown",
@@ -224,13 +225,30 @@ def _fetch_scan_entries_from_db():
     return _fetch_cloudinary_entries()
 
 def _try_get_user_from_request(request: Request) -> Optional[dict]:
-  """for web backend: best-effort user lookup from JWT (optional)."""
+  """for web backend: best-effort user lookup from Firebase ID token or JWT (optional)."""
   auth_header = request.headers.get("Authorization", "")
   if not auth_header.startswith("Bearer "):
     return None
   token = auth_header.replace("Bearer ", "").strip()
   if not token:
     return None
+  db = get_db()
+  # Try Firebase token first (web frontend uses Firebase auth)
+  if _init_firebase_admin():
+    try:
+      decoded = _verify_firebase_token(token)
+      firebase_uid = decoded.get("uid")
+      email = (decoded.get("email") or "").strip().lower()
+      user = None
+      if firebase_uid:
+        user = db["users"].find_one({"firebase_uid": firebase_uid})
+      if not user and email:
+        user = db["users"].find_one({"email": email})
+      if user:
+        return user
+    except Exception:
+      pass
+  # Fallback: try JWT token
   try:
     payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
   except JWTError:
@@ -239,10 +257,25 @@ def _try_get_user_from_request(request: Request) -> Optional[dict]:
   if not user_id:
     return None
   try:
-    db = get_db()
     return db["users"].find_one({"_id": ObjectId(user_id)})
   except Exception:
     return None
+
+# Canonical fish type names — maps stripped-lowercase → display name
+_CANONICAL_FISH_TYPES = {
+  "espada": "Espada",
+  "danggit": "Danggit",
+  "dalagangbukid": "Dalagang Bukid",
+  "dalagang bukid": "Dalagang Bukid",
+  "flyingfish": "Flying Fish",
+  "flying fish": "Flying Fish",
+  "bisugo": "Bisugo",
+}
+
+def _normalize_fish_type(raw: str) -> str:
+  """Map model output like 'Dalagangbukid' to canonical 'Dalagang Bukid'."""
+  key = raw.strip().lower()
+  return _CANONICAL_FISH_TYPES.get(key, raw)
 
 def _grade_from_score(score: float) -> str:
   if score >= 0.9:
@@ -253,7 +286,7 @@ def _grade_from_score(score: float) -> str:
 
 def _normalize_scan_entry(entry: dict) -> dict:
   score = entry.get("score")
-  fish_type = entry.get("fish_type") or "Unknown"
+  fish_type = _normalize_fish_type(entry.get("fish_type") or "Unknown")
   # Detection status: detected if score >= threshold OR fish_type is not Unknown
   detected = (score is not None and score >= 0.8) or (fish_type != "Unknown" and fish_type != "")
   return {
@@ -351,7 +384,7 @@ async def analyze_fish(request: Request, file: UploadFile = File(...)):
     class_id = int(boxes.cls[best_idx].cpu().numpy())
     names = getattr(results[0], "names", {})
     if isinstance(names, dict) and class_id in names:
-      fish_type = str(names[class_id]).replace("_", " ").title()
+      fish_type = _normalize_fish_type(str(names[class_id]).replace("_", " ").title())
   
   # Filter detections based on confidence
   if boxes is not None and len(boxes) > 0:
@@ -486,8 +519,15 @@ async def analyze_fish(request: Request, file: UploadFile = File(...)):
     import traceback
     traceback.print_exc()
 
-  # Return the image with boxes drawn on it
-  return StreamingResponse(io.BytesIO(image_bytes), media_type="image/jpeg")
+  # Return the image with boxes drawn on it, plus metadata in headers
+  headers = {
+    "X-Fish-Type": fish_type,
+    "X-Grade": grade,
+    "X-Score": str(round(best_score, 4)),
+    "X-Detected": "true" if (best_score >= CONFIDENCE_THRESHOLD) else "false",
+    "Access-Control-Expose-Headers": "X-Fish-Type, X-Grade, X-Score, X-Detected",
+  }
+  return StreamingResponse(io.BytesIO(image_bytes), media_type="image/jpeg", headers=headers)
 
 
 # --- KEEP YOUR DATASET/HISTORY ENDPOINTS BELOW AS IS ---
@@ -602,6 +642,8 @@ def get_history_detailed(user=Depends(_get_current_user)):
             "fish_type": doc.get("fish_type", "Unknown"),
             "grade": doc.get("grade", "Unknown"),
             "score": doc.get("score"),
+            "user_id": doc.get("user_id"),
+            "user_name": doc.get("user_name", ""),
           }
       except Exception as mongo_err:
         print(f"⚠️ MongoDB lookup failed, will use defaults: {mongo_err}")
@@ -628,9 +670,11 @@ def get_history_detailed(user=Depends(_get_current_user)):
         
         # Get metadata from MongoDB if available, otherwise use defaults
         mongo_meta = mongo_data.get(scan_id, {})
-        fish_type = mongo_meta.get("fish_type", "Unknown")
+        fish_type = _normalize_fish_type(mongo_meta.get("fish_type", "Unknown"))
         grade = mongo_meta.get("grade", "Unknown")
         score = mongo_meta.get("score")
+        user_id = mongo_meta.get("user_id")
+        user_name = mongo_meta.get("user_name", "")
         
         fish_types_set.add(fish_type)
         entries.append({
@@ -640,6 +684,8 @@ def get_history_detailed(user=Depends(_get_current_user)):
           "fish_type": fish_type,
           "grade": grade,
           "score": score,
+          "user_id": user_id,
+          "user_name": user_name,
         })
     
     # Sort by timestamp descending (newest first)
@@ -656,6 +702,82 @@ def get_history_detailed(user=Depends(_get_current_user)):
     traceback.print_exc()
     # Fallback to basic history if Cloudinary fails
     return {"status": "success", "entries": [], "fish_types": []}
+
+@app.get("/history/chart")
+def get_history_chart(
+  start_date: str = None,
+  end_date: str = None,
+  scope: str = "all",
+  request: Request = None,
+):
+  """
+  Return scan distribution by fish_type (for vertical line chart).
+  Each grade (Export, Local, Reject) is a line; each fish_type is a Y-axis category.
+  scope: 'mine' = only current user's scans, 'all' = everyone's scans.
+  """
+  user = _try_get_user_from_request(request)
+  user_id = str(user["_id"]) if user and user.get("_id") else None
+
+  all_entries = _fetch_scan_entries_from_db()
+
+  # Filter by date range
+  if start_date:
+    all_entries = [e for e in all_entries if (e.get("timestamp") or "") >= start_date]
+  if end_date:
+    # end_date is inclusive so add a day boundary
+    all_entries = [e for e in all_entries if (e.get("timestamp") or "")[:10] <= end_date]
+
+  # Filter by scope
+  if scope == "mine" and user_id:
+    all_entries = [e for e in all_entries if e.get("user_id") == user_id]
+
+  # Known fish types (axes)
+  known_types = ["Espada", "Danggit", "Dalagang Bukid", "Flying Fish", "Bisugo"]
+
+  # Normalize all fish_type values so old "Dalagangbukid" entries match "Dalagang Bukid"
+  for e in all_entries:
+    e["fish_type"] = _normalize_fish_type(e.get("fish_type") or "Unknown")
+
+  # Build distribution: for each fish_type, count each grade
+  data = []
+  for ft in known_types:
+    ft_entries = [e for e in all_entries if e.get("fish_type") == ft]
+    export_count = sum(1 for e in ft_entries if e.get("grade") == "Export")
+    local_count = sum(1 for e in ft_entries if e.get("grade") == "Local")
+    reject_count = sum(1 for e in ft_entries if e.get("grade") == "Reject")
+    data.append({
+      "fish_type": ft,
+      "Export": export_count,
+      "Local": local_count,
+      "Reject": reject_count,
+      "Total": len(ft_entries),
+    })
+
+  # Also include "Other" / "Unknown" if any exist
+  unknown_entries = [e for e in all_entries if e.get("fish_type") not in known_types]
+  if unknown_entries:
+    data.append({
+      "fish_type": "Other",
+      "Export": sum(1 for e in unknown_entries if e.get("grade") == "Export"),
+      "Local": sum(1 for e in unknown_entries if e.get("grade") == "Local"),
+      "Reject": sum(1 for e in unknown_entries if e.get("grade") == "Reject"),
+      "Total": len(unknown_entries),
+    })
+
+  # Summary stats
+  total_scans = len(all_entries)
+  grade_totals = {
+    "Export": sum(d["Export"] for d in data),
+    "Local": sum(d["Local"] for d in data),
+    "Reject": sum(d["Reject"] for d in data),
+  }
+
+  return {
+    "status": "success",
+    "data": data,
+    "total_scans": total_scans,
+    "grade_totals": grade_totals,
+  }
 
 @app.delete("/history/{entry_id}")
 def delete_history(entry_id: str):
@@ -775,6 +897,462 @@ def get_my_activity_logs(page: int = 1, page_size: int = 10, user=Depends(_get_c
     })
 
   return {"status": "success", "entries": entries, "total": total}
+
+@app.get("/admin/activities/analytics")
+def get_admin_activities_analytics(user=Depends(_require_admin_user)):
+  """
+  Full activities analytics for admin dashboard Activities tab.
+  KPIs, monthly chart, category breakdown, status breakdown, recent events table.
+  """
+  collection = _get_audit_collection()
+  if collection is None:
+    return {"status": "error", "message": "Database not available"}
+
+  # ----- KPIs -----
+  total_events = collection.count_documents({})
+
+  # Events today
+  today_str = datetime.now().strftime("%Y-%m-%d")
+  today_events = collection.count_documents({"timestamp": {"$regex": f"^{today_str}"}})
+
+  # Status counts
+  error_count = collection.count_documents({"status": "error"})
+  warning_count = collection.count_documents({"status": "warning"})
+  success_count = collection.count_documents({"status": "success"})
+  error_rate = round((error_count / total_events * 100), 2) if total_events > 0 else 0
+
+  # Unique actors
+  try:
+    unique_actors = len(collection.distinct("actor"))
+  except Exception:
+    unique_actors = 0
+
+  kpis = {
+    "total_events": total_events,
+    "today_events": today_events,
+    "error_rate": error_rate,
+    "error_count": error_count,
+    "warning_count": warning_count,
+    "success_count": success_count,
+    "unique_actors": unique_actors,
+  }
+
+  # ----- Monthly chart: events per month (last 12 months) -----
+  chart_data = []
+  try:
+    now = datetime.now()
+    for i in range(11, -1, -1):
+      month = now.month - i
+      year = now.year
+      while month <= 0:
+        month += 12
+        year -= 1
+      month_str = f"{year}-{month:02d}"
+      month_label = datetime(year, month, 1).strftime("%b")
+      count = collection.count_documents({"timestamp": {"$regex": f"^{month_str}"}})
+      chart_data.append({"period": month_label, "Events": count})
+  except Exception:
+    chart_data = []
+
+  # ----- Category breakdown (progressA) -----
+  category_breakdown = {}
+  try:
+    pipeline = [
+      {"$group": {"_id": "$category", "count": {"$sum": 1}}},
+      {"$sort": {"count": -1}},
+    ]
+    for doc in collection.aggregate(pipeline):
+      cat = doc["_id"] or "General"
+      category_breakdown[cat] = doc["count"]
+  except Exception:
+    pass
+
+  # ----- Status breakdown (progressB) -----
+  status_breakdown = {
+    "success": success_count,
+    "warning": warning_count,
+    "error": error_count,
+  }
+
+  # ----- Role donut -----
+  role_breakdown = {}
+  try:
+    pipeline = [
+      {"$group": {"_id": "$role", "count": {"$sum": 1}}},
+      {"$sort": {"count": -1}},
+    ]
+    for doc in collection.aggregate(pipeline):
+      role = doc["_id"] or "system"
+      role_breakdown[role] = doc["count"]
+  except Exception:
+    pass
+
+  # ----- Recent events table (last 15) -----
+  recent_events = []
+  try:
+    cursor = collection.find().sort("timestamp", -1).limit(15)
+    for doc in cursor:
+      recent_events.append({
+        "id": doc.get("id") or str(doc.get("_id")),
+        "category": doc.get("category") or "General",
+        "actor": doc.get("actor") or "System",
+        "action": doc.get("action") or "Unknown",
+        "status": doc.get("status") or "success",
+        "timestamp": doc.get("timestamp") or "",
+      })
+  except Exception:
+    pass
+
+  return {
+    "status": "success",
+    "kpis": kpis,
+    "chart_data": chart_data,
+    "category_breakdown": category_breakdown,
+    "status_breakdown": status_breakdown,
+    "role_breakdown": role_breakdown,
+    "recent_events": recent_events,
+  }
+
+
+@app.get("/admin/analytics/activities/chart")
+def get_admin_activities_chart(
+  granularity: str = "daily",
+  days: int = 7,
+  start_date: str = None,
+  end_date: str = None,
+  category: str = None,
+  user=Depends(_require_admin_user)
+):
+  """Get activity chart data with granularity support."""
+  from datetime import timedelta
+  import calendar as cal_mod
+  collection = _get_audit_collection()
+  if collection is None:
+    return {"status": "success", "data": []}
+
+  now = datetime.now()
+  if start_date and end_date:
+    start = datetime.fromisoformat(start_date)
+    end = datetime.fromisoformat(end_date)
+  elif granularity == "daily":
+    start = now - timedelta(days=days)
+    end = now
+  elif granularity == "monthly":
+    start = datetime(now.year, 1, 1)
+    end = now
+  else:
+    start = datetime(now.year - 4, 1, 1)
+    end = now
+
+  query = {"timestamp": {"$gte": start.isoformat(), "$lte": end.isoformat()}}
+  if category and category != "all":
+    query["category"] = category
+
+  docs = list(collection.find(query, {"timestamp": 1, "status": 1}))
+
+  data = []
+  if granularity == "daily":
+    current = start
+    while current <= end:
+      day_iso = current.strftime("%Y-%m-%d")
+      day_str = current.strftime("%b %d")
+      total = sum(1 for d in docs if d.get("timestamp", "").startswith(day_iso))
+      errors = sum(1 for d in docs if d.get("timestamp", "").startswith(day_iso) and d.get("status") == "error")
+      data.append({"period": day_str, "Events": total, "Errors": errors})
+      current += timedelta(days=1)
+  elif granularity == "monthly":
+    for m in range(1, 13):
+      mp = f"{start.year}-{m:02d}"
+      mn = cal_mod.month_abbr[m]
+      total = sum(1 for d in docs if d.get("timestamp", "").startswith(mp))
+      errors = sum(1 for d in docs if d.get("timestamp", "").startswith(mp) and d.get("status") == "error")
+      data.append({"period": mn, "Events": total, "Errors": errors})
+  else:
+    for y in range(start.year, end.year + 1):
+      yp = str(y)
+      total = sum(1 for d in docs if d.get("timestamp", "").startswith(yp))
+      errors = sum(1 for d in docs if d.get("timestamp", "").startswith(yp) and d.get("status") == "error")
+      data.append({"period": yp, "Events": total, "Errors": errors})
+
+  return {"status": "success", "data": data}
+
+
+@app.get("/admin/analytics/activities/calendar")
+def get_admin_activities_calendar(
+  year: int = None,
+  month: int = None,
+  user=Depends(_require_admin_user)
+):
+  """Get activity heatmap calendar data."""
+  import calendar as cal_mod
+  collection = _get_audit_collection()
+  if collection is None:
+    return {"status": "success", "year": 0, "month": 0, "month_name": "", "weeks": [], "max_count": 0}
+
+  now = datetime.now()
+  if year is None: year = now.year
+  if month is None: month = now.month
+
+  first_day = datetime(year, month, 1)
+  last_day_num = cal_mod.monthrange(year, month)[1]
+  last_day = datetime(year, month, last_day_num, 23, 59, 59)
+
+  month_prefix = f"{year}-{month:02d}"
+  docs = list(collection.find({"timestamp": {"$regex": f"^{month_prefix}"}}, {"timestamp": 1}))
+
+  day_counts = {}
+  for d in docs:
+    ts = d.get("timestamp", "")
+    if ts:
+      try:
+        dt = datetime.fromisoformat(ts.replace("Z", "").split("+")[0])
+        key = str(dt.day)
+        day_counts[key] = day_counts.get(key, 0) + 1
+      except: pass
+
+  first_weekday = first_day.weekday()
+  weeks = []
+  current_day = 1
+  for _ in range(6):
+    week = []
+    for day_idx in range(7):
+      if not weeks and day_idx < first_weekday:
+        week.append({"day": None, "count": 0})
+      elif current_day > last_day_num:
+        week.append({"day": None, "count": 0})
+      else:
+        week.append({"day": current_day, "count": day_counts.get(str(current_day), 0)})
+        current_day += 1
+    weeks.append(week)
+    if current_day > last_day_num: break
+
+  return {
+    "status": "success",
+    "year": year, "month": month, "month_name": cal_mod.month_name[month],
+    "weeks": weeks,
+    "max_count": max([d["count"] for w in weeks for d in w if d["day"] is not None], default=0),
+  }
+
+
+@app.get("/admin/analytics/community/chart")
+def get_admin_community_chart(
+  granularity: str = "daily",
+  days: int = 7,
+  start_date: str = None,
+  end_date: str = None,
+  category: str = None,
+  user=Depends(_require_admin_user)
+):
+  """Get community posts chart data with granularity support."""
+  from datetime import timedelta
+  import calendar as cal_mod
+  posts_col = _get_community_collection()
+  comments_col = _get_comments_collection()
+  if posts_col is None:
+    return {"status": "success", "data": []}
+
+  active_filter = {
+    "$and": [
+      {"$or": [{"is_deleted": {"$ne": True}}, {"is_deleted": {"$exists": False}}]},
+      {"$or": [{"is_disabled": {"$ne": True}}, {"is_disabled": {"$exists": False}}]},
+    ]
+  }
+
+  now = datetime.now()
+  if start_date and end_date:
+    start = datetime.fromisoformat(start_date)
+    end = datetime.fromisoformat(end_date)
+  elif granularity == "daily":
+    start = now - timedelta(days=days)
+    end = now
+  elif granularity == "monthly":
+    start = datetime(now.year, 1, 1)
+    end = now
+  else:
+    start = datetime(now.year - 4, 1, 1)
+    end = now
+
+  date_filter = {"created_at": {"$gte": start.isoformat(), "$lt": end.isoformat()}}
+  post_query = {**active_filter, **date_filter}
+  if category and category != "all":
+    post_query["category"] = category
+
+  posts = list(posts_col.find(post_query, {"created_at": 1}))
+  comments = []
+  if comments_col is not None:
+    comments = list(comments_col.find(date_filter, {"created_at": 1}))
+
+  data = []
+  if granularity == "daily":
+    current = start
+    while current <= end:
+      day_iso = current.strftime("%Y-%m-%d")
+      day_str = current.strftime("%b %d")
+      p_count = sum(1 for p in posts if p.get("created_at", "").startswith(day_iso))
+      c_count = sum(1 for c in comments if c.get("created_at", "").startswith(day_iso))
+      data.append({"period": day_str, "Posts": p_count, "Comments": c_count})
+      current += timedelta(days=1)
+  elif granularity == "monthly":
+    for m in range(1, 13):
+      mp = f"{start.year}-{m:02d}"
+      mn = cal_mod.month_abbr[m]
+      p_count = sum(1 for p in posts if p.get("created_at", "").startswith(mp))
+      c_count = sum(1 for c in comments if c.get("created_at", "").startswith(mp))
+      data.append({"period": mn, "Posts": p_count, "Comments": c_count})
+  else:
+    for y in range(start.year, end.year + 1):
+      yp = str(y)
+      p_count = sum(1 for p in posts if p.get("created_at", "").startswith(yp))
+      c_count = sum(1 for c in comments if c.get("created_at", "").startswith(yp))
+      data.append({"period": yp, "Posts": p_count, "Comments": c_count})
+
+  return {"status": "success", "data": data}
+
+
+@app.get("/admin/analytics/community/calendar")
+def get_admin_community_calendar(
+  year: int = None,
+  month: int = None,
+  user=Depends(_require_admin_user)
+):
+  """Get community posts heatmap calendar data."""
+  import calendar as cal_mod
+  posts_col = _get_community_collection()
+  if posts_col is None:
+    return {"status": "success", "year": 0, "month": 0, "month_name": "", "weeks": [], "max_count": 0}
+
+  now = datetime.now()
+  if year is None: year = now.year
+  if month is None: month = now.month
+
+  month_prefix = f"{year}-{month:02d}"
+  last_day_num = cal_mod.monthrange(year, month)[1]
+
+  active_filter = {
+    "$and": [
+      {"$or": [{"is_deleted": {"$ne": True}}, {"is_deleted": {"$exists": False}}]},
+      {"$or": [{"is_disabled": {"$ne": True}}, {"is_disabled": {"$exists": False}}]},
+    ]
+  }
+  docs = list(posts_col.find({**active_filter, "created_at": {"$regex": f"^{month_prefix}"}}, {"created_at": 1}))
+
+  day_counts = {}
+  for d in docs:
+    ca = d.get("created_at", "")
+    if ca:
+      try:
+        dt = datetime.fromisoformat(ca.replace("Z", "").split("+")[0])
+        key = str(dt.day)
+        day_counts[key] = day_counts.get(key, 0) + 1
+      except: pass
+
+  first_day = datetime(year, month, 1)
+  first_weekday = first_day.weekday()
+  weeks = []
+  current_day = 1
+  for _ in range(6):
+    week = []
+    for day_idx in range(7):
+      if not weeks and day_idx < first_weekday:
+        week.append({"day": None, "count": 0})
+      elif current_day > last_day_num:
+        week.append({"day": None, "count": 0})
+      else:
+        week.append({"day": current_day, "count": day_counts.get(str(current_day), 0)})
+        current_day += 1
+    weeks.append(week)
+    if current_day > last_day_num: break
+
+  return {
+    "status": "success",
+    "year": year, "month": month, "month_name": cal_mod.month_name[month],
+    "weeks": weeks,
+    "max_count": max([d["count"] for w in weeks for d in w if d["day"] is not None], default=0),
+  }
+
+
+@app.get("/admin/analytics/market/calendar")
+def get_admin_market_calendar(
+  year: int = None,
+  month: int = None,
+  user=Depends(_require_admin_user)
+):
+  """Get market orders heatmap calendar data."""
+  import calendar as cal_mod
+  orders_col = _get_orders_collection()
+  if orders_col is None:
+    return {"status": "success", "year": 0, "month": 0, "month_name": "", "weeks": [], "max_count": 0}
+
+  now = datetime.now()
+  if year is None: year = now.year
+  if month is None: month = now.month
+
+  last_day_num = cal_mod.monthrange(year, month)[1]
+  # Build datetime range so the query works whether created_at is stored
+  # as a BSON date, a Python datetime, or an ISO string.
+  start_of_month = datetime(year, month, 1)
+  end_of_month = datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)
+  month_prefix = f"{year}-{month:02d}"
+
+  try:
+    # Try string regex first — handles ISO-string created_at fields
+    docs = list(orders_col.find(
+      {"created_at": {"$regex": f"^{month_prefix}"}},
+      {"created_at": 1}
+    ))
+  except Exception:
+    docs = []
+
+  if not docs:
+    # Fallback to datetime-range — handles BSON Date fields
+    try:
+      docs = list(orders_col.find(
+        {"created_at": {"$gte": start_of_month, "$lt": end_of_month}},
+        {"created_at": 1}
+      ))
+    except Exception:
+      docs = []
+
+  day_counts = {}
+  for d in docs:
+    ca = d.get("created_at")
+    if ca:
+      try:
+        if isinstance(ca, str):
+          dt = datetime.fromisoformat(ca.replace("Z", "").split("+")[0])
+        elif isinstance(ca, datetime):
+          dt = ca
+        else:
+          dt = datetime.fromisoformat(str(ca))
+        key = str(dt.day)
+        day_counts[key] = day_counts.get(key, 0) + 1
+      except Exception:
+        pass
+
+  first_day = datetime(year, month, 1)
+  first_weekday = first_day.weekday()
+  weeks = []
+  current_day = 1
+  for _ in range(6):
+    week = []
+    for day_idx in range(7):
+      if not weeks and day_idx < first_weekday:
+        week.append({"day": None, "count": 0})
+      elif current_day > last_day_num:
+        week.append({"day": None, "count": 0})
+      else:
+        week.append({"day": current_day, "count": day_counts.get(str(current_day), 0)})
+        current_day += 1
+    weeks.append(week)
+    if current_day > last_day_num: break
+
+  return {
+    "status": "success",
+    "year": year, "month": month, "month_name": cal_mod.month_name[month],
+    "weeks": weeks,
+    "max_count": max([d["count"] for w in weeks for d in w if d["day"] is not None], default=0),
+  }
+
 
 @app.get("/admin/scans")
 def get_admin_scans(page: int = 1, page_size: int = 10, user=Depends(_require_admin_user)):
@@ -1787,6 +2365,137 @@ def get_admin_posts_stats(user=Depends(_require_admin_user)):
     }
   }
 
+@app.get("/admin/community/analytics")
+def get_admin_community_analytics(user=Depends(_require_admin_user)):
+  """
+  Full community analytics for admin dashboard Community tab.
+  KPIs, monthly chart, category breakdown, engagement, top posts table.
+  Active thread = post with at least 1 comment.
+  """
+  posts_col = _get_community_collection()
+  comments_col = _get_comments_collection()
+  if posts_col is None:
+    return {"status": "error", "message": "Database not available"}
+
+  # ----- active filter (not deleted, not disabled) -----
+  active_filter = {
+    "$and": [
+      {"$or": [{"is_deleted": {"$ne": True}}, {"is_deleted": {"$exists": False}}]},
+      {"$or": [{"is_disabled": {"$ne": True}}, {"is_disabled": {"$exists": False}}]},
+    ]
+  }
+
+  # ----- KPIs -----
+  total_posts = posts_col.count_documents(active_filter)
+  total_comments = 0
+  if comments_col is not None:
+    total_comments = comments_col.count_documents(active_filter)
+
+  # Active threads = active posts that have comments_count > 0
+  active_threads = posts_col.count_documents({**active_filter, "comments_count": {"$gt": 0}})
+
+  # Disabled / flagged posts (pending moderation)
+  disabled_posts = posts_col.count_documents({"is_disabled": True})
+
+  # Total likes across all active posts
+  total_likes = 0
+  try:
+    pipeline = [{"$match": active_filter}, {"$group": {"_id": None, "total_likes": {"$sum": "$likes"}}}]
+    agg = list(posts_col.aggregate(pipeline))
+    if agg:
+      total_likes = agg[0].get("total_likes", 0)
+  except Exception:
+    pass
+
+  kpis = {
+    "total_posts": total_posts,
+    "total_comments": total_comments,
+    "active_threads": active_threads,
+    "disabled_posts": disabled_posts,
+    "total_likes": total_likes,
+  }
+
+  # ----- Monthly chart: posts created per month (last 12 months) -----
+  chart_data = []
+  try:
+    now = datetime.now()
+    for i in range(11, -1, -1):
+      # Calculate month
+      month = now.month - i
+      year = now.year
+      while month <= 0:
+        month += 12
+        year -= 1
+      month_str = f"{year}-{month:02d}"
+      month_label = datetime(year, month, 1).strftime("%b")
+      # Count posts created in this month
+      start = f"{month_str}-01"
+      if month == 12:
+        end = f"{year + 1}-01-01"
+      else:
+        end = f"{year}-{month + 1:02d}-01"
+      count = posts_col.count_documents({
+        **active_filter,
+        "created_at": {"$gte": start, "$lt": end}
+      })
+      chart_data.append({"period": month_label, "Posts": count})
+  except Exception:
+    chart_data = []
+
+  # ----- Category breakdown (progressA) -----
+  category_breakdown = {}
+  try:
+    pipeline = [
+      {"$match": active_filter},
+      {"$group": {"_id": "$category", "count": {"$sum": 1}}},
+      {"$sort": {"count": -1}},
+    ]
+    for doc in posts_col.aggregate(pipeline):
+      cat = doc["_id"] or "Uncategorized"
+      category_breakdown[cat] = doc["count"]
+  except Exception:
+    pass
+
+  # ----- Moderation stats (progressB) -----
+  moderation = {
+    "active": total_posts,
+    "disabled": disabled_posts,
+    "deleted": posts_col.count_documents({"is_deleted": True}),
+  }
+
+  # ----- Engagement donut -----
+  engagement_donut = {
+    "likes": total_likes,
+    "comments": total_comments,
+  }
+
+  # ----- Top posts table (top 10 by likes) -----
+  top_posts = []
+  try:
+    cursor = posts_col.find(active_filter).sort("likes", -1).limit(10)
+    for doc in cursor:
+      top_posts.append({
+        "id": str(doc["_id"]),
+        "title": (doc.get("title") or "")[:60],
+        "author": doc.get("author_name", "Unknown"),
+        "category": doc.get("category", "—"),
+        "likes": doc.get("likes", 0),
+        "comments": doc.get("comments_count", 0),
+        "created_at": doc.get("created_at", ""),
+      })
+  except Exception:
+    pass
+
+  return {
+    "status": "success",
+    "kpis": kpis,
+    "chart_data": chart_data,
+    "category_breakdown": category_breakdown,
+    "moderation": moderation,
+    "engagement_donut": engagement_donut,
+    "top_posts": top_posts,
+  }
+
 @app.put("/admin/posts/{post_id}/toggle-status")
 def toggle_post_status(post_id: str, body: TogglePostStatusBody, user=Depends(_require_admin_user)):
   """Toggle post disabled status (admin only)."""
@@ -2115,10 +2824,29 @@ def get_admin_users_stats(user=Depends(_require_admin_user)):
 
 class ToggleUserStatusBody(BaseModel):
   reason: str = ""
+  reasons: list = []          # structured reason tags e.g. ["Foul language", "Spam"]
+  duration: str = "permanent" # "1d", "3d", "7d", "permanent", or custom ISO date
+  custom_reason: str = ""     # free-text custom reason
+
+def _compute_reactivate_at(duration: str) -> str:
+  """Return ISO timestamp for auto-reactivation, or empty string for permanent."""
+  duration_map = {"1d": 1, "3d": 3, "7d": 7, "14d": 14, "30d": 30}
+  if duration in duration_map:
+    return (datetime.utcnow() + timedelta(days=duration_map[duration])).isoformat()
+  if duration == "permanent":
+    return ""
+  # Treat as custom ISO date
+  try:
+    dt = datetime.fromisoformat(duration)
+    if dt > datetime.utcnow():
+      return dt.isoformat()
+  except:
+    pass
+  return ""
 
 @app.put("/admin/users/{user_id}/toggle-status")
 def toggle_user_status(user_id: str, body: ToggleUserStatusBody, user=Depends(_require_admin_user)):
-  """Toggle user active/inactive status."""
+  """Toggle user active/inactive status with duration & structured reasons."""
   db = get_db()
   users_collection = db["users"]
   
@@ -2135,13 +2863,26 @@ def toggle_user_status(user_id: str, body: ToggleUserStatusBody, user=Depends(_r
   new_status = "inactive" if current_status == "active" else "active"
   admin_email = user.get("email", "")
   admin_name = user.get("name", "Admin")
+
+  # Build combined reason text from tags + custom
+  all_reasons = list(body.reasons) if body.reasons else []
+  if body.custom_reason and body.custom_reason.strip():
+    all_reasons.append(body.custom_reason.strip())
+  combined_reason = "; ".join(all_reasons) if all_reasons else (body.reason or "No reason provided")
   
   update_data = {"status": new_status}
   if new_status == "inactive":
-    update_data["deactivation_reason"] = body.reason or "No reason provided"
+    update_data["deactivation_reason"] = combined_reason
+    update_data["deactivation_reasons"] = all_reasons
+    update_data["deactivation_duration"] = body.duration
     update_data["deactivated_at"] = datetime.utcnow().isoformat()
+    reactivate_at = _compute_reactivate_at(body.duration)
+    update_data["reactivate_at"] = reactivate_at
   else:
     update_data["deactivation_reason"] = ""
+    update_data["deactivation_reasons"] = []
+    update_data["deactivation_duration"] = ""
+    update_data["reactivate_at"] = ""
     update_data["reactivated_at"] = datetime.utcnow().isoformat()
   
   users_collection.update_one({"_id": oid}, {"$set": update_data})
@@ -2155,7 +2896,7 @@ def toggle_user_status(user_id: str, body: ToggleUserStatusBody, user=Depends(_r
           user_name=target_user.get("name") or target_user.get("email"),
           item_type="account",
           item_name=target_user.get("name") or target_user.get("email"),
-          reason=body.reason,
+          reason=combined_reason,
           admin_name=admin_name,
           admin_email=admin_email
         )
@@ -2180,7 +2921,7 @@ def toggle_user_status(user_id: str, body: ToggleUserStatusBody, user=Depends(_r
     entity="User Account",
     entity_id=user_id,
     status="success",
-    details=f"New status: {new_status}, Reason: {body.reason}"
+    details=f"New status: {new_status}, Duration: {body.duration}, Reason: {combined_reason}"
   )
   
   return {
@@ -5177,11 +5918,12 @@ def get_product_reviews_public(
   if page < 1 or page_size < 1 or page_size > 50:
     raise HTTPException(status_code=400, detail="Invalid pagination parameters")
   # Public query: get all reviews for this product (no seller auth required)
+  # Sort by rating descending first (highest rated on top), then by date
   query = {"product_id": oid}
   total = collection.count_documents(query)
   docs = list(
     collection.find(query)
-    .sort("created_at", -1)
+    .sort([("rating", -1), ("created_at", -1)])
     .skip((page - 1) * page_size)
     .limit(page_size)
   )

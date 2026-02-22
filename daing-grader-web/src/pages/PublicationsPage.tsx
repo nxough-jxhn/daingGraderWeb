@@ -20,8 +20,8 @@ export default function PublicationsPage({ type }: Props) {
     <div className="space-y-6">
       <PageTitleHero
         title={title}
-        subtitle={subtitle}
-        backgroundImage="/assets/page-hero/publications.jpg"
+        description={subtitle}
+        breadcrumb="Publications"
       />
 
       <div className="space-y-4">

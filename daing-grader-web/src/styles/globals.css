@@ -6,7 +6,7 @@
 @tailwind utilities;
 
 :root {
-  --bg: #f8fafc;
+  --bg: #f5f5f5;
   --card: #ffffff;
   --muted: #64748b;
   --surface: #f1f5f9;
@@ -37,10 +37,9 @@ html, body, #root {
 .border-sidebar-subtle { border-color: rgba(30, 58, 95, 0.2); }
 
 /* Basic utility to mimic Monday.com-like card style */
-/* Hover effects disabled */
-/* .card {
-  @apply bg-white rounded-xl shadow-md border border-black p-6 transition-all duration-200 hover:shadow-lg hover:shadow-slate-200/50;
-} */
+.card {
+  @apply bg-white rounded-xl shadow-md border border-slate-200 p-6 transition-all duration-200;
+}
 
 /* Subtle hover: cursor pointer + slight scale + shadow for buttons, images, clickable elements */
 /* Hover effects disabled */

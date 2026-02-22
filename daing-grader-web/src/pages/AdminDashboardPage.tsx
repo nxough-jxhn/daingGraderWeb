@@ -166,8 +166,8 @@ export default function AdminDashboardPage() {
       {/* Page Hero */}
       <PageTitleHero
         title="Admin Dashboard"
-        subtitle="Manage your platform, monitor analytics, and oversee all system activities."
-        backgroundImage="/assets/page-hero/hero-bg.jpg"
+        description="Manage your platform, monitor analytics, and oversee all system activities."
+        breadcrumb="Admin Dashboard"
       />
 
       {/* Dashboard Overview Header */}

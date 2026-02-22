@@ -519,9 +519,18 @@ export default function AdminAuditLogsPage() {
       {/* Page Hero */}
       <PageTitleHero
         title="Audit & Activity Logs"
-        subtitle="Monitor system activities, user actions, and security events across the platform."
-        backgroundImage="/assets/page-hero/hero-bg.jpg"
+        description="Monitor system activities, user actions, and security events across the platform."
+        breadcrumb="Audit Logs"
       />
+
+      {/* ── Main dashboard container ── */}
+      <div className="relative rounded-2xl border border-slate-200 bg-white/60 shadow-sm overflow-visible">
+        <div className="absolute left-4 top-6 bottom-6 w-[2px] bg-gradient-to-b from-blue-500/50 via-blue-300/40 to-blue-500/50" />
+        <div className="pl-8 pr-4 py-4 space-y-4">
+
+          {/* ── Section 1 Overview ── */}
+          <div className="relative">
+            <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-semibold shadow-sm">1 Overview</div>
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -580,6 +589,11 @@ export default function AdminAuditLogsPage() {
           <div className="text-xs text-orange-600 mt-2">Most active type</div>
         </div>
       </div>
+          </div>{/* end section 1 */}
+
+          {/* ── Section 2 Analytics ── */}
+          <div className="relative border-t border-slate-100 pt-4">
+            <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-semibold shadow-sm">2 Analytics</div>
 
       {/* Analytics Graphs */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
@@ -719,6 +733,11 @@ export default function AdminAuditLogsPage() {
           </div>
         </div>
       </div>
+          </div>{/* end section 2 */}
+
+          {/* ── Section 3 Logs ── */}
+          <div className="relative border-t border-slate-100 pt-4">
+            <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-semibold shadow-sm">3 Logs</div>
 
       {/* Filtered Activity Table (Collapsible) */}
       {isFiltered && (
@@ -918,6 +937,10 @@ export default function AdminAuditLogsPage() {
           ))}
         </div>
       </div>
+          </div>{/* end section 3 */}
+
+        </div>{/* end pl-8 inner */}
+      </div>{/* end main dashboard container */}
 
       {/* Expandable Graph Modal */}
       {showGraphModal && (

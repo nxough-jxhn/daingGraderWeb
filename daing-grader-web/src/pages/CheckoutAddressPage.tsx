@@ -249,8 +249,8 @@ export default function CheckoutAddressPage() {
     <div className="min-h-screen w-full bg-slate-50 pb-6">
       <PageTitleHero
         title="Shipping Address"
-        subtitle="Set your delivery details before payment"
-        backgroundImage="/assets/daing/danggit/slide1.jfif"
+        description="Set your delivery details before payment"
+        breadcrumb="Checkout"
       />
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6">

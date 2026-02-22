@@ -502,8 +502,8 @@ export default function CommunityForumPage() {
       {/* Page Hero Header */}
       <PageTitleHero
         title="Community Forum"
-        subtitle="Share tips, ask questions, and connect with fellow daing enthusiasts."
-        backgroundImage="/assets/page-hero/hero-bg.jpg"
+        description="Share tips, ask questions, and connect with fellow daing enthusiasts."
+        breadcrumb="Community Forum"
       />
 
       {/* Filter bar - aligned in one row */}

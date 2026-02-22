@@ -193,8 +193,8 @@ export default function OrdersPage() {
       {/* Page Hero */}
       <PageTitleHero
         title="My Orders"
-        subtitle="Track and review your recent purchases"
-        backgroundImage="/assets/daing/danggit/slide1.jfif"
+        description="Track and review your recent purchases"
+        breadcrumb="Orders"
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6">

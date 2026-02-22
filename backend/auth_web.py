@@ -136,6 +136,24 @@ def _get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depe
             db["users"].update_one({"_id": user["_id"]}, {"$set": updates})
             user = db["users"].find_one({"_id": user["_id"]})
 
+        # Auto-reactivation: if deactivated with a timed ban that has expired, reactivate
+        if user.get("status") == "inactive" and user.get("reactivate_at"):
+            from datetime import datetime
+            try:
+                reactivate_dt = datetime.fromisoformat(user["reactivate_at"])
+                if datetime.utcnow() >= reactivate_dt:
+                    db["users"].update_one({"_id": user["_id"]}, {"$set": {
+                        "status": "active",
+                        "deactivation_reason": "",
+                        "deactivation_reasons": [],
+                        "deactivation_duration": "",
+                        "reactivate_at": "",
+                        "reactivated_at": datetime.utcnow().isoformat(),
+                    }})
+                    user = db["users"].find_one({"_id": user["_id"]})
+            except:
+                pass
+
         return user
 
     if not jwt:

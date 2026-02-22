@@ -153,8 +153,8 @@ export default function CartPage() {
       <div className="min-h-screen w-full bg-slate-50 pb-6">
         <PageTitleHero
           title="My Cart"
-          subtitle="Review your items and proceed to checkout"
-          backgroundImage="/assets/daing/danggit/slide1.jfif"
+          description="Review your items and proceed to checkout"
+          breadcrumb="Cart"
         />
         <div className="max-w-4xl mx-auto px-4 sm:px-6 mt-8">
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-300 rounded-lg p-8 text-center shadow-lg">
@@ -189,8 +189,8 @@ export default function CartPage() {
       {/* Page Hero */}
       <PageTitleHero
         title="My Cart"
-        subtitle="Review your items and proceed to checkout"
-        backgroundImage="/assets/daing/danggit/slide1.jfif"
+        description="Review your items and proceed to checkout"
+        breadcrumb="Cart"
       />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6">

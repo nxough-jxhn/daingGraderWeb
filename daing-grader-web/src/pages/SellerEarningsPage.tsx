@@ -86,8 +86,8 @@ export default function SellerEarningsPage() {
       <div className="space-y-6 w-full min-h-screen">
         <PageTitleHero
           title="My Earnings"
-          subtitle="View your sales and payout history"
-          backgroundImage="/assets/page-hero/orders.jpg"
+          description="View your sales and payout history"
+          breadcrumb="Earnings"
         />
         <div className="flex items-center justify-center h-64 text-slate-500">Loading...</div>
       </div>
@@ -101,8 +101,8 @@ export default function SellerEarningsPage() {
       {/* Page Hero */}
       <PageTitleHero
         title="My Earnings"
-        subtitle="Track your sales and payout history"
-        backgroundImage="/assets/page-hero/hero-bg.jpg"
+        description="Track your sales and payout history"
+        breadcrumb="Earnings"
       />
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6">

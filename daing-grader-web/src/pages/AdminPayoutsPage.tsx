@@ -298,8 +298,8 @@ export default function AdminPayoutsPage() {
       <div className="space-y-6 w-full min-h-screen">
         <PageTitleHero
           title="Payout Management"
-          subtitle="Track and manage seller payouts"
-          backgroundImage="/assets/page-hero/orders.jpg"
+          description="Track and manage seller payouts"
+          breadcrumb="Payouts"
         />
         <div className="flex items-center justify-center h-64 text-slate-500">Loading...</div>
       </div>
@@ -311,8 +311,8 @@ export default function AdminPayoutsPage() {
       {/* Page Hero */}
       <PageTitleHero
         title="Payout Management"
-        subtitle="Track and manage seller payouts"
-        backgroundImage="/assets/page-hero/hero-bg.jpg"
+        description="Track and manage seller payouts"
+        breadcrumb="Payouts"
       />
 
       {/* Quick Stats */}

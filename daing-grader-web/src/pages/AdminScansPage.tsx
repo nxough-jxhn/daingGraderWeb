@@ -619,9 +619,18 @@ export default function AdminScansPage() {
       {/* Page Hero */}
       <PageTitleHero
         title="Scans Management"
-        subtitle="View and manage all AI grading scan history and results."
-        backgroundImage="/assets/page-hero/hero-bg.jpg"
+        description="View and manage all AI grading scan history and results."
+        breadcrumb="Scans"
       />
+
+      {/* ── Main dashboard container ── */}
+      <div className="relative rounded-2xl border border-slate-200 bg-white/60 shadow-sm overflow-visible">
+        <div className="absolute left-4 top-6 bottom-6 w-[2px] bg-gradient-to-b from-blue-500/50 via-blue-300/40 to-blue-500/50" />
+        <div className="pl-8 pr-4 py-4 space-y-4">
+
+          {/* ── Section 1 Analytics ── */}
+          <div className="relative">
+            <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-semibold shadow-sm">1 Analytics</div>
 
       {/* KPI + Graph Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -750,6 +759,11 @@ export default function AdminScansPage() {
           </div>
         </div>
       </div>
+          </div>{/* end section 1 */}
+
+          {/* ── Section 2 Filters ── */}
+          <div className="relative border-t border-slate-100 pt-4">
+            <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-semibold shadow-sm">2 Filters</div>
 
       {/* Filter Bar */}
       <div className="flex flex-wrap items-center gap-4">
@@ -840,6 +854,11 @@ export default function AdminScansPage() {
           Export
         </button>
       </div>
+          </div>{/* end section 2 */}
+
+          {/* ── Section 3 Data ── */}
+          <div className="relative border-t border-slate-100 pt-4">
+            <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-semibold shadow-sm">3 Data</div>
 
       {/* Detection Filter Header */}
       {detectionFilter !== 'all' && (
@@ -1063,6 +1082,10 @@ export default function AdminScansPage() {
           </div>
         )}
       </div>
+          </div>{/* end section 3 */}
+
+        </div>{/* end pl-8 inner */}
+      </div>{/* end main dashboard container */}
 
       {/* Graph Expansion Modal */}
       {showGraphModal && (

@@ -11,8 +11,8 @@ export default function AnalyticsPage() {
     <div className="space-y-8">
       <PageTitleHero
         title="Analytics"
-        subtitle="View grading statistics, trends, and insights."
-        backgroundImage="/assets/page-hero/hero-bg.jpg"
+        description="View grading statistics, trends, and insights."
+        breadcrumb="Analytics"
       />
 
       <div className="bg-white border border-black rounded-xl shadow-sidebar-subtle max-w-xl text-center py-16 p-6">

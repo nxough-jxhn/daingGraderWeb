@@ -32,8 +32,8 @@ export default function SellerListingPage() {
     <div className="space-y-6 w-full min-h-screen">
       <PageTitleHero
         title="Browse Stores"
-        subtitle="Discover trusted sellers offering premium quality dried fish products."
-        backgroundImage="/assets/daing/danggit/slide1.jfif"
+        description="Discover trusted sellers offering premium quality dried fish products."
+        breadcrumb="Sellers"
       />
 
       {/* Search bar */}

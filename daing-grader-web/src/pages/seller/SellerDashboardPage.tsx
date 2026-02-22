@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Package, ShoppingCart, Star, X, Phone, User, Info, Filter, Search, ChevronLeft, ChevronRight, Maximize2, Calendar } from 'lucide-react'
-import { AreaChart } from '@tremor/react'
+import { Package, ShoppingCart, Star, X, Phone, User, Info, Filter, Search, ChevronLeft, ChevronRight, Maximize2, Calendar, Download } from 'lucide-react'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
+import PageTitleHero from '../../components/layout/PageTitleHero'
 import { Modal, TextInput, Textarea, Button, Group, Paper, Avatar, Badge, ActionIcon, Menu, ScrollArea, Text, Flex, Popover, Checkbox, RangeSlider } from '@mantine/core'
 import { DatePickerInput, DatesRangeValue } from '@mantine/dates'
 import { notifications } from '@mantine/notifications'
@@ -397,8 +398,8 @@ export default function SellerDashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50">
-        <div className="px-6 py-8 max-w-[1400px] mx-auto">
+      <div className="min-h-screen bg-[var(--bg)]">
+        <div className="px-6 pb-8 pt-0 max-w-[1400px] mx-auto">
           <div className="mb-6">
             <h1 className="text-3xl font-bold text-slate-800">Seller Dashboard</h1>
             <p className="text-slate-600 mt-1">Manage your store, track sales, and grow your business</p>
@@ -415,47 +416,60 @@ export default function SellerDashboardPage() {
   }
 
   return (
-    <div className="seller-dashboard min-h-screen bg-slate-50" style={{ fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
-      <div className="px-6 py-8 max-w-[1400px] mx-auto">
-        {/* Breadcrumb Navigation */}
-        <div className="text-sm text-slate-500 mb-3">
-          <span>Pages</span>
-          <span className="mx-2">/</span>
-          <span className="text-slate-700 font-medium">Seller Dashboard</span>
-        </div>
-        
-        {/* Simple Professional Header */}
-        <div className="mb-8 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-4xl font-bold text-slate-900">Seller Dashboard</h1>
-            <p className="text-slate-600 mt-2">Manage your store, track sales, and grow your business</p>
-          </div>
-          {/* Download Report Button + Panel */}
-          <div className="relative flex-shrink-0 mt-1">
-            <button
-              onClick={() => setReportPanelOpen(v => !v)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-200 hover:opacity-90 active:scale-95 shadow-md"
-              style={{ background: 'linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)' }}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0119 9.414V19a2 2 0 01-2 2z" />
-              </svg>
-              Download Report
-            </button>
-            <ReportPanel
-              open={reportPanelOpen}
-              onClose={() => setReportPanelOpen(false)}
-              orders={recentOrders}
-              salesCategories={salesCategories}
-              kpis={kpis}
-              salesData={salesData}
-              sellerName={user?.name ?? user?.email ?? 'Your Store'}
-            />
+    <div className="seller-dashboard min-h-screen bg-[var(--bg)]" style={{ fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
+      <div className="px-6 pb-8 pt-0 max-w-[1400px] mx-auto">
+        {/* Page Hero */}
+        <PageTitleHero
+          title="Seller Dashboard"
+          description="Manage your store, track sales, and grow your business"
+          breadcrumb="Seller Dashboard"
+        />
+
+        {/* Nav bar: search + download */}
+        <div className="relative z-20 overflow-visible mb-6 bg-white/75 border border-slate-200 rounded-xl p-3 shadow-sm backdrop-blur-[2px]">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <h2 className="text-sm font-semibold tracking-wide text-slate-900">Seller Analytics</h2>
+              <p className="text-xs text-slate-600 italic mt-0.5">Overview of your store, sales, and order performance</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <TextInput
+                placeholder="Search transactions..."
+                size="xs"
+                radius="md"
+                value={globalFilter}
+                onChange={(e) => setGlobalFilter(e.currentTarget.value)}
+                leftSection={<Search className="w-4 h-4 text-slate-400" />}
+                className="w-56"
+              />
+              <div className="relative">
+                <button
+                  onClick={() => setReportPanelOpen(v => !v)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-slate-700 border border-slate-300 bg-white transition-all duration-300 hover:border-slate-400 hover:shadow-sm active:scale-[0.98]"
+                  style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,.9), 0 1px 2px rgba(15,23,42,.06)' }}
+                >
+                  <Download className="w-3.5 h-3.5" /> Download Report
+                </button>
+                <ReportPanel
+                  open={reportPanelOpen}
+                  onClose={() => setReportPanelOpen(false)}
+                  orders={recentOrders}
+                  salesCategories={salesCategories}
+                  kpis={kpis}
+                  salesData={salesData}
+                  sellerName={user?.name ?? user?.email ?? 'Your Store'}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="relative rounded-2xl border border-slate-200 bg-white/60 shadow-sm overflow-hidden">
+          <div className="absolute left-4 top-6 bottom-6 w-[2px] bg-gradient-to-b from-emerald-500/50 via-emerald-300/40 to-emerald-500/50" />
+          <div className="pl-8 pr-3 py-3 space-y-4">
           {/* ROW 1: KPIs + My Categories + Profile */}
+          <div className="relative pt-2 border-t border-slate-200/70">
+          <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-green-600 text-white text-[10px] font-semibold shadow-sm">1 KPI</div>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* 4 KPIs - Takes 6 columns */}
           <div className="lg:col-span-6 h-full">
@@ -623,13 +637,14 @@ export default function SellerDashboardPage() {
               </div>
             </Paper>
           </div>
-        </div>
 
-        {/* Row 1 → Row 2 divider */}
-        <hr className="border-slate-200 my-2" />
+          </div>{/* end ROW 1 inner grid */}
+          </div>{/* end ROW 1 relative */}
 
-        {/* ROW 2: Chart + Current Reviews */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* ROW 2: Chart + Current Reviews */}
+          <div className="relative pt-4 border-t border-slate-200/70">
+          <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-green-600 text-white text-[10px] font-semibold shadow-sm">2 Chart</div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Chart - Takes 2 columns */}
           <div className="lg:col-span-2">
             <div className="bg-white border border-slate-300 rounded-xl p-4">
@@ -681,21 +696,25 @@ export default function SellerDashboardPage() {
                   <span className="text-slate-500">Loading chart...</span>
                 </div>
               ) : (
-                <AreaChart
-                  className="h-48"
-                  data={filteredSalesData}
-                  index="period"
-                  categories={["amount"]}
-                  colors={["green"]}
-                  valueFormatter={(value) => `₱${value.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`}
-                  yAxisWidth={70}
-                  showLegend={false}
-                  showGridLines={true}
-                  curveType="linear"
-                  showAnimation={true}
-                  minValue={0}
-                  tickGap={0}
-                />
+                <ResponsiveContainer width="100%" height={192}>
+                  <AreaChart data={filteredSalesData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="sellerSalesGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.75} />
+                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0.18} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 4" stroke="#e2e8f0" vertical={false} />
+                    <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                    <YAxis tickFormatter={(v) => `₱${Number(v).toLocaleString()}`} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={68} />
+                    <RechTooltip
+                      formatter={(val: any) => [`₱${Number(val).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`, 'Revenue']}
+                      contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,.08)', padding: '6px 12px' }}
+                      cursor={{ stroke: 'rgba(100,116,139,0.15)', strokeWidth: 1 }}
+                    />
+                    <Area type="monotone" dataKey="amount" stroke="#22c55e" strokeWidth={2} fill="url(#sellerSalesGrad)" />
+                  </AreaChart>
+                </ResponsiveContainer>
               )}
 
           <div className="flex items-center gap-4 mt-4">
@@ -771,13 +790,14 @@ export default function SellerDashboardPage() {
               )}
             </div>
           </div>
-        </div>
 
-        {/* Row 2 → Row 3 divider */}
-        <hr className="border-slate-200 my-2" />
+          </div>{/* end ROW 2 inner grid */}
+          </div>{/* end ROW 2 relative */}
 
-        {/* ROW 3: Store Details + Order Details + Sales by Category */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* ROW 3: Store Details + Order Details + Sales by Category */}
+          <div className="relative pt-4 border-t border-slate-200/70">
+          <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-green-600 text-white text-[10px] font-semibold shadow-sm">3 Store</div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
           {/* Section 1: Store Details progress bars */}
           <div className="bg-white border border-slate-300 rounded-xl p-4">
@@ -890,8 +910,8 @@ export default function SellerDashboardPage() {
             </div>
             <p className="text-xs text-slate-500 mb-3 italic">Distribution of units sold per product category</p>
 
-            {/* Radio buttons for category filter */}
-            <div className="flex flex-wrap gap-1.5 mb-4">
+            {/* Filter pills */}
+            <div className="flex flex-wrap gap-1.5 mb-3">
               <button
                 onClick={() => setSelectedCategoryView('all')}
                 className={`text-[10px] px-2.5 py-1 rounded-full border font-medium transition-colors ${selectedCategoryView === 'all' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-600 border-slate-300 hover:border-slate-400'}`}
@@ -909,7 +929,7 @@ export default function SellerDashboardPage() {
               ))}
             </div>
 
-            {/* Donut chart rendered with SVG */}
+            {/* Straight-angle (semicircle) pie chart */}
             {(() => {
               const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4']
               const displayCats = selectedCategoryView === 'all'
@@ -921,66 +941,45 @@ export default function SellerDashboardPage() {
                 return <div className="flex items-center justify-center h-32 text-slate-400 text-sm">No category data yet</div>
               }
 
-              const cx = 70, cy = 70, R = 55, innerR = 36
-              let startAngle = -Math.PI / 2
-
-              const slices = displayCats.map((cat, i) => {
-                const pct = totalSold > 0 ? cat.sold / totalSold : 0
-                // Cap at slightly less than full circle to avoid degenerate path
-                const angle = Math.min(pct * 2 * Math.PI, 2 * Math.PI - 0.001)
-                const x1 = cx + R * Math.cos(startAngle)
-                const y1 = cy + R * Math.sin(startAngle)
-                const x2 = cx + R * Math.cos(startAngle + angle)
-                const y2 = cy + R * Math.sin(startAngle + angle)
-                const xi1 = cx + innerR * Math.cos(startAngle)
-                const yi1 = cy + innerR * Math.sin(startAngle)
-                const xi2 = cx + innerR * Math.cos(startAngle + angle)
-                const yi2 = cy + innerR * Math.sin(startAngle + angle)
-                const largeArc = angle > Math.PI ? 1 : 0
-                let path: string
-                if (displayCats.length === 1) {
-                  // Full circle: draw two half-arcs
-                  const mx = cx + R * Math.cos(startAngle + Math.PI)
-                  const my = cy + R * Math.sin(startAngle + Math.PI)
-                  const mxi = cx + innerR * Math.cos(startAngle + Math.PI)
-                  const myi = cy + innerR * Math.sin(startAngle + Math.PI)
-                  path = [
-                    `M ${x1} ${y1}`,
-                    `A ${R} ${R} 0 0 1 ${mx} ${my}`,
-                    `A ${R} ${R} 0 0 1 ${x2} ${y2}`,
-                    `L ${xi2} ${yi2}`,
-                    `A ${innerR} ${innerR} 0 0 0 ${mxi} ${myi}`,
-                    `A ${innerR} ${innerR} 0 0 0 ${xi1} ${yi1}`,
-                    'Z'
-                  ].join(' ')
-                } else {
-                  path = `M ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2} L ${xi2} ${yi2} A ${innerR} ${innerR} 0 ${largeArc} 0 ${xi1} ${yi1} Z`
-                }
-                startAngle += angle
-                return { path, color: COLORS[i % COLORS.length], cat, pct }
-              })
+              const pieData = displayCats.map((cat) => ({ name: cat.category, value: cat.sold, percentage: cat.percentage }))
 
               return (
-                <div className="flex items-center gap-4">
-                  <svg width="140" height="140" viewBox="0 0 140 140" className="shrink-0">
-                    {slices.map((s, i) => (
-                      <path key={i} d={s.path} fill={s.color} opacity={0.9} />
-                    ))}
-                    <text x={cx} y={cy - 5} textAnchor="middle" fontSize="13" fontWeight="700" fill="#1e293b">
-                      {totalSold}
-                    </text>
-                    <text x={cx} y={cy + 9} textAnchor="middle" fontSize="8" fill="#64748b">
-                      total sold
-                    </text>
-                  </svg>
-                  <div className="flex-1 space-y-2">
-                    {slices.map((s, i) => (
+                <div>
+                  <div className="relative flex justify-center">
+                    <PieChart width={220} height={120}>
+                      <Pie
+                        data={pieData}
+                        cx={105}
+                        cy={110}
+                        startAngle={180}
+                        endAngle={0}
+                        innerRadius={52}
+                        outerRadius={95}
+                        paddingAngle={2}
+                        dataKey="value"
+                      >
+                        {pieData.map((_, i) => (
+                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <RechTooltip
+                        formatter={(val: any, name: any) => [val, name]}
+                        contentStyle={{ fontSize: 11, borderRadius: 6, border: '1px solid #e2e8f0', padding: '4px 8px' }}
+                      />
+                    </PieChart>
+                    <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-center pointer-events-none">
+                      <p className="text-lg font-bold text-slate-900 leading-none">{totalSold}</p>
+                      <p className="text-[9px] text-slate-500">total sold</p>
+                    </div>
+                  </div>
+                  <div className="mt-2 space-y-1.5">
+                    {pieData.map((d, i) => (
                       <div key={i} className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
-                          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                          <span className="text-[10px] text-slate-700 font-medium truncate max-w-[80px]">{s.cat.category}</span>
+                          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                          <span className="text-[10px] text-slate-700 font-medium truncate max-w-[90px]">{d.name}</span>
                         </div>
-                        <span className="text-[10px] font-bold text-slate-900 ml-1">{s.cat.percentage}%</span>
+                        <span className="text-[10px] font-bold text-slate-900">{d.percentage}%</span>
                       </div>
                     ))}
                   </div>
@@ -988,39 +987,34 @@ export default function SellerDashboardPage() {
               )
             })()}
           </div>
-        </div>
 
-        {/* Row 3 → Row 4 divider */}
-        <hr className="border-slate-200 my-2" />
+          </div>{/* end ROW 3 inner grid */}
+          </div>{/* end ROW 3 relative */}
 
-        {/* ROW 4: Recent Transaction Table */}
-        <div className="bg-white border border-slate-300 rounded-xl p-4">
+          {/* ROW 4: Recent Transaction Table */}
+          <div className="relative pt-4 border-t border-slate-200/70">
+          <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-green-600 text-white text-[10px] font-semibold shadow-sm">4 Orders</div>
+          <div className="bg-white border border-slate-300 rounded-xl p-4">
           <div className="flex items-center justify-between mb-4">
-            <p className="font-bold text-base text-slate-900">Recent Transaction</p>
+            <p className="font-bold text-base text-slate-900">Recent Transactions</p>
             <div className="flex gap-2">
-              <TextInput
-                placeholder="Search file..."
-                leftSection={<Search className="w-4 h-4" />}
-                size="xs"
-                value={globalFilter}
-                onChange={(e) => setGlobalFilter(e.target.value)}
-                className="w-48"
-              />
-              <Popover opened={filterPopoverOpened} onClose={() => setFilterPopoverOpened(false)} position="bottom-end" shadow="md">
+              <Popover opened={filterPopoverOpened} onClose={() => setFilterPopoverOpened(false)} position="bottom-end" shadow="md" radius="md">
                 <Popover.Target>
-                  <Button 
-                    variant="default" 
-                    size="xs" 
-                    leftSection={<Filter className="w-4 h-4" />}
+                  <button
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold text-slate-700 border border-slate-300 bg-white transition-all duration-300 hover:border-slate-400 hover:shadow-sm active:scale-[0.98]"
+                    style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,.9), 0 1px 2px rgba(15,23,42,.06)' }}
                     onClick={() => setFilterPopoverOpened(!filterPopoverOpened)}
                   >
-                    Filter
-                  </Button>
+                    <Filter className="w-3.5 h-3.5" /> Filter
+                  </button>
                 </Popover.Target>
-                <Popover.Dropdown>
-                  <div className="w-72 p-4 space-y-4">
+                <Popover.Dropdown className="p-0 overflow-hidden" style={{ borderRadius: '0.75rem', border: '1px solid #e2e8f0', boxShadow: '0 8px 24px rgba(15,23,42,.12)' }}>
+                  <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                    <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Filter Transactions</p>
+                  </div>
+                  <div className="w-72 px-4 py-4 space-y-4">
                     <div>
-                      <Text size="sm" fw={600} className="mb-2">Price Range</Text>
+                      <Text size="xs" fw={700} c="dimmed" className="mb-2 uppercase tracking-wide">Price Range</Text>
                       <RangeSlider
                         value={priceRange}
                         onChange={setPriceRange}
@@ -1034,42 +1028,37 @@ export default function SellerDashboardPage() {
                         ]}
                         mb="xl"
                       />
-                      <div className="flex gap-2 text-xs text-slate-600 mt-2">
+                      <div className="flex justify-between text-xs text-slate-600 mt-1 bg-slate-50 border border-slate-200 rounded-md px-3 py-1.5">
                         <span>₱{priceRange[0].toLocaleString()}</span>
-                        <span>-</span>
+                        <span className="text-slate-400">—</span>
                         <span>₱{priceRange[1].toLocaleString()}</span>
                       </div>
                     </div>
-                    
+
                     <div>
-                      <Text size="sm" fw={600} className="mb-2">Categories</Text>
-                      <Group gap="xs">
-                        {salesCategories.slice(0, 3).map((cat) => (
-                          <Checkbox
-                            key={cat.category}
-                            label={cat.category}
-                            size="xs"
-                            checked={tableFilters.categories.includes(cat.category)}
-                            onChange={(e) => {
-                              if (e.currentTarget.checked) {
-                                setTableFilters({
-                                  ...tableFilters,
-                                  categories: [...tableFilters.categories, cat.category]
-                                })
-                              } else {
-                                setTableFilters({
-                                  ...tableFilters,
-                                  categories: tableFilters.categories.filter(id => id !== cat.category)
-                                })
-                              }
-                            }}
-                          />
+                      <Text size="xs" fw={700} c="dimmed" className="mb-2 uppercase tracking-wide">Categories</Text>
+                      <div className="space-y-2">
+                        {salesCategories.slice(0, 4).map((cat) => (
+                          <label key={cat.category} className="flex items-center gap-2 cursor-pointer group">
+                            <Checkbox
+                              size="xs"
+                              checked={tableFilters.categories.includes(cat.category)}
+                              onChange={(e) => {
+                                if (e.currentTarget.checked) {
+                                  setTableFilters({ ...tableFilters, categories: [...tableFilters.categories, cat.category] })
+                                } else {
+                                  setTableFilters({ ...tableFilters, categories: tableFilters.categories.filter(id => id !== cat.category) })
+                                }
+                              }}
+                            />
+                            <span className="text-xs text-slate-700 group-hover:text-slate-900">{cat.category}</span>
+                          </label>
                         ))}
-                      </Group>
+                      </div>
                     </div>
-                    
+
                     <div>
-                      <Text size="sm" fw={600} className="mb-2">Date Range</Text>
+                      <Text size="xs" fw={700} c="dimmed" className="mb-2 uppercase tracking-wide">Date Range</Text>
                       <DatePickerInput
                         type="range"
                         placeholder="Select dates"
@@ -1077,35 +1066,25 @@ export default function SellerDashboardPage() {
                         onChange={(val) => setTableFilters({ ...tableFilters, dateRange: val })}
                         leftSection={<Calendar className="w-4 h-4" />}
                         size="xs"
-                        styles={{
-                          input: {
-                            border: '1px solid rgb(203 213 225)',
-                            borderRadius: '0.5rem',
-                            fontSize: '0.875rem',
-                          }
-                        }}
+                        styles={{ input: { border: '1px solid rgb(203 213 225)', borderRadius: '0.5rem' } }}
                       />
                     </div>
-                    
-                    <Group gap="xs" grow>
-                      <Button size="xs" variant="default" onClick={() => {
-                        setTableFilters({
-                          priceMin: 0,
-                          priceMax: 100000,
-                          categories: [],
-                          dateRange: [null, null]
-                        })
-                        setPriceRange([0, 100000])
-                      }}>
+
+                    <div className="flex gap-2 pt-1 border-t border-slate-100">
+                      <button
+                        className="flex-1 py-1.5 text-xs font-semibold text-slate-600 border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+                        onClick={() => { setTableFilters({ priceMin: 0, priceMax: 100000, categories: [], dateRange: [null, null] }); setPriceRange([0, 100000]) }}
+                      >
                         Reset
-                      </Button>
-                      <Button size="xs" onClick={() => {
-                        setTableFilters(prev => ({ ...prev, priceMin: priceRange[0], priceMax: priceRange[1] }))
-                        setFilterPopoverOpened(false)
-                      }}>
-                        Apply
-                      </Button>
-                    </Group>
+                      </button>
+                      <button
+                        className="flex-1 py-1.5 text-xs font-semibold text-white rounded-md transition-colors"
+                        style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)' }}
+                        onClick={() => { setTableFilters(prev => ({ ...prev, priceMin: priceRange[0], priceMax: priceRange[1] })); setFilterPopoverOpened(false) }}
+                      >
+                        Apply Filters
+                      </button>
+                    </div>
                   </div>
                 </Popover.Dropdown>
               </Popover>
@@ -1178,8 +1157,10 @@ export default function SellerDashboardPage() {
               </Button>
             </Group>
           </div>
+          </div>{/* end table card */}
+          </div>{/* end ROW 4 relative */}
+          </div>{/* end rows wrapper */}
         </div>
-      </div>
 
       {/* Category Modal */}
       <Modal
@@ -1351,13 +1332,25 @@ export default function SellerDashboardPage() {
                 <p className="text-[10px] text-slate-700 italic mt-1">Average earnings per data point</p>
               </div>
             </div>
-            <AreaChart
-              className="h-80"
-              data={filteredSalesData.length > 0 ? filteredSalesData : salesData}
-              index="period"
-              categories={["amount"]}
-              colors={["green"]}
-            />
+            <ResponsiveContainer width="100%" height={320}>
+              <AreaChart data={filteredSalesData.length > 0 ? filteredSalesData : salesData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="sellerSalesGradModal" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.75} />
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0.18} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 4" stroke="#e2e8f0" vertical={false} />
+                <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <YAxis tickFormatter={(v) => `₱${Number(v).toLocaleString()}`} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={68} />
+                <RechTooltip
+                  formatter={(val: any) => [`₱${Number(val).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`, 'Revenue']}
+                  contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,.08)', padding: '6px 12px' }}
+                  cursor={{ stroke: 'rgba(100,116,139,0.15)', strokeWidth: 1 }}
+                />
+                <Area type="monotone" dataKey="amount" stroke="#22c55e" strokeWidth={2} fill="url(#sellerSalesGradModal)" />
+              </AreaChart>
+            </ResponsiveContainer>
             <Button
               fullWidth
               mt="lg"
@@ -1416,21 +1409,21 @@ export default function SellerDashboardPage() {
                     ? (() => { const toD = (d: string | Date) => d instanceof Date ? d : new Date(d); return `${toD(dateRange1[0]!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${toD(dateRange1[1]!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` })()
                     : 'No range selected'}
                 </p>
-                <AreaChart
-                  className="h-52 w-full"
-                  data={compChartData1.length > 0 ? compChartData1 : []}
-                  index="period"
-                  categories={["amount"]}
-                  colors={["green"]}
-                  valueFormatter={(value) => `₱${value.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`}
-                  yAxisWidth={65}
-                  showLegend={false}
-                  showGridLines={true}
-                  curveType="linear"
-                  showAnimation={true}
-                  minValue={0}
-                  tickGap={0}
-                />
+                <ResponsiveContainer width="100%" height={208}>
+                <AreaChart data={compChartData1.length > 0 ? compChartData1 : []} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="comp1Grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.75} />
+                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0.18} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 4" stroke="#e2e8f0" vertical={false} />
+                  <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                  <YAxis tickFormatter={(v) => `₱${Number(v).toLocaleString()}`} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={65} />
+                  <RechTooltip formatter={(val: any) => [`₱${Number(val).toLocaleString('en-PH', { maximumFractionDigits: 2 })}`, 'Revenue']} contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0', padding: '4px 8px' }} />
+                  <Area type="monotone" dataKey="amount" stroke="#22c55e" strokeWidth={2} fill="url(#comp1Grad)" />
+                </AreaChart>
+              </ResponsiveContainer>
                 {/* Period 1 KPIs */}
                 <div className="grid grid-cols-2 gap-2 mt-3">
                   <div className="bg-white border border-slate-300 rounded-lg p-2.5">
@@ -1466,21 +1459,21 @@ export default function SellerDashboardPage() {
                     ? (() => { const toD = (d: string | Date) => d instanceof Date ? d : new Date(d); return `${toD(dateRange2[0]!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${toD(dateRange2[1]!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` })()
                     : 'No range selected'}
                 </p>
-                <AreaChart
-                  className="h-52 w-full"
-                  data={compChartData2.length > 0 ? compChartData2 : []}
-                  index="period"
-                  categories={["amount"]}
-                  colors={["blue"]}
-                  valueFormatter={(value) => `₱${value.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`}
-                  yAxisWidth={65}
-                  showLegend={false}
-                  showGridLines={true}
-                  curveType="linear"
-                  showAnimation={true}
-                  minValue={0}
-                  tickGap={0}
-                />
+              <ResponsiveContainer width="100%" height={208}>
+                <AreaChart data={compChartData2.length > 0 ? compChartData2 : []} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="comp2Grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.75} />
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.18} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 4" stroke="#e2e8f0" vertical={false} />
+                  <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                  <YAxis tickFormatter={(v) => `₱${Number(v).toLocaleString()}`} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={65} />
+                  <RechTooltip formatter={(val: any) => [`₱${Number(val).toLocaleString('en-PH', { maximumFractionDigits: 2 })}`, 'Revenue']} contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0', padding: '4px 8px' }} />
+                  <Area type="monotone" dataKey="amount" stroke="#3b82f6" strokeWidth={2} fill="url(#comp2Grad)" />
+                </AreaChart>
+              </ResponsiveContainer>
                 {/* Period 2 KPIs */}
                 <div className="grid grid-cols-2 gap-2 mt-3">
                   <div className="bg-white border border-slate-300 rounded-lg p-2.5">

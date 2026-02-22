@@ -216,13 +216,22 @@ export default function AdminDiscountsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="space-y-6 w-full min-h-screen">
       <PageTitleHero
         title="Voucher Management System"
-        subtitle="Create and manage all discount codes"
+        description="Create and manage all discount codes"
+        breadcrumb="Discounts"
       />
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      {/* ── Main dashboard container ── */}
+      <div className="relative rounded-2xl border border-slate-200 bg-white/60 shadow-sm overflow-visible">
+        <div className="absolute left-4 top-6 bottom-6 w-[2px] bg-gradient-to-b from-blue-500/50 via-blue-300/40 to-blue-500/50" />
+        <div className="pl-8 pr-4 py-4 space-y-4">
+
+          {/* ── Section 1 Controls ── */}
+          <div className="relative">
+            <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-semibold shadow-sm">1 Controls</div>
+
         {/* Header with Create Button */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -270,6 +279,11 @@ export default function AdminDiscountsPage() {
             </select>
           </div>
         </div>
+          </div>{/* end section 1 */}
+
+          {/* ── Section 2 Vouchers ── */}
+          <div className="relative border-t border-slate-100 pt-4">
+            <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-semibold shadow-sm">2 Vouchers</div>
 
         {/* Loading State */}
         {loading && (
@@ -359,7 +373,10 @@ export default function AdminDiscountsPage() {
             </div>
           </>
         )}
-      </div>
+          </div>{/* end section 2 */}
+
+        </div>{/* end pl-8 inner */}
+      </div>{/* end main dashboard container */}
 
       {/* Modals */}
       <VoucherDetailModal

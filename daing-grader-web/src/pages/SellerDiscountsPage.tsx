@@ -82,7 +82,11 @@ export default function SellerDiscountsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <PageTitleHero title="Discount & Voucher Codes" subtitle="Create and manage your discount codes" />
+      <PageTitleHero
+        title="Discount & Voucher Codes"
+        description="Create and manage your discount codes"
+        breadcrumb="Discounts"
+      />
 
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Header with Create Button */}

@@ -7,7 +7,7 @@ import { ExternalLink, Loader2, Heart, MessageCircle, ArrowRight, ShoppingBag, I
 
 const RECENT_SCANS_COUNT = 5
 const FEATURED_PUBLICATIONS_COUNT = 5
-const FEATURED_PRODUCTS_COUNT = 6
+const FEATURED_PRODUCTS_COUNT = 10
 
 export default function HomePage() {
   const [recentScans, setRecentScans] = useState<HistoryEntry[]>([])
@@ -154,10 +154,10 @@ export default function HomePage() {
               <Link
                 key={post.id}
                 to="/community"
-                className="group block border border-blue-200 overflow-hidden bg-gradient-to-br from-white to-blue-50 shadow-md hover:shadow-lg hover:border-blue-400 transition-all rounded-lg"
+                className="group block w-full max-w-[320px] mx-auto border border-blue-200 overflow-hidden bg-gradient-to-br from-white to-blue-50 shadow-md hover:shadow-lg hover:border-blue-400 transition-all rounded-lg"
               >
                 {/* Post Image */}
-                <div className="aspect-video bg-blue-100 overflow-hidden">
+                <div className="h-24 bg-blue-100 overflow-hidden">
                   {post.images && post.images.length > 0 ? (
                     <img
                       src={post.images[0]}
@@ -215,17 +215,17 @@ export default function HomePage() {
         ) : featuredProducts.length === 0 ? (
           <p className="text-slate-500 py-8">No products available yet.</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {featuredProducts.map((product) => {
               const mainImage = product.images?.[product.main_image_index]?.url || product.images?.[0]?.url || ''
               return (
                 <Link
                   key={product.id}
                   to={`/catalog/${product.id}`}
-                  className="group block border border-blue-200 overflow-hidden bg-gradient-to-br from-white to-blue-50 shadow-md hover:shadow-lg hover:border-blue-400 transition-all rounded-lg"
+                  className="group block w-full max-w-[320px] mx-auto border border-blue-200 overflow-hidden bg-gradient-to-br from-white to-blue-50 shadow-md hover:shadow-lg hover:border-blue-400 transition-all rounded-lg"
                 >
                   {/* Product Image */}
-                  <div className="aspect-square bg-blue-100 overflow-hidden">
+                  <div className="h-28 bg-blue-100 overflow-hidden">
                     {mainImage ? (
                       <img
                         src={mainImage}

@@ -88,8 +88,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Layout><HomePage /></Layout>} />
-      <Route path="/admin" element={<Layout><RoleRoute allowed={['admin']}><AdminDashboardPage /></RoleRoute></Layout>} />
-      <Route path="/admin/new" element={<Layout><RoleRoute allowed={['admin']}><AdminDashboardPageNew /></RoleRoute></Layout>} />
+      <Route path="/admin" element={<Layout><RoleRoute allowed={['admin']}><AdminDashboardPageNew /></RoleRoute></Layout>} />
+      <Route path="/admin/old" element={<Layout><RoleRoute allowed={['admin']}><AdminDashboardPage /></RoleRoute></Layout>} />
       <Route path="/admin/users" element={<Layout><RoleRoute allowed={['admin']}><AdminUsersPage /></RoleRoute></Layout>} />
       <Route path="/admin/orders" element={<Layout><RoleRoute allowed={['admin']}><AdminOrdersPage /></RoleRoute></Layout>} />
       <Route path="/admin/posts" element={<Layout><RoleRoute allowed={['admin']}><AdminPostsPage /></RoleRoute></Layout>} />

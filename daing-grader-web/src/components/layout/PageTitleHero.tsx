@@ -1,62 +1,94 @@
 import React from 'react'
 
 /**
- * Full-width page title area with optional background image (low opacity) and text box highlight.
+ * Full-width page title hero banner matching the admin dashboard style.
  *
  * WHERE TO PUT BACKGROUND IMAGES:
  *   Directory:  public/assets/page-hero/
- *   Recommended size:  1920×400 px  (or 1920×300 for shorter).
+ *   Default image: /assets/page-hero/login.jpg
  *
- * Filenames used by pages (you can add these files):
- *   - publications.jpg   (Publications: Local / Foreign)
- *   - login.jpg          (Sign in / Sign up page)
- *   - grade.jpg          (Grade page)
- *
- * In code, pass backgroundImage="/assets/page-hero/publications.jpg" etc.
+ * Props:
+ *   - title: main heading
+ *   - description: subtitle text below the heading
+ *   - breadcrumb: page name shown in breadcrumb trail, e.g. "Community Forum"
+ *   - backgroundImage: optional override (defaults to /assets/page-hero/login.jpg)
  */
 interface PageTitleHeroProps {
   title: string
-  subtitle?: string
-  /** e.g. /assets/page-hero/publications.jpg */
+  description?: string
+  /** Page name shown in "Pages / <breadcrumb>" trail */
+  breadcrumb?: string
+  /** e.g. /assets/page-hero/publications.jpg — defaults to /assets/page-hero/login.jpg */
   backgroundImage?: string
 }
 
-export default function PageTitleHero({ title, subtitle, backgroundImage }: PageTitleHeroProps) {
+export default function PageTitleHero({
+  title,
+  description,
+  breadcrumb,
+  backgroundImage = '/assets/page-hero/login.jpg',
+}: PageTitleHeroProps) {
   return (
-    /* Full width of viewport (breaks out of max-w container) */
-    <div
-      className="relative w-screen left-1/2 -translate-x-1/2 overflow-hidden mb-8"
-      style={{ minHeight: '180px' }}
-    >
-      {/* Full-width background image - higher opacity so pattern shows through */}
-      {backgroundImage && (
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage: `url(${backgroundImage})`,
-            opacity: 0.65,
-          }}
-        />
-      )}
-      {!backgroundImage && (
-        <div className="absolute inset-0 bg-slate-700" style={{ opacity: 0.9 }} />
-      )}
+    <div className="-mt-6 mb-6 relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] overflow-hidden border-y border-slate-300 shadow-sidebar-subtle h-64">
+      {/* Blurred background image */}
+      <div
+        className="absolute inset-0 bg-center bg-cover scale-110 blur-sm"
+        style={{ backgroundImage: `url('${backgroundImage}')` }}
+      />
+      {/* Dark overlay */}
+      <div className="absolute inset-0 bg-slate-900/32" />
 
-      {/* Lighter overlay so bg image shows through more */}
-      <div className="absolute inset-0 bg-slate-900/35" />
+      {/* Content layer */}
+      <div className="absolute inset-0 z-10 flex flex-col justify-between">
+        {/* Breadcrumb — top */}
+        <div className="w-full max-w-[1400px] mx-auto px-6 pt-6 self-start">
+          <div
+            className="text-sm text-white/75 font-medium"
+            style={{ textShadow: '0 1px 4px rgba(0, 0, 0, 0.5)' }}
+          >
+            <span>Pages</span>
+            {breadcrumb && (
+              <>
+                <span className="mx-2">/</span>
+                <span>{breadcrumb}</span>
+              </>
+            )}
+          </div>
+        </div>
 
-      {/* Text box: lower opacity so bg image visible behind it */}
-      <div className="relative z-10 flex items-center justify-center min-h-[180px] p-8">
+        {/* Glass card — left-aligned, bottom */}
+        <div className="w-full px-6 pb-6">
+          <div className="w-full md:w-1/2 bg-slate-900/65 backdrop-blur-sm rounded-lg px-8 py-6 shadow-xl border border-white/10">
+            <h1
+              className="text-4xl font-bold text-white"
+              style={{ textShadow: '0 2px 10px rgba(0, 0, 0, 0.55), 0 0 1px rgba(0,0,0,0.8)' }}
+            >
+              {title}
+            </h1>
+            {description && (
+              <p
+                className="text-white/90 mt-2 text-lg"
+                style={{ textShadow: '0 1px 8px rgba(0, 0, 0, 0.5)' }}
+              >
+                {description}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Brand + Date — bottom-left */}
         <div
-          className="bg-black/25 backdrop-blur-sm rounded-xl px-8 py-6 shadow-xl text-center max-w-2xl transition-all duration-300 hover:bg-black/35 hover:shadow-2xl"
-          style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.2)' }}
+          className="w-full max-w-[1400px] mx-auto px-6 pb-6 flex items-end gap-4 text-white/80 font-medium"
+          style={{ textShadow: '0 1px 4px rgba(0, 0, 0, 0.5)' }}
         >
-          <h1 className="text-2xl md:text-4xl font-display font-semibold text-white tracking-tight">
-            {title}
-          </h1>
-          {subtitle && (
-            <p className="text-slate-200 mt-2 text-sm md:text-base font-sans">{subtitle}</p>
-          )}
+          <span>DaingGrader</span>
+          <span>
+            {new Date().toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            })}
+          </span>
         </div>
       </div>
     </div>

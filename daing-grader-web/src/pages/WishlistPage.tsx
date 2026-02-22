@@ -103,8 +103,8 @@ export default function WishlistPage() {
       <div className="space-y-6 w-full min-h-screen">
         <PageTitleHero
           title="My Wishlist"
-          subtitle="Your saved products, all in one place"
-          backgroundImage="/assets/daing/danggit/slide1.jfif"
+          description="Your saved products, all in one place"
+          breadcrumb="Wishlist"
         />
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-300 rounded-lg p-8 text-center shadow-lg">
@@ -128,8 +128,8 @@ export default function WishlistPage() {
       {/* Page Hero */}
       <PageTitleHero
         title="My Wishlist"
-        subtitle="Your saved products, all in one place"
-        backgroundImage="/assets/daing/danggit/slide1.jfif"
+        description="Your saved products, all in one place"
+        breadcrumb="Wishlist"
       />
 
       {/* Back button */}

@@ -9,8 +9,8 @@ export default function LoginPage() {
     <div className="space-y-8">
       <PageTitleHero
         title={mode === 'login' ? 'Sign in' : 'Create account'}
-        subtitle="Academic access to DaingGrader"
-        backgroundImage="/assets/page-hero/login.jpg"
+        description="Academic access to DaingGrader"
+        breadcrumb={mode === 'login' ? 'Sign In' : 'Create Account'}
       />
       <div className="flex items-start gap-12">
       <div className="w-full max-w-xl card transition-all duration-200 hover:shadow-lg">

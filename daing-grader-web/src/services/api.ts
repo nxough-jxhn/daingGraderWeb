@@ -66,6 +66,8 @@ export interface DetailedHistoryEntry {
   fish_type: string
   grade: string
   score?: number | null
+  user_id?: string | null
+  user_name?: string
 }
 
 export interface DetailedHistoryResponse {
@@ -78,6 +80,36 @@ export async function getDetailedHistory(signal?: AbortSignal): Promise<Detailed
   const response = await api.get<DetailedHistoryResponse>('/history/detailed', { signal })
   if (response.data.status !== 'success') {
     return { status: 'error', entries: [], fish_types: [] }
+  }
+  return response.data
+}
+
+/** GET history chart distribution data for recharts. */
+export interface ScanChartDistribution {
+  fish_type: string
+  Export: number
+  Local: number
+  Reject: number
+  Total: number
+}
+
+export interface ScanChartResponse {
+  status: string
+  data: ScanChartDistribution[]
+  total_scans: number
+  grade_totals: Record<string, number>
+}
+
+export async function getHistoryChart(
+  params?: { start_date?: string; end_date?: string; scope?: 'all' | 'mine' },
+  signal?: AbortSignal,
+): Promise<ScanChartResponse> {
+  const response = await api.get<ScanChartResponse>('/history/chart', {
+    params,
+    signal,
+  })
+  if (response.data.status !== 'success') {
+    return { status: 'error', data: [], total_scans: 0, grade_totals: {} }
   }
   return response.data
 }
@@ -221,12 +253,26 @@ export async function sendContactMessage(payload: ContactPayload): Promise<{ sta
   return response.data
 }
 
-/** POST image to /analyze; returns blob (image/jpeg). Used by Grade page. */
-export async function analyzeImage(file: File): Promise<Blob> {
+/** POST image to /analyze; returns blob (image/jpeg) + metadata from headers. */
+export interface AnalyzeResult {
+  blob: Blob
+  fish_type: string
+  grade: string
+  score: number
+  detected: boolean
+}
+
+export async function analyzeImage(file: File): Promise<AnalyzeResult> {
   const formData = new FormData()
   formData.append('file', file)
   const response = await api.post<Blob>('/analyze', formData, { responseType: 'blob' })
-  return response.data
+  return {
+    blob: response.data,
+    fish_type: response.headers['x-fish-type'] || 'Unknown',
+    grade: response.headers['x-grade'] || 'Unknown',
+    score: parseFloat(response.headers['x-score'] || '0'),
+    detected: response.headers['x-detected'] === 'true',
+  }
 }
 
 // --- Seller Products & Categories ---
@@ -828,8 +874,17 @@ export async function getAdminUsersStats(): Promise<{ status: string; stats: Adm
   return response.data
 }
 
-export async function toggleUserStatus(userId: string, reason: string): Promise<{ status: string; new_status: string; message: string }> {
-  const response = await api.put(`/admin/users/${userId}/toggle-status`, { reason })
+export async function toggleUserStatus(
+  userId: string,
+  reason: string,
+  options?: { reasons?: string[]; duration?: string; custom_reason?: string }
+): Promise<{ status: string; new_status: string; message: string }> {
+  const response = await api.put(`/admin/users/${userId}/toggle-status`, {
+    reason,
+    reasons: options?.reasons ?? [],
+    duration: options?.duration ?? 'permanent',
+    custom_reason: options?.custom_reason ?? '',
+  })
   return response.data
 }
 
@@ -1066,6 +1121,123 @@ export async function getAdminPosts(
 
 export async function getAdminPostsStats(): Promise<{ status: string; stats: AdminPostsStats }> {
   const response = await api.get('/admin/posts/stats')
+  return response.data
+}
+
+// --- Community Analytics (Admin Dashboard) ---
+export interface CommunityAnalyticsKpis {
+  total_posts: number
+  total_comments: number
+  active_threads: number
+  disabled_posts: number
+  total_likes: number
+}
+
+export interface CommunityAnalyticsResponse {
+  status: string
+  kpis: CommunityAnalyticsKpis
+  chart_data: { period: string; Posts: number }[]
+  category_breakdown: Record<string, number>
+  moderation: { active: number; disabled: number; deleted: number }
+  engagement_donut: { likes: number; comments: number }
+  top_posts: {
+    id: string
+    title: string
+    author: string
+    category: string
+    likes: number
+    comments: number
+    created_at: string
+  }[]
+}
+
+export async function getCommunityAnalytics(): Promise<CommunityAnalyticsResponse> {
+  const response = await api.get<CommunityAnalyticsResponse>('/admin/community/analytics')
+  return response.data
+}
+
+// --- Activities Analytics (Admin Dashboard) ---
+export interface ActivitiesAnalyticsKpis {
+  total_events: number
+  today_events: number
+  error_rate: number
+  error_count: number
+  warning_count: number
+  success_count: number
+  unique_actors: number
+}
+
+export interface ActivitiesAnalyticsResponse {
+  status: string
+  kpis: ActivitiesAnalyticsKpis
+  chart_data: { period: string; Events: number }[]
+  category_breakdown: Record<string, number>
+  status_breakdown: { success: number; warning: number; error: number }
+  role_breakdown: Record<string, number>
+  recent_events: {
+    id: string
+    category: string
+    actor: string
+    action: string
+    status: string
+    timestamp: string
+  }[]
+}
+
+export async function getActivitiesAnalytics(): Promise<ActivitiesAnalyticsResponse> {
+  const response = await api.get<ActivitiesAnalyticsResponse>('/admin/activities/analytics')
+  return response.data
+}
+
+// --- Community Chart & Calendar ---
+export interface CommunityChartPoint {
+  period: string
+  Posts: number
+  Comments: number
+}
+
+export async function getCommunityChart(params: {
+  granularity?: string
+  days?: number
+  start_date?: string
+  end_date?: string
+  category?: string
+}): Promise<{ status: string; data: CommunityChartPoint[] }> {
+  const response = await api.get('/admin/analytics/community/chart', { params })
+  return response.data
+}
+
+export async function getCommunityCalendar(year?: number, month?: number): Promise<AdminUserCalendarResponse> {
+  const response = await api.get('/admin/analytics/community/calendar', { params: { year, month } })
+  return response.data
+}
+
+// --- Market Calendar ---
+export async function getAdminMarketCalendar(year?: number, month?: number): Promise<AdminUserCalendarResponse> {
+  const response = await api.get('/admin/analytics/market/calendar', { params: { year, month } })
+  return response.data
+}
+
+// --- Activities Chart & Calendar ---
+export interface ActivitiesChartPoint {
+  period: string
+  Events: number
+  Errors: number
+}
+
+export async function getActivitiesChart(params: {
+  granularity?: string
+  days?: number
+  start_date?: string
+  end_date?: string
+  category?: string
+}): Promise<{ status: string; data: ActivitiesChartPoint[] }> {
+  const response = await api.get('/admin/analytics/activities/chart', { params })
+  return response.data
+}
+
+export async function getActivitiesCalendar(year?: number, month?: number): Promise<AdminUserCalendarResponse> {
+  const response = await api.get('/admin/analytics/activities/calendar', { params: { year, month } })
   return response.data
 }
 

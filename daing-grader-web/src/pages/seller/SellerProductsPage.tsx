@@ -455,8 +455,8 @@ export default function SellerProductsPage() {
     <>
       <PageTitleHero
         title="Product Management"
-        subtitle="Manage your inventory and product listings"
-        backgroundImage="/assets/page-hero/hero-bg.jpg"
+        description="Manage your inventory and product listings"
+        breadcrumb="Products"
       />
 
       <div className="space-y-6 px-6">

@@ -103,8 +103,8 @@ export default function OrderConfirmedPage() {
     <div className="min-h-screen w-full bg-slate-50 pb-6">
       <PageTitleHero
         title="Order Confirmed"
-        subtitle="Your order has been placed successfully"
-        backgroundImage="/assets/daing/danggit/slide1.jfif"
+        description="Your order has been placed successfully"
+        breadcrumb="Order Confirmed"
       />
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6">

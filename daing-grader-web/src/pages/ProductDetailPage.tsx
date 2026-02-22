@@ -322,8 +322,8 @@ export default function ProductDetailPage() {
       {/* Page Hero */}
       <PageTitleHero
         title={product.name}
-        subtitle={`Sold by ${product.seller_name}`}
-        backgroundImage={currentImage || '/assets/daing/danggit/slide1.jfif'}
+        description={`Sold by ${product.seller_name}`}
+        breadcrumb="Product"
       />
 
       {/* Container with back button and content */}

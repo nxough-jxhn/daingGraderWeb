@@ -192,8 +192,8 @@ export default function StoreProfilePage() {
     <div className="w-full min-h-screen">
       <PageTitleHero
         title="Store Profile"
-        subtitle="Browse products and learn more about this seller."
-        backgroundImage="/assets/page-hero/hero-bg.jpg"
+        description="Browse products and learn more about this seller."
+        breadcrumb="Store"
       />
 
       {/* Main Content */}

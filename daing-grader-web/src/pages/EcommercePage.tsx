@@ -11,8 +11,8 @@ export default function EcommercePage() {
     <div className="space-y-8">
       <PageTitleHero
         title="E-commerce"
-        subtitle="Manage listings and browse dried fish products."
-        backgroundImage="/assets/page-hero/grade.jpg"
+        description="Manage listings and browse dried fish products."
+        breadcrumb="E-commerce"
       />
 
       <div className="card border border-sidebar-subtle shadow-sidebar-subtle max-w-xl text-center py-16">

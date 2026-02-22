@@ -1,5 +1,38 @@
 [
   {
+    "id": "scan_20260219_130521_909273",
+    "timestamp": "2026-02-19T13:05:21.909273",
+    "url": "https://res.cloudinary.com/dq2bhvzig/image/upload/v1771477524/daing-history/2026-02-19/scan_20260219_130521_909273.jpg",
+    "folder": "daing-history/2026-02-19",
+    "fish_type": "Unknown",
+    "grade": "Reject",
+    "score": 0.0,
+    "user_id": "698ec6f4e3bfaa0470f14407",
+    "user_name": "John Neo Bagon"
+  },
+  {
+    "id": "scan_20260219_120604_747490",
+    "timestamp": "2026-02-19T12:06:04.747490",
+    "url": "https://res.cloudinary.com/dq2bhvzig/image/upload/v1771473969/daing-history/2026-02-19/scan_20260219_120604_747490.jpg",
+    "folder": "daing-history/2026-02-19",
+    "fish_type": "Dalagangbukid",
+    "grade": "Export",
+    "score": 0.9626,
+    "user_id": "698ec6f4e3bfaa0470f14407",
+    "user_name": "John Neo Bagon"
+  },
+  {
+    "id": "scan_20260219_112257_052083",
+    "timestamp": "2026-02-19T11:22:57.052083",
+    "url": "https://res.cloudinary.com/dq2bhvzig/image/upload/v1771471380/daing-history/2026-02-19/scan_20260219_112257_052083.jpg",
+    "folder": "daing-history/2026-02-19",
+    "fish_type": "Flyingfish",
+    "grade": "Export",
+    "score": 0.9689,
+    "user_id": null,
+    "user_name": "Unknown"
+  },
+  {
     "id": "scan_20260209_094802_120590",
     "timestamp": "2026-02-09T09:48:02.120590",
     "url": "https://res.cloudinary.com/dq2bhvzig/image/upload/v1770601683/daing-history/2026-02-09/scan_20260209_094802_120590.jpg",

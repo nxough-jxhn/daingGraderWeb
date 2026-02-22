@@ -337,8 +337,8 @@ export default function ProductCatalogPage() {
       {/* Page Hero Header */}
       <PageTitleHero
         title="Shop Fresh Daings"
-        subtitle="Discover premium quality dried fish from trusted local sellers. Fresh, authentic, and delivered right to your doorstep."
-        backgroundImage="/assets/daing/danggit/slide1.jfif"
+        description="Discover premium quality dried fish from trusted local sellers. Fresh, authentic, and delivered right to your doorstep."
+        breadcrumb="Catalog"
       />
 
       {/* Filter bar */}

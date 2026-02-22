@@ -122,8 +122,8 @@ export default function SellerOrdersPage() {
     <>
       <PageTitleHero
         title="Order Management"
-        subtitle="Track and manage customer orders"
-        backgroundImage="/assets/page-hero/hero-bg.jpg"
+        description="Track and manage customer orders"
+        breadcrumb="Orders"
       />
 
       <div className="flex h-[calc(100vh-14rem)] gap-4 overflow-hidden px-6 py-4">

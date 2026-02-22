@@ -92,8 +92,8 @@ export default function SellerReviewsPage() {
     <>
       <PageTitleHero
         title="Customer Reviews"
-        subtitle="View and respond to customer feedback"
-        backgroundImage="/assets/page-hero/hero-bg.jpg"
+        description="View and respond to customer feedback"
+        breadcrumb="Reviews"
       />
 
       <div className="flex h-[calc(100vh-14rem)] gap-4 overflow-hidden px-6 py-4">

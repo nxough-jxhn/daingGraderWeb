@@ -27,6 +27,7 @@ import {
   Maximize2,
 } from 'lucide-react'
 import PageTitleHero from '../components/layout/PageTitleHero'
+import { useToast } from '../contexts/ToastContext'
 import {
   getAdminUsers,
   getAdminUsersStats,
@@ -552,6 +553,10 @@ export default function AdminUsersPage() {
   const [statusModal, setStatusModal] = useState<{ user: AdminUser; open: boolean }>({ user: null as any, open: false })
   const [statusReason, setStatusReason] = useState('')
   const [statusLoading, setStatusLoading] = useState(false)
+  const [deactivateDuration, setDeactivateDuration] = useState<string>('permanent')
+  const [deactivateReasons, setDeactivateReasons] = useState<Set<string>>(new Set())
+  const [deactivateCustomReason, setDeactivateCustomReason] = useState('')
+  const [deactivateCustomDate, setDeactivateCustomDate] = useState('')
   
   const [detailModal, setDetailModal] = useState<{ user: AdminUserDetail | null; open: boolean }>({ user: null, open: false })
   const [detailLoading, setDetailLoading] = useState(false)
@@ -649,13 +654,31 @@ export default function AdminUsersPage() {
   const handleStatusClick = (user: AdminUser) => {
     setStatusModal({ user, open: true })
     setStatusReason('')
+    setDeactivateDuration('permanent')
+    setDeactivateReasons(new Set())
+    setDeactivateCustomReason('')
+    setDeactivateCustomDate('')
   }
+
+  const { showToast } = useToast()
 
   const handleStatusConfirm = async () => {
     if (!statusModal.user) return
     setStatusLoading(true)
     try {
-      await toggleUserStatus(statusModal.user.id, statusReason)
+      const finalDuration = deactivateDuration === 'custom' ? deactivateCustomDate : deactivateDuration
+      const res = await toggleUserStatus(statusModal.user.id, statusReason, {
+        reasons: Array.from(deactivateReasons),
+        duration: finalDuration || 'permanent',
+        custom_reason: deactivateCustomReason,
+      })
+      const isDeactivated = res?.new_status === 'inactive'
+      const userName = statusModal.user.name || statusModal.user.email
+      showToast(
+        isDeactivated
+          ? `Account deactivated — notification email sent to ${userName}`
+          : `Account activated — notification email sent to ${userName}`
+      )
       // Refresh data
       await fetchData()
       setStatusModal({ user: null as any, open: false })
@@ -692,9 +715,20 @@ export default function AdminUsersPage() {
       {/* Page Hero */}
       <PageTitleHero
         title="User Management"
-        subtitle="View and manage all registered users, sellers, and administrators."
-        backgroundImage="/assets/page-hero/hero-bg.jpg"
+        description="View and manage all registered users, sellers, and administrators."
+        breadcrumb="Users"
       />
+
+      {/* ── Main dashboard container ── */}
+      <div className="relative rounded-2xl border border-slate-200 bg-white/60 shadow-sm overflow-visible">
+        {/* Left vertical connector */}
+        <div className="absolute left-4 top-6 bottom-6 w-[2px] bg-gradient-to-b from-blue-500/50 via-blue-300/40 to-blue-500/50" />
+
+        <div className="pl-8 pr-4 py-4 space-y-4">
+
+          {/* ── Section 1 Analytics ── */}
+          <div className="relative">
+            <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-semibold shadow-sm">1 Analytics</div>
 
       {/* KPI + Graph Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -816,6 +850,11 @@ export default function AdminUsersPage() {
           </div>
         </div>
       </div>
+          </div>{/* end section 1 */}
+
+          {/* ── Section 2 Filters ── */}
+          <div className="relative border-t border-slate-100 pt-4">
+            <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-semibold shadow-sm">2 Filters</div>
 
       {/* Filter Bar */}
       <div className="flex flex-wrap items-center gap-4">
@@ -870,6 +909,11 @@ export default function AdminUsersPage() {
           </div>
         )}
       </div>
+          </div>{/* end section 2 */}
+
+          {/* ── Section 3 Data ── */}
+          <div className="relative border-t border-slate-100 pt-4">
+            <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-semibold shadow-sm">3 Data</div>
 
       {/* Tables Container */}
       {loading ? (
@@ -924,6 +968,10 @@ export default function AdminUsersPage() {
           )}
         </div>
       )}
+          </div>{/* end section 3 */}
+
+        </div>{/* end pl-8 inner */}
+      </div>{/* end main dashboard container */}
 
       {/* Graph Expansion Modal */}
       {showGraphModal && (
@@ -1014,69 +1062,179 @@ export default function AdminUsersPage() {
       {/* Status Toggle Modal */}
       {statusModal.open && statusModal.user && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white w-full max-w-md border border-black/15 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-black/15">
-              <h2 className="text-lg font-semibold text-slate-900">
-                {statusModal.user.status === 'active' ? 'Deactivate' : 'Activate'} User
+          <div className="bg-white w-full max-w-lg rounded-xl border border-slate-200 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+              <h2 className="text-base font-bold text-slate-900">
+                {statusModal.user.status === 'active' ? 'Deactivate User' : 'Reactivate User'}
               </h2>
-              <button onClick={() => setStatusModal({ user: null as any, open: false })} className="p-1 hover:bg-slate-100">
-                <X className="w-5 h-5" />
+              <button onClick={() => setStatusModal({ user: null as any, open: false })} className="p-1 rounded-md hover:bg-slate-100 transition-colors">
+                <X className="w-4 h-4 text-slate-500" />
               </button>
             </div>
-            <div className="p-5 space-y-4">
-              <div className="flex items-center gap-3 p-3 bg-slate-50 border border-black/10">
+
+            <div className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
+              {/* User card */}
+              <div className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50">
                 {statusModal.user.avatar ? (
-                  <img src={statusModal.user.avatar} alt="" className="w-12 h-12 rounded-full object-cover" />
+                  <img src={statusModal.user.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
                 ) : (
-                  <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center text-lg font-medium">
+                  <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-sm font-bold text-slate-600">
                     {statusModal.user.name.charAt(0)}
                   </div>
                 )}
-                <div>
-                  <div className="font-medium text-slate-900">{statusModal.user.name}</div>
-                  <div className="text-sm text-slate-500">{statusModal.user.email}</div>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-900 truncate">{statusModal.user.name}</div>
+                  <div className="text-xs text-slate-500 truncate">{statusModal.user.email}</div>
                 </div>
+                <span className={`ml-auto px-2 py-0.5 rounded text-[10px] font-bold uppercase ${statusModal.user.role === 'admin' ? 'bg-purple-100 text-purple-700' : statusModal.user.role === 'seller' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}`}>
+                  {statusModal.user.role}
+                </span>
               </div>
 
-              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 text-amber-800 text-sm">
-                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-                <div>
+              {/* Warning banner */}
+              <div className="flex items-start gap-2.5 p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-800">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <p className="text-xs leading-relaxed">
                   {statusModal.user.status === 'active'
-                    ? 'This user will be deactivated and notified via email. They will not be able to log in until reactivated.'
-                    : 'This user will be reactivated and notified via email. They will regain access to their account.'}
-                </div>
+                    ? 'This user will be deactivated and notified via email. They will not be able to log in until the ban expires or is manually lifted.'
+                    : 'This user will be reactivated and notified via email. They will regain full access to their account.'}
+                </p>
               </div>
 
+              {/* Deactivation options (only when deactivating) */}
               {statusModal.user.status === 'active' && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Reason for deactivation</label>
-                  <textarea
-                    value={statusReason}
-                    onChange={(e) => setStatusReason(e.target.value)}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-black/15 text-base focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-                    placeholder="Enter reason (will be sent to user via email)..."
-                  />
-                </div>
+                <>
+                  {/* Section 1: Duration */}
+                  <div>
+                    <p className="text-xs font-bold text-slate-700 uppercase tracking-wide mb-2">Ban Duration</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { value: '1d', label: '1 Day' },
+                        { value: '3d', label: '3 Days' },
+                        { value: '7d', label: '7 Days' },
+                        { value: '14d', label: '14 Days' },
+                        { value: '30d', label: '30 Days' },
+                        { value: 'permanent', label: 'Until Re-activated' },
+                        { value: 'custom', label: 'Custom Date' },
+                      ].map((opt) => (
+                        <label
+                          key={opt.value}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium cursor-pointer transition-all ${
+                            deactivateDuration === opt.value
+                              ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500/30'
+                              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                          } ${opt.value === 'custom' ? 'col-span-2' : ''}`}
+                        >
+                          <input
+                            type="radio"
+                            name="ban-duration"
+                            value={opt.value}
+                            checked={deactivateDuration === opt.value}
+                            onChange={() => setDeactivateDuration(opt.value)}
+                            className="sr-only"
+                          />
+                          <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${
+                            deactivateDuration === opt.value ? 'border-blue-600' : 'border-slate-300'
+                          }`}>
+                            {deactivateDuration === opt.value && <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
+                          </div>
+                          {opt.label}
+                        </label>
+                      ))}
+                    </div>
+                    {deactivateDuration === 'custom' && (
+                      <input
+                        type="datetime-local"
+                        value={deactivateCustomDate}
+                        onChange={(e) => setDeactivateCustomDate(e.target.value)}
+                        min={new Date().toISOString().slice(0, 16)}
+                        className="mt-2 w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    )}
+                  </div>
+
+                  {/* Section 2: Reason Tags */}
+                  <div>
+                    <p className="text-xs font-bold text-slate-700 uppercase tracking-wide mb-2">Reason for Deactivation</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        'Foul language / Offensive content',
+                        'Spam / Unsolicited advertising',
+                        'Not following community guidelines',
+                        'Fraudulent activity',
+                        'Misleading product listings',
+                        'Harassment / Abuse',
+                        'Inactive / Abandoned account',
+                        'Multiple account violations',
+                      ].map((reason) => (
+                        <label
+                          key={reason}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition-all ${
+                            deactivateReasons.has(reason)
+                              ? 'border-red-400 bg-red-50 text-red-700 ring-1 ring-red-400/30'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={deactivateReasons.has(reason)}
+                            onChange={() => {
+                              setDeactivateReasons((prev) => {
+                                const next = new Set(prev)
+                                if (next.has(reason)) next.delete(reason)
+                                else next.add(reason)
+                                return next
+                              })
+                            }}
+                            className="sr-only"
+                          />
+                          <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${
+                            deactivateReasons.has(reason) ? 'bg-red-500 border-red-500' : 'border-slate-300'
+                          }`}>
+                            {deactivateReasons.has(reason) && (
+                              <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                            )}
+                          </div>
+                          {reason}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Custom reason */}
+                  <div>
+                    <p className="text-xs font-bold text-slate-700 uppercase tracking-wide mb-2">Additional Details <span className="font-normal text-slate-400">(optional)</span></p>
+                    <textarea
+                      value={deactivateCustomReason}
+                      onChange={(e) => setDeactivateCustomReason(e.target.value)}
+                      rows={2}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none placeholder:text-slate-400"
+                      placeholder="Add any additional context for this action…"
+                    />
+                  </div>
+                </>
               )}
             </div>
-            <div className="flex justify-end gap-2 p-5 border-t border-black/15 bg-slate-50">
+
+            {/* Footer */}
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
               <button
                 onClick={() => setStatusModal({ user: null as any, open: false })}
-                className="px-4 py-2 border border-black/15 text-base hover:bg-white"
+                className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleStatusConfirm}
-                disabled={statusLoading}
-                className={`px-4 py-2 text-white text-base font-medium disabled:opacity-50 ${
+                disabled={statusLoading || (statusModal.user.status === 'active' && deactivateReasons.size === 0 && !deactivateCustomReason.trim())}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors disabled:opacity-50 ${
                   statusModal.user.status === 'active'
                     ? 'bg-red-600 hover:bg-red-700'
-                    : 'bg-green-600 hover:bg-green-700'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
                 }`}
               >
-                {statusLoading ? 'Processing...' : statusModal.user.status === 'active' ? 'Deactivate' : 'Activate'}
+                {statusLoading ? 'Processing…' : statusModal.user.status === 'active' ? 'Deactivate Account' : 'Reactivate Account'}
               </button>
             </div>
           </div>
