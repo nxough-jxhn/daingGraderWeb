@@ -145,6 +145,7 @@ export default function HistoryPage() {
 
   /* modal */
   const [modalEntry, setModalEntry] = useState<DetailedHistoryEntry | null>(null)
+  const [modalFishTab, setModalFishTab] = useState(1)
 
   /* ── fetch images ── */
   useEffect(() => {
@@ -258,14 +259,14 @@ export default function HistoryPage() {
               title="Your Scans"
               icon={<User className="w-4 h-4 text-blue-600" />}
               entries={myScans}
-              onItemClick={setModalEntry}
+              onItemClick={(e) => { setModalFishTab(1); setModalEntry(e) }}
               emptyText="No scans from you yet."
             />
             <ImageContainer
               title="Other Users' Scans"
               icon={<Users className="w-4 h-4 text-indigo-600" />}
               entries={otherScans}
-              onItemClick={setModalEntry}
+              onItemClick={(e) => { setModalFishTab(1); setModalEntry(e) }}
               emptyText="No scans from other users yet."
             />
           </div>
@@ -475,56 +476,84 @@ export default function HistoryPage() {
               />
             </div>
             {/* Details panel */}
-            <div className="w-full lg:w-72 shrink-0 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-5 space-y-4">
+            <div className="w-full lg:w-96 shrink-0 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-5 space-y-4 max-h-[85vh] overflow-y-auto">
               <div>
                 <p className="text-white text-lg font-bold">{modalEntry.fish_type || 'Unknown Fish'}</p>
                 <p className="text-white/60 text-xs mt-0.5">
                   {formatDateLabel(modalEntry.timestamp)} at {formatTime(modalEntry.timestamp)}
                 </p>
               </div>
-              {/* Grade badge */}
+              {/* Fish selector buttons — when multiple fish */}
+              {modalEntry.per_fish && modalEntry.per_fish.length > 1 && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {modalEntry.per_fish.map((f) => (
+                    <button
+                      key={f.fish_index}
+                      type="button"
+                      onClick={() => setModalFishTab(f.fish_index)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        f.fish_index === modalFishTab
+                          ? 'bg-blue-500 text-white shadow-lg'
+                          : 'bg-white/10 text-white/70 hover:bg-white/20'
+                      }`}
+                    >
+                      Fish #{f.fish_index}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {/* Data section — driven by selected fish when multi-fish, or overall when single */}
               {(() => {
-                const gradeColor = modalEntry.grade === 'Export' ? 'bg-emerald-500' : modalEntry.grade === 'Local' ? 'bg-blue-500' : 'bg-red-500'
+                const pf = modalEntry.per_fish || []
+                const sel = pf.length > 1 ? (pf.find((f) => f.fish_index === modalFishTab) || pf[0]) : pf[0]
+                const confidence = sel ? sel.confidence : modalEntry.score ?? 0
+                const colorScore = sel ? sel.color_score : (modalEntry.color_analysis?.consistency_score ?? 0)
+                const colorGrade = sel ? sel.color_grade : (modalEntry.color_analysis?.quality_grade ?? 'N/A')
+                const moldSeverity = sel ? sel.mold_severity : (modalEntry.mold_analysis?.overall_severity ?? 'N/A')
+                const moldCoverage = sel ? sel.mold_coverage_percent : (modalEntry.mold_analysis?.avg_coverage_percent ?? 0)
+                const gradeColor = colorGrade === 'Export' ? 'bg-emerald-500' : colorGrade === 'Local' ? 'bg-blue-500' : 'bg-red-500'
+                const moldColor = (sel?.mold_detected ?? moldSeverity !== 'None') ? 'text-red-300' : 'text-emerald-300'
                 return (
-                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full ${gradeColor}`}>
-                    <span className="text-white text-sm font-bold">{modalEntry.grade || 'N/A'} Grade</span>
-                  </div>
+                  <>
+                    {/* Grade badge */}
+                    <div className="flex items-center gap-3">
+                      <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full ${gradeColor}`}>
+                        <span className="text-white text-sm font-bold">{colorGrade} Grade</span>
+                      </div>
+                      {sel && pf.length > 1 && (
+                        <span className="text-white/40 text-xs">Fish #{sel.fish_index}</span>
+                      )}
+                    </div>
+                    {/* Numerical data */}
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-white/70 text-sm">Confidence</span>
+                        <span className="text-white font-semibold">{Math.round(confidence * 100)}%</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-white/70 text-sm">AI Score</span>
+                        <span className="text-white font-semibold">{confidence.toFixed(4)}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-white/70 text-sm">Color Score</span>
+                        <span className="text-white font-semibold">{Math.round(colorScore)}%</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-white/70 text-sm">Color Grade</span>
+                        <span className="text-white font-semibold">{colorGrade}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-white/70 text-sm">Mold</span>
+                        <span className={`font-semibold ${moldColor}`}>{moldSeverity}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-white/70 text-sm">Mold Coverage</span>
+                        <span className="text-white font-semibold">{moldCoverage}%</span>
+                      </div>
+                    </div>
+                  </>
                 )
               })()}
-              {/* Numerical data */}
-              <div className="space-y-3">
-                {modalEntry.score != null && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-white/70 text-sm">Confidence</span>
-                    <span className="text-white font-semibold">{Math.round(modalEntry.score * 100)}%</span>
-                  </div>
-                )}
-                {modalEntry.score != null && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-white/70 text-sm">AI Score</span>
-                    <span className="text-white font-semibold">{modalEntry.score.toFixed(4)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between items-center">
-                  <span className="text-white/70 text-sm">Defect Est.</span>
-                  <span className="text-white font-semibold">{modalEntry.score != null ? `${Math.max(0, Math.round((1 - modalEntry.score) * 60))}%` : 'N/A'}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-white/70 text-sm">Mold Est.</span>
-                  <span className="text-white font-semibold">{modalEntry.score != null ? `${Math.max(0, Math.round((1 - modalEntry.score) * 30))}%` : 'N/A'}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-white/70 text-sm">Price Est.</span>
-                  <span className="text-white font-semibold">
-                    {(() => {
-                      if (modalEntry.score == null) return 'N/A'
-                      const priceMap: Record<string, [number, number]> = { Export: [350, 520], Local: [200, 349], Reject: [60, 199] }
-                      const [lo, hi] = priceMap[modalEntry.grade] ?? [0, 0]
-                      return `₱${Math.round(lo + (hi - lo) * modalEntry.score)}/kg`
-                    })()}
-                  </span>
-                </div>
-              </div>
               {/* Scanned by */}
               {modalEntry.user_name && (
                 <div className="pt-2 border-t border-white/10">

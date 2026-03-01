@@ -1,5 +1,2125 @@
 [
   {
+    "id": "scan_20260301_234729_233329",
+    "timestamp": "2026-03-01T23:47:29.233329",
+    "url": "https://res.cloudinary.com/dq2bhvzig/image/upload/v1772380053/daing-history/2026-03-01/scan_20260301_234729_233329.jpg",
+    "folder": "daing-history/2026-03-01",
+    "fish_type": "Danggit",
+    "grade": "Local",
+    "score": 0.8977,
+    "user_id": "698ec770e3bfaa0470f14408",
+    "user_name": "John Neo Bagon",
+    "detected": true,
+    "is_daing_detected": true,
+    "detections": [
+      {
+        "fish_type": "Danggit",
+        "confidence": 0.8977
+      },
+      {
+        "fish_type": "Danggit",
+        "confidence": 0.7872
+      }
+    ],
+    "per_fish": [
+      {
+        "fish_index": 1,
+        "fish_type": "Danggit",
+        "confidence": 0.8977,
+        "color_score": 71.5,
+        "color_grade": "Local",
+        "mold_severity": "Low",
+        "mold_coverage_percent": 1.64,
+        "mold_detected": true
+      },
+      {
+        "fish_index": 2,
+        "fish_type": "Danggit",
+        "confidence": 0.7872,
+        "color_score": 66.7,
+        "color_grade": "Local",
+        "mold_severity": "Severe",
+        "mold_coverage_percent": 15.17,
+        "mold_detected": true
+      }
+    ],
+    "color_analysis": {
+      "consistency_score": 69.0,
+      "quality_grade": "Local",
+      "color_stats": [
+        {
+          "region_index": 0,
+          "l_std": 20.01,
+          "a_std": 2.61,
+          "b_std": 4.38,
+          "l_mean": 83.18,
+          "a_mean": 130.12,
+          "b_mean": 139.12,
+          "combined_std": 11.75,
+          "rgb_std": [
+            17.84,
+            18.8,
+            19.43
+          ],
+          "pixel_count": 1428724,
+          "coverage_percent": 12.1
+        },
+        {
+          "region_index": 1,
+          "l_std": 26.81,
+          "a_std": 1.17,
+          "b_std": 1.94,
+          "l_mean": 85.46,
+          "a_mean": 128.41,
+          "b_mean": 129.7,
+          "combined_std": 14.18,
+          "rgb_std": [
+            26.08,
+            25.48,
+            24.04
+          ],
+          "pixel_count": 1355820,
+          "coverage_percent": 11.48
+        }
+      ],
+      "avg_std_deviation": 12.96,
+      "analysis_method": "segmentation"
+    },
+    "mold_analysis": {
+      "overall_severity": "Severe",
+      "avg_coverage_percent": 8.4,
+      "total_mold_pixels": 229153,
+      "total_fish_pixels": 2784544,
+      "coverage_ratio": 8.23,
+      "fish_analyzed": 2,
+      "fish_with_mold": 2,
+      "total_patches": 28,
+      "fish_results": [
+        {
+          "region_index": 0,
+          "mold_detected": true,
+          "mold_coverage_percent": 1.64,
+          "mold_pixel_count": 23484,
+          "fish_pixel_count": 1428724,
+          "severity": "Low",
+          "patch_count": 14,
+          "orientation": {
+            "angle": 94.43199920654297,
+            "head_side": "left",
+            "is_flipped": false,
+            "center": [
+              958.9732666015625,
+              1151.2286376953125
+            ],
+            "extreme_points": {
+              "leftmost": [
+                676,
+                670
+              ],
+              "rightmost": [
+                2653,
+                1439
+              ],
+              "topmost": [
+                1089,
+                564
+              ],
+              "bottommost": [
+                1018,
+                1766
+              ]
+            }
+          },
+          "keypoints": {
+            "snout_tip": [
+              0.0,
+              0.08811305070656691
+            ],
+            "tail_fork": [
+              0.9994944388270981,
+              0.7273482959268496
+            ],
+            "gill_position": [
+              0.19989888776541964,
+              0.4
+            ],
+            "dorsal_fin_base": [
+              0.3997977755308393,
+              0.2
+            ],
+            "belly_center": [
+              0.49974721941354905,
+              0.7
+            ],
+            "bounding_box": {
+              "x": 676,
+              "y": 564,
+              "w": 1978,
+              "h": 1203
+            }
+          },
+          "spatial_distribution": {
+            "zones": {
+              "top": {
+                "fish_pixels": 598953,
+                "coverage_pixels": 9189,
+                "coverage_percent": 1.53,
+                "patch_count": 4
+              },
+              "bottom": {
+                "fish_pixels": 829771,
+                "coverage_pixels": 14295,
+                "coverage_percent": 1.72,
+                "patch_count": 12
+              }
+            },
+            "total_patches": 14,
+            "fish_bounds": {
+              "x": 676,
+              "y": 564,
+              "w": 1978,
+              "h": 1203
+            }
+          },
+          "characteristics": {
+            "dominant_color": "gray",
+            "color_variance": 40.53,
+            "avg_darkness": 154.3,
+            "avg_hsv": [
+              30,
+              23,
+              101
+            ]
+          },
+          "mold_mask_coords": [
+            {
+              "id": 0,
+              "x": 1278,
+              "y": 1754,
+              "width": 70,
+              "height": 13,
+              "area": 553
+            },
+            {
+              "id": 1,
+              "x": 1017,
+              "y": 1754,
+              "width": 66,
+              "height": 13,
+              "area": 416
+            },
+            {
+              "id": 2,
+              "x": 2591,
+              "y": 1409,
+              "width": 58,
+              "height": 38,
+              "area": 739
+            },
+            {
+              "id": 3,
+              "x": 1386,
+              "y": 1346,
+              "width": 35,
+              "height": 42,
+              "area": 529
+            },
+            {
+              "id": 4,
+              "x": 2308,
+              "y": 1334,
+              "width": 72,
+              "height": 93,
+              "area": 2916
+            },
+            {
+              "id": 5,
+              "x": 2101,
+              "y": 1321,
+              "width": 41,
+              "height": 30,
+              "area": 434
+            },
+            {
+              "id": 6,
+              "x": 2269,
+              "y": 1208,
+              "width": 59,
+              "height": 24,
+              "area": 512
+            },
+            {
+              "id": 7,
+              "x": 2503,
+              "y": 1203,
+              "width": 50,
+              "height": 15,
+              "area": 418
+            },
+            {
+              "id": 8,
+              "x": 2374,
+              "y": 1203,
+              "width": 118,
+              "height": 25,
+              "area": 1111
+            },
+            {
+              "id": 9,
+              "x": 1923,
+              "y": 1194,
+              "width": 121,
+              "height": 78,
+              "area": 2858
+            },
+            {
+              "id": 10,
+              "x": 1820,
+              "y": 1091,
+              "width": 244,
+              "height": 140,
+              "area": 3392
+            },
+            {
+              "id": 11,
+              "x": 1705,
+              "y": 1070,
+              "width": 172,
+              "height": 131,
+              "area": 4708
+            },
+            {
+              "id": 12,
+              "x": 1697,
+              "y": 679,
+              "width": 42,
+              "height": 105,
+              "area": 2479
+            },
+            {
+              "id": 13,
+              "x": 1088,
+              "y": 564,
+              "width": 45,
+              "height": 13,
+              "area": 431
+            }
+          ]
+        },
+        {
+          "region_index": 1,
+          "mold_detected": true,
+          "mold_coverage_percent": 15.17,
+          "mold_pixel_count": 205669,
+          "fish_pixel_count": 1355820,
+          "severity": "Severe",
+          "patch_count": 14,
+          "orientation": {
+            "angle": 0.0,
+            "head_side": "left",
+            "is_flipped": true,
+            "center": [
+              5704.8427734375,
+              2469.50927734375
+            ],
+            "extreme_points": {
+              "leftmost": [
+                874,
+                1932
+              ],
+              "rightmost": [
+                2848,
+                2435
+              ],
+              "topmost": [
+                1015,
+                1903
+              ],
+              "bottommost": [
+                1184,
+                3117
+              ]
+            }
+          },
+          "keypoints": {
+            "snout_tip": [
+              0.0,
+              0.023868312757201648
+            ],
+            "tail_fork": [
+              0.999493670886076,
+              0.4378600823045268
+            ],
+            "gill_position": [
+              0.1998987341772152,
+              0.6
+            ],
+            "dorsal_fin_base": [
+              0.3997974683544304,
+              0.8
+            ],
+            "belly_center": [
+              0.499746835443038,
+              0.3
+            ],
+            "bounding_box": {
+              "x": 874,
+              "y": 1903,
+              "w": 1975,
+              "h": 1215
+            }
+          },
+          "spatial_distribution": {
+            "zones": {
+              "top": {
+                "fish_pixels": 737853,
+                "coverage_pixels": 54062,
+                "coverage_percent": 7.33,
+                "patch_count": 7
+              },
+              "bottom": {
+                "fish_pixels": 617967,
+                "coverage_pixels": 151607,
+                "coverage_percent": 24.53,
+                "patch_count": 9
+              }
+            },
+            "total_patches": 14,
+            "fish_bounds": {
+              "x": 874,
+              "y": 1903,
+              "w": 1975,
+              "h": 1215
+            }
+          },
+          "characteristics": {
+            "dominant_color": "gray",
+            "color_variance": 24.98,
+            "avg_darkness": 134.7,
+            "avg_hsv": [
+              60,
+              2,
+              120
+            ]
+          },
+          "mold_mask_coords": [
+            {
+              "id": 0,
+              "x": 1133,
+              "y": 2729,
+              "width": 66,
+              "height": 47,
+              "area": 1046
+            },
+            {
+              "id": 1,
+              "x": 1490,
+              "y": 2728,
+              "width": 246,
+              "height": 142,
+              "area": 18551
+            },
+            {
+              "id": 2,
+              "x": 1225,
+              "y": 2694,
+              "width": 248,
+              "height": 103,
+              "area": 7505
+            },
+            {
+              "id": 3,
+              "x": 1780,
+              "y": 2686,
+              "width": 51,
+              "height": 44,
+              "area": 472
+            },
+            {
+              "id": 4,
+              "x": 1830,
+              "y": 2594,
+              "width": 33,
+              "height": 51,
+              "area": 633
+            },
+            {
+              "id": 5,
+              "x": 1868,
+              "y": 2552,
+              "width": 106,
+              "height": 59,
+              "area": 1808
+            },
+            {
+              "id": 6,
+              "x": 1987,
+              "y": 2528,
+              "width": 29,
+              "height": 39,
+              "area": 664
+            },
+            {
+              "id": 7,
+              "x": 1580,
+              "y": 2524,
+              "width": 71,
+              "height": 46,
+              "area": 1404
+            },
+            {
+              "id": 8,
+              "x": 1285,
+              "y": 2396,
+              "width": 43,
+              "height": 40,
+              "area": 825
+            },
+            {
+              "id": 9,
+              "x": 874,
+              "y": 2315,
+              "width": 912,
+              "height": 446,
+              "area": 160590
+            },
+            {
+              "id": 10,
+              "x": 956,
+              "y": 2270,
+              "width": 47,
+              "height": 25,
+              "area": 470
+            },
+            {
+              "id": 11,
+              "x": 2165,
+              "y": 2264,
+              "width": 67,
+              "height": 47,
+              "area": 893
+            },
+            {
+              "id": 12,
+              "x": 2060,
+              "y": 2244,
+              "width": 169,
+              "height": 111,
+              "area": 4638
+            },
+            {
+              "id": 13,
+              "x": 1015,
+              "y": 1903,
+              "width": 175,
+              "height": 10,
+              "area": 1186
+            }
+          ]
+        }
+      ],
+      "spatial_summary": {
+        "zones": {
+          "head": {
+            "total_patches": 0,
+            "total_coverage": 0,
+            "fish_affected": 0
+          },
+          "body_upper": {
+            "total_patches": 0,
+            "total_coverage": 0,
+            "fish_affected": 0
+          },
+          "belly": {
+            "total_patches": 0,
+            "total_coverage": 0,
+            "fish_affected": 0
+          },
+          "tail": {
+            "total_patches": 0,
+            "total_coverage": 0,
+            "fish_affected": 0
+          }
+        },
+        "total_fish_analyzed": 2,
+        "most_affected_zone": null
+      },
+      "characteristics": {
+        "most_common_color": "gray",
+        "avg_darkness": 144.5,
+        "color_distribution": {
+          "gray": 2
+        }
+      },
+      "analysis_method": "segmentation_v2"
+    },
+    "quality_grade": "Local"
+  },
+  {
+    "id": "scan_20260301_233932_950688",
+    "timestamp": "2026-03-01T23:39:32.950688",
+    "url": "https://res.cloudinary.com/dq2bhvzig/image/upload/v1772379580/daing-history/2026-03-01/scan_20260301_233932_950688.jpg",
+    "folder": "daing-history/2026-03-01",
+    "fish_type": "Dalagang Bukid",
+    "grade": "Local",
+    "score": 0.8553,
+    "user_id": "698ec770e3bfaa0470f14408",
+    "user_name": "John Neo Bagon",
+    "detected": true,
+    "is_daing_detected": true,
+    "detections": [
+      {
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.8553
+      },
+      {
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.8522
+      },
+      {
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.7199
+      }
+    ],
+    "per_fish": [
+      {
+        "fish_index": 1,
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.8553,
+        "color_score": 60.3,
+        "color_grade": "Local",
+        "mold_severity": "Severe",
+        "mold_coverage_percent": 31.36,
+        "mold_detected": true
+      },
+      {
+        "fish_index": 2,
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.8522,
+        "color_score": 73.7,
+        "color_grade": "Local",
+        "mold_severity": "None",
+        "mold_coverage_percent": 0.21,
+        "mold_detected": false
+      },
+      {
+        "fish_index": 3,
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.7199,
+        "color_score": 72.6,
+        "color_grade": "Local",
+        "mold_severity": "None",
+        "mold_coverage_percent": 0.25,
+        "mold_detected": false
+      }
+    ],
+    "color_analysis": {
+      "consistency_score": 68.6,
+      "quality_grade": "Local",
+      "color_stats": [
+        {
+          "region_index": 0,
+          "l_std": 29.78,
+          "a_std": 2.19,
+          "b_std": 9.06,
+          "l_mean": 88.57,
+          "a_mean": 128.14,
+          "b_mean": 133.47,
+          "combined_std": 17.7,
+          "rgb_std": [
+            18.54,
+            27.26,
+            33.7
+          ],
+          "pixel_count": 1284872,
+          "coverage_percent": 10.88
+        },
+        {
+          "region_index": 1,
+          "l_std": 17.14,
+          "a_std": 2.46,
+          "b_std": 6.06,
+          "l_mean": 96.85,
+          "a_mean": 132.89,
+          "b_mean": 145.75,
+          "combined_std": 10.7,
+          "rgb_std": [
+            15.59,
+            16.22,
+            17.9
+          ],
+          "pixel_count": 1201011,
+          "coverage_percent": 10.17
+        },
+        {
+          "region_index": 2,
+          "l_std": 18.66,
+          "a_std": 2.38,
+          "b_std": 5.12,
+          "l_mean": 93.23,
+          "a_mean": 133.65,
+          "b_mean": 145.8,
+          "combined_std": 11.21,
+          "rgb_std": [
+            16.13,
+            17.69,
+            18.35
+          ],
+          "pixel_count": 1717582,
+          "coverage_percent": 14.54
+        }
+      ],
+      "avg_std_deviation": 13.2,
+      "analysis_method": "segmentation"
+    },
+    "mold_analysis": {
+      "overall_severity": "Severe",
+      "avg_coverage_percent": 10.61,
+      "total_mold_pixels": 409764,
+      "total_fish_pixels": 4203465,
+      "coverage_ratio": 9.75,
+      "fish_analyzed": 3,
+      "fish_with_mold": 1,
+      "total_patches": 9,
+      "fish_results": [
+        {
+          "region_index": 0,
+          "mold_detected": true,
+          "mold_coverage_percent": 31.36,
+          "mold_pixel_count": 402911,
+          "fish_pixel_count": 1284872,
+          "severity": "Severe",
+          "patch_count": 5,
+          "orientation": {
+            "angle": 0.0,
+            "head_side": "left",
+            "is_flipped": true,
+            "center": [
+              4087.574462890625,
+              1244.875732421875
+            ],
+            "extreme_points": {
+              "leftmost": [
+                1941,
+                738
+              ],
+              "rightmost": [
+                3936,
+                1424
+              ],
+              "topmost": [
+                1941,
+                738
+              ],
+              "bottommost": [
+                2063,
+                1819
+              ]
+            }
+          },
+          "keypoints": {
+            "snout_tip": [
+              0.0,
+              0.0
+            ],
+            "tail_fork": [
+              0.999498997995992,
+              0.634011090573013
+            ],
+            "gill_position": [
+              0.1998997995991984,
+              0.6
+            ],
+            "dorsal_fin_base": [
+              0.3997995991983968,
+              0.8
+            ],
+            "belly_center": [
+              0.499749498997996,
+              0.3
+            ],
+            "bounding_box": {
+              "x": 1941,
+              "y": 738,
+              "w": 1996,
+              "h": 1082
+            }
+          },
+          "spatial_distribution": {
+            "zones": {
+              "top": {
+                "fish_pixels": 708582,
+                "coverage_pixels": 230344,
+                "coverage_percent": 32.51,
+                "patch_count": 4
+              },
+              "bottom": {
+                "fish_pixels": 576290,
+                "coverage_pixels": 172567,
+                "coverage_percent": 29.94,
+                "patch_count": 1
+              }
+            },
+            "total_patches": 5,
+            "fish_bounds": {
+              "x": 1941,
+              "y": 738,
+              "w": 1996,
+              "h": 1082
+            }
+          },
+          "characteristics": {
+            "dominant_color": "blue",
+            "color_variance": 15.7,
+            "avg_darkness": 195.2,
+            "avg_hsv": [
+              105,
+              39,
+              65
+            ]
+          },
+          "mold_mask_coords": [
+            {
+              "id": 0,
+              "x": 1941,
+              "y": 1387,
+              "width": 1261,
+              "height": 432,
+              "area": 170274
+            },
+            {
+              "id": 1,
+              "x": 3812,
+              "y": 1230,
+              "width": 83,
+              "height": 32,
+              "area": 740
+            },
+            {
+              "id": 2,
+              "x": 2775,
+              "y": 976,
+              "width": 43,
+              "height": 30,
+              "area": 598
+            },
+            {
+              "id": 3,
+              "x": 2829,
+              "y": 962,
+              "width": 53,
+              "height": 66,
+              "area": 1662
+            },
+            {
+              "id": 4,
+              "x": 1941,
+              "y": 738,
+              "width": 1406,
+              "height": 391,
+              "area": 224389
+            }
+          ]
+        },
+        {
+          "region_index": 1,
+          "mold_detected": false,
+          "mold_coverage_percent": 0.21,
+          "mold_pixel_count": 2515,
+          "fish_pixel_count": 1201011,
+          "severity": "None",
+          "patch_count": 2,
+          "orientation": {
+            "angle": 11.316361427307129,
+            "head_side": "left",
+            "is_flipped": true,
+            "center": [
+              812.869873046875,
+              558.5960693359375
+            ],
+            "extreme_points": {
+              "leftmost": [
+                81,
+                1023
+              ],
+              "rightmost": [
+                1158,
+                1487
+              ],
+              "topmost": [
+                81,
+                1023
+              ],
+              "bottommost": [
+                361,
+                2969
+              ]
+            }
+          },
+          "keypoints": {
+            "snout_tip": [
+              0.0,
+              0.0
+            ],
+            "tail_fork": [
+              0.9990723562152134,
+              0.23831535695942477
+            ],
+            "gill_position": [
+              0.1998144712430427,
+              0.6
+            ],
+            "dorsal_fin_base": [
+              0.3996289424860854,
+              0.8
+            ],
+            "belly_center": [
+              0.4995361781076067,
+              0.3
+            ],
+            "bounding_box": {
+              "x": 81,
+              "y": 1023,
+              "w": 1078,
+              "h": 1947
+            }
+          },
+          "spatial_distribution": {
+            "zones": {
+              "top": {
+                "fish_pixels": 950464,
+                "coverage_pixels": 0,
+                "coverage_percent": 0.0,
+                "patch_count": 0
+              },
+              "bottom": {
+                "fish_pixels": 250547,
+                "coverage_pixels": 2515,
+                "coverage_percent": 1.0,
+                "patch_count": 2
+              }
+            },
+            "total_patches": 2,
+            "fish_bounds": {
+              "x": 81,
+              "y": 1023,
+              "w": 1078,
+              "h": 1947
+            }
+          },
+          "characteristics": {
+            "dominant_color": "gray",
+            "color_variance": 30.94,
+            "avg_darkness": 188.0,
+            "avg_hsv": [
+              173,
+              15,
+              69
+            ]
+          },
+          "mold_mask_coords": [
+            {
+              "id": 0,
+              "x": 180,
+              "y": 2754,
+              "width": 56,
+              "height": 24,
+              "area": 750
+            },
+            {
+              "id": 1,
+              "x": 530,
+              "y": 2295,
+              "width": 53,
+              "height": 71,
+              "area": 1583
+            }
+          ]
+        },
+        {
+          "region_index": 2,
+          "mold_detected": false,
+          "mold_coverage_percent": 0.25,
+          "mold_pixel_count": 4338,
+          "fish_pixel_count": 1717582,
+          "severity": "None",
+          "patch_count": 2,
+          "orientation": {
+            "angle": 1.1876919269561768,
+            "head_side": "left",
+            "is_flipped": false,
+            "center": [
+              595.6298217773438,
+              1180.4129638671875
+            ],
+            "extreme_points": {
+              "leftmost": [
+                19,
+                946
+              ],
+              "rightmost": [
+                1171,
+                1340
+              ],
+              "topmost": [
+                645,
+                205
+              ],
+              "bottommost": [
+                345,
+                2088
+              ]
+            }
+          },
+          "keypoints": {
+            "snout_tip": [
+              0.0,
+              0.39331210191082805
+            ],
+            "tail_fork": [
+              0.9991326973113617,
+              0.6024416135881104
+            ],
+            "gill_position": [
+              0.19982653946227236,
+              0.4
+            ],
+            "dorsal_fin_base": [
+              0.3996530789245447,
+              0.2
+            ],
+            "belly_center": [
+              0.49956634865568084,
+              0.7
+            ],
+            "bounding_box": {
+              "x": 19,
+              "y": 205,
+              "w": 1153,
+              "h": 1884
+            }
+          },
+          "spatial_distribution": {
+            "zones": {
+              "top": {
+                "fish_pixels": 824584,
+                "coverage_pixels": 2350,
+                "coverage_percent": 0.28,
+                "patch_count": 1
+              },
+              "bottom": {
+                "fish_pixels": 892998,
+                "coverage_pixels": 1988,
+                "coverage_percent": 0.22,
+                "patch_count": 1
+              }
+            },
+            "total_patches": 2,
+            "fish_bounds": {
+              "x": 19,
+              "y": 205,
+              "w": 1153,
+              "h": 1884
+            }
+          },
+          "characteristics": {
+            "dominant_color": "gray",
+            "color_variance": 45.74,
+            "avg_darkness": 124.6,
+            "avg_hsv": [
+              21,
+              25,
+              134
+            ]
+          },
+          "mold_mask_coords": [
+            {
+              "id": 0,
+              "x": 19,
+              "y": 1169,
+              "width": 14,
+              "height": 207,
+              "area": 1770
+            },
+            {
+              "id": 1,
+              "x": 19,
+              "y": 954,
+              "width": 23,
+              "height": 147,
+              "area": 2187
+            }
+          ]
+        }
+      ],
+      "spatial_summary": {
+        "zones": {
+          "head": {
+            "total_patches": 0,
+            "total_coverage": 0,
+            "fish_affected": 0
+          },
+          "body_upper": {
+            "total_patches": 0,
+            "total_coverage": 0,
+            "fish_affected": 0
+          },
+          "belly": {
+            "total_patches": 0,
+            "total_coverage": 0,
+            "fish_affected": 0
+          },
+          "tail": {
+            "total_patches": 0,
+            "total_coverage": 0,
+            "fish_affected": 0
+          }
+        },
+        "total_fish_analyzed": 3,
+        "most_affected_zone": null
+      },
+      "characteristics": {
+        "most_common_color": "gray",
+        "avg_darkness": 169.3,
+        "color_distribution": {
+          "blue": 1,
+          "gray": 2
+        }
+      },
+      "analysis_method": "segmentation_v2"
+    },
+    "quality_grade": "Local"
+  },
+  {
+    "id": "scan_20260301_232418_157399",
+    "timestamp": "2026-03-01T23:24:18.157399",
+    "url": "https://res.cloudinary.com/dq2bhvzig/image/upload/v1772378661/daing-history/2026-03-01/scan_20260301_232418_157399.jpg",
+    "folder": "daing-history/2026-03-01",
+    "fish_type": "Dalagang Bukid",
+    "grade": "Local",
+    "score": 0.8531,
+    "user_id": "698ec770e3bfaa0470f14408",
+    "user_name": "John Neo Bagon",
+    "detected": true,
+    "is_daing_detected": true,
+    "detections": [
+      {
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.8531
+      },
+      {
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.7627
+      },
+      {
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.7542
+      }
+    ],
+    "per_fish": [
+      {
+        "fish_index": 1,
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.8531,
+        "color_score": 61.3,
+        "color_grade": "Local",
+        "mold_severity": "None",
+        "mold_coverage_percent": 0.06,
+        "mold_detected": false
+      },
+      {
+        "fish_index": 2,
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.7627,
+        "color_score": 59.9,
+        "color_grade": "Local",
+        "mold_severity": "None",
+        "mold_coverage_percent": 0.46,
+        "mold_detected": false
+      },
+      {
+        "fish_index": 3,
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.7542,
+        "color_score": 59.6,
+        "color_grade": "Local",
+        "mold_severity": "Low",
+        "mold_coverage_percent": 0.74,
+        "mold_detected": true
+      }
+    ],
+    "color_analysis": {
+      "consistency_score": 60.3,
+      "quality_grade": "Local",
+      "color_stats": [
+        {
+          "region_index": 0,
+          "l_std": 29.73,
+          "a_std": 3.08,
+          "b_std": 6.06,
+          "l_mean": 101.11,
+          "a_mean": 133.04,
+          "b_mean": 150.48,
+          "combined_std": 17.15,
+          "rgb_std": [
+            26.22,
+            28.38,
+            29.55
+          ],
+          "pixel_count": 1671870,
+          "coverage_percent": 14.16
+        },
+        {
+          "region_index": 1,
+          "l_std": 30.6,
+          "a_std": 3.49,
+          "b_std": 6.93,
+          "l_mean": 106.79,
+          "a_mean": 132.02,
+          "b_mean": 150.69,
+          "combined_std": 17.91,
+          "rgb_std": [
+            27.76,
+            29.33,
+            30.71
+          ],
+          "pixel_count": 1273443,
+          "coverage_percent": 10.78
+        },
+        {
+          "region_index": 2,
+          "l_std": 32.04,
+          "a_std": 2.78,
+          "b_std": 5.61,
+          "l_mean": 109.2,
+          "a_mean": 131.84,
+          "b_mean": 149.47,
+          "combined_std": 18.12,
+          "rgb_std": [
+            30.53,
+            31.16,
+            31.04
+          ],
+          "pixel_count": 1304266,
+          "coverage_percent": 11.04
+        }
+      ],
+      "avg_std_deviation": 17.73,
+      "analysis_method": "segmentation"
+    },
+    "mold_analysis": {
+      "overall_severity": "Low",
+      "avg_coverage_percent": 0.42,
+      "total_mold_pixels": 16538,
+      "total_fish_pixels": 4249579,
+      "coverage_ratio": 0.39,
+      "fish_analyzed": 3,
+      "fish_with_mold": 1,
+      "total_patches": 9,
+      "fish_results": [
+        {
+          "region_index": 0,
+          "mold_detected": false,
+          "mold_coverage_percent": 0.06,
+          "mold_pixel_count": 1074,
+          "fish_pixel_count": 1671870,
+          "severity": "None",
+          "patch_count": 2,
+          "orientation": {
+            "angle": 96.63280487060547,
+            "head_side": "left",
+            "is_flipped": false,
+            "center": [
+              1774.87060546875,
+              2678.2939453125
+            ],
+            "extreme_points": {
+              "leftmost": [
+                763,
+                2394
+              ],
+              "rightmost": [
+                2752,
+                2748
+              ],
+              "topmost": [
+                1489,
+                2139
+              ],
+              "bottommost": [
+                1740,
+                3217
+              ]
+            }
+          },
+          "keypoints": {
+            "snout_tip": [
+              0.0,
+              0.23632993512511585
+            ],
+            "tail_fork": [
+              0.9994974874371859,
+              0.5644114921223355
+            ],
+            "gill_position": [
+              0.19989949748743718,
+              0.4
+            ],
+            "dorsal_fin_base": [
+              0.39979899497487437,
+              0.2
+            ],
+            "belly_center": [
+              0.49974874371859296,
+              0.7
+            ],
+            "bounding_box": {
+              "x": 763,
+              "y": 2139,
+              "w": 1990,
+              "h": 1079
+            }
+          },
+          "spatial_distribution": {
+            "zones": {
+              "top": {
+                "fish_pixels": 833064,
+                "coverage_pixels": 1074,
+                "coverage_percent": 0.13,
+                "patch_count": 2
+              },
+              "bottom": {
+                "fish_pixels": 838806,
+                "coverage_pixels": 0,
+                "coverage_percent": 0.0,
+                "patch_count": 0
+              }
+            },
+            "total_patches": 2,
+            "fish_bounds": {
+              "x": 763,
+              "y": 2139,
+              "w": 1990,
+              "h": 1079
+            }
+          },
+          "characteristics": {
+            "dominant_color": "yellow-brown",
+            "color_variance": 63.54,
+            "avg_darkness": 142.8,
+            "avg_hsv": [
+              16,
+              37,
+              118
+            ]
+          },
+          "mold_mask_coords": [
+            {
+              "id": 0,
+              "x": 1780,
+              "y": 2139,
+              "width": 61,
+              "height": 12,
+              "area": 433
+            },
+            {
+              "id": 1,
+              "x": 1490,
+              "y": 2139,
+              "width": 47,
+              "height": 14,
+              "area": 516
+            }
+          ]
+        },
+        {
+          "region_index": 1,
+          "mold_detected": false,
+          "mold_coverage_percent": 0.46,
+          "mold_pixel_count": 5798,
+          "fish_pixel_count": 1273443,
+          "severity": "None",
+          "patch_count": 2,
+          "orientation": {
+            "angle": 0.0,
+            "head_side": "right",
+            "is_flipped": true,
+            "center": [
+              -1112.8155517578125,
+              2595.014892578125
+            ],
+            "extreme_points": {
+              "leftmost": [
+                6,
+                2611
+              ],
+              "rightmost": [
+                2014,
+                3179
+              ],
+              "topmost": [
+                1547,
+                2127
+              ],
+              "bottommost": [
+                1740,
+                3217
+              ]
+            }
+          },
+          "keypoints": {
+            "snout_tip": [
+              0.9995022399203584,
+              0.9642529789184234
+            ],
+            "tail_fork": [
+              0.0,
+              0.44362969752520626
+            ],
+            "gill_position": [
+              0.7996017919362868,
+              0.6
+            ],
+            "dorsal_fin_base": [
+              0.599701343952215,
+              0.8
+            ],
+            "belly_center": [
+              0.4997511199601792,
+              0.3
+            ],
+            "bounding_box": {
+              "x": 6,
+              "y": 2127,
+              "w": 2009,
+              "h": 1091
+            }
+          },
+          "spatial_distribution": {
+            "zones": {
+              "top": {
+                "fish_pixels": 707119,
+                "coverage_pixels": 1298,
+                "coverage_percent": 0.18,
+                "patch_count": 1
+              },
+              "bottom": {
+                "fish_pixels": 566324,
+                "coverage_pixels": 4500,
+                "coverage_percent": 0.79,
+                "patch_count": 1
+              }
+            },
+            "total_patches": 2,
+            "fish_bounds": {
+              "x": 6,
+              "y": 2127,
+              "w": 2009,
+              "h": 1091
+            }
+          },
+          "characteristics": {
+            "dominant_color": "gray",
+            "color_variance": 45.94,
+            "avg_darkness": 151.4,
+            "avg_hsv": [
+              30,
+              25,
+              104
+            ]
+          },
+          "mold_mask_coords": [
+            {
+              "id": 0,
+              "x": 6,
+              "y": 2741,
+              "width": 76,
+              "height": 150,
+              "area": 4315
+            },
+            {
+              "id": 1,
+              "x": 1565,
+              "y": 2127,
+              "width": 134,
+              "height": 13,
+              "area": 1151
+            }
+          ]
+        },
+        {
+          "region_index": 2,
+          "mold_detected": true,
+          "mold_coverage_percent": 0.74,
+          "mold_pixel_count": 9666,
+          "fish_pixel_count": 1304266,
+          "severity": "Low",
+          "patch_count": 5,
+          "orientation": {
+            "angle": 75.27191925048828,
+            "head_side": "right",
+            "is_flipped": false,
+            "center": [
+              2050.8583984375,
+              1253.43798828125
+            ],
+            "extreme_points": {
+              "leftmost": [
+                236,
+                1479
+              ],
+              "rightmost": [
+                2150,
+                1657
+              ],
+              "topmost": [
+                1827,
+                750
+              ],
+              "bottommost": [
+                1275,
+                1915
+              ]
+            }
+          },
+          "keypoints": {
+            "snout_tip": [
+              0.9994778067885117,
+              0.7778730703259005
+            ],
+            "tail_fork": [
+              0.0,
+              0.6252144082332761
+            ],
+            "gill_position": [
+              0.7995822454308095,
+              0.4
+            ],
+            "dorsal_fin_base": [
+              0.599686684073107,
+              0.2
+            ],
+            "belly_center": [
+              0.49973890339425586,
+              0.7
+            ],
+            "bounding_box": {
+              "x": 236,
+              "y": 750,
+              "w": 1915,
+              "h": 1166
+            }
+          },
+          "spatial_distribution": {
+            "zones": {
+              "top": {
+                "fish_pixels": 531931,
+                "coverage_pixels": 5802,
+                "coverage_percent": 1.09,
+                "patch_count": 1
+              },
+              "bottom": {
+                "fish_pixels": 761853,
+                "coverage_pixels": 3856,
+                "coverage_percent": 0.51,
+                "patch_count": 4
+              }
+            },
+            "total_patches": 5,
+            "fish_bounds": {
+              "x": 236,
+              "y": 750,
+              "w": 1915,
+              "h": 1166
+            }
+          },
+          "characteristics": {
+            "dominant_color": "gray",
+            "color_variance": 44.92,
+            "avg_darkness": 136.2,
+            "avg_hsv": [
+              33,
+              21,
+              120
+            ]
+          },
+          "mold_mask_coords": [
+            {
+              "id": 0,
+              "x": 1342,
+              "y": 1888,
+              "width": 170,
+              "height": 28,
+              "area": 1744
+            },
+            {
+              "id": 1,
+              "x": 1638,
+              "y": 1869,
+              "width": 50,
+              "height": 16,
+              "area": 509
+            },
+            {
+              "id": 2,
+              "x": 462,
+              "y": 1696,
+              "width": 49,
+              "height": 16,
+              "area": 682
+            },
+            {
+              "id": 3,
+              "x": 236,
+              "y": 1469,
+              "width": 30,
+              "height": 51,
+              "area": 531
+            },
+            {
+              "id": 4,
+              "x": 381,
+              "y": 750,
+              "width": 59,
+              "height": 149,
+              "area": 5566
+            }
+          ]
+        }
+      ],
+      "spatial_summary": {
+        "zones": {
+          "head": {
+            "total_patches": 0,
+            "total_coverage": 0,
+            "fish_affected": 0
+          },
+          "body_upper": {
+            "total_patches": 0,
+            "total_coverage": 0,
+            "fish_affected": 0
+          },
+          "belly": {
+            "total_patches": 0,
+            "total_coverage": 0,
+            "fish_affected": 0
+          },
+          "tail": {
+            "total_patches": 0,
+            "total_coverage": 0,
+            "fish_affected": 0
+          }
+        },
+        "total_fish_analyzed": 3,
+        "most_affected_zone": null
+      },
+      "characteristics": {
+        "most_common_color": "gray",
+        "avg_darkness": 143.5,
+        "color_distribution": {
+          "yellow-brown": 1,
+          "gray": 2
+        }
+      },
+      "analysis_method": "segmentation_v2"
+    },
+    "quality_grade": "Local"
+  },
+  {
+    "id": "scan_20260301_232321_175460",
+    "timestamp": "2026-03-01T23:23:21.175460",
+    "url": "https://res.cloudinary.com/dq2bhvzig/image/upload/v1772378609/daing-history/2026-03-01/scan_20260301_232321_175460.jpg",
+    "folder": "daing-history/2026-03-01",
+    "fish_type": "Dalagang Bukid",
+    "grade": "Local",
+    "score": 0.83,
+    "user_id": "698ec770e3bfaa0470f14408",
+    "user_name": "John Neo Bagon",
+    "detected": true,
+    "is_daing_detected": true,
+    "detections": [
+      {
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.83
+      }
+    ],
+    "per_fish": [
+      {
+        "fish_index": 1,
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.83,
+        "color_score": 67.3,
+        "color_grade": "Local",
+        "mold_severity": "Low",
+        "mold_coverage_percent": 3.87,
+        "mold_detected": true
+      }
+    ],
+    "color_analysis": {
+      "consistency_score": 67.3,
+      "quality_grade": "Local",
+      "color_stats": [
+        {
+          "region_index": 0,
+          "l_std": 22.61,
+          "a_std": 3.17,
+          "b_std": 6.99,
+          "l_mean": 107.75,
+          "a_mean": 132.07,
+          "b_mean": 144.38,
+          "combined_std": 13.84,
+          "rgb_std": [
+            20.6,
+            22.12,
+            23.5
+          ],
+          "pixel_count": 1265370,
+          "coverage_percent": 10.72
+        }
+      ],
+      "avg_std_deviation": 13.84,
+      "analysis_method": "segmentation"
+    },
+    "mold_analysis": {
+      "overall_severity": "Low",
+      "avg_coverage_percent": 3.87,
+      "total_mold_pixels": 48941,
+      "total_fish_pixels": 1265370,
+      "coverage_ratio": 3.87,
+      "fish_analyzed": 1,
+      "fish_with_mold": 1,
+      "total_patches": 8,
+      "fish_results": [
+        {
+          "region_index": 0,
+          "mold_detected": true,
+          "mold_coverage_percent": 3.87,
+          "mold_pixel_count": 48941,
+          "fish_pixel_count": 1265370,
+          "severity": "Low",
+          "patch_count": 8,
+          "orientation": {
+            "angle": 0.0,
+            "head_side": "left",
+            "is_flipped": false,
+            "center": [
+              3901.416748046875,
+              834.8060913085938
+            ],
+            "extreme_points": {
+              "leftmost": [
+                1556,
+                392
+              ],
+              "rightmost": [
+                3589,
+                742
+              ],
+              "topmost": [
+                1557,
+                391
+              ],
+              "bottommost": [
+                1557,
+                1406
+              ]
+            }
+          },
+          "keypoints": {
+            "snout_tip": [
+              0.0,
+              0.000984251968503937
+            ],
+            "tail_fork": [
+              0.9995083579154376,
+              0.3454724409448819
+            ],
+            "gill_position": [
+              0.19990167158308753,
+              0.4
+            ],
+            "dorsal_fin_base": [
+              0.39980334316617505,
+              0.2
+            ],
+            "belly_center": [
+              0.4997541789577188,
+              0.7
+            ],
+            "bounding_box": {
+              "x": 1556,
+              "y": 391,
+              "w": 2034,
+              "h": 1016
+            }
+          },
+          "spatial_distribution": {
+            "zones": {
+              "top": {
+                "fish_pixels": 660799,
+                "coverage_pixels": 7370,
+                "coverage_percent": 1.12,
+                "patch_count": 4
+              },
+              "bottom": {
+                "fish_pixels": 604571,
+                "coverage_pixels": 41542,
+                "coverage_percent": 6.87,
+                "patch_count": 5
+              }
+            },
+            "total_patches": 8,
+            "fish_bounds": {
+              "x": 1556,
+              "y": 391,
+              "w": 2034,
+              "h": 1016
+            }
+          },
+          "characteristics": {
+            "dominant_color": "gray",
+            "color_variance": 34.0,
+            "avg_darkness": 173.2,
+            "avg_hsv": [
+              103,
+              27,
+              86
+            ]
+          },
+          "mold_mask_coords": [
+            {
+              "id": 0,
+              "x": 1844,
+              "y": 1395,
+              "width": 118,
+              "height": 12,
+              "area": 805
+            },
+            {
+              "id": 1,
+              "x": 1556,
+              "y": 1388,
+              "width": 63,
+              "height": 19,
+              "area": 511
+            },
+            {
+              "id": 2,
+              "x": 2035,
+              "y": 1059,
+              "width": 820,
+              "height": 324,
+              "area": 32307
+            },
+            {
+              "id": 3,
+              "x": 3007,
+              "y": 896,
+              "width": 53,
+              "height": 53,
+              "area": 1770
+            },
+            {
+              "id": 4,
+              "x": 3102,
+              "y": 844,
+              "width": 137,
+              "height": 115,
+              "area": 8539
+            },
+            {
+              "id": 5,
+              "x": 3026,
+              "y": 841,
+              "width": 69,
+              "height": 53,
+              "area": 1519
+            },
+            {
+              "id": 6,
+              "x": 3477,
+              "y": 809,
+              "width": 59,
+              "height": 25,
+              "area": 474
+            },
+            {
+              "id": 7,
+              "x": 1556,
+              "y": 391,
+              "width": 118,
+              "height": 13,
+              "area": 1145
+            }
+          ]
+        }
+      ],
+      "spatial_summary": {
+        "zones": {
+          "head": {
+            "total_patches": 0,
+            "total_coverage": 0,
+            "fish_affected": 0
+          },
+          "body_upper": {
+            "total_patches": 0,
+            "total_coverage": 0,
+            "fish_affected": 0
+          },
+          "belly": {
+            "total_patches": 0,
+            "total_coverage": 0,
+            "fish_affected": 0
+          },
+          "tail": {
+            "total_patches": 0,
+            "total_coverage": 0,
+            "fish_affected": 0
+          }
+        },
+        "total_fish_analyzed": 1,
+        "most_affected_zone": null
+      },
+      "characteristics": {
+        "most_common_color": "gray",
+        "avg_darkness": 173.2,
+        "color_distribution": {
+          "gray": 1
+        }
+      },
+      "analysis_method": "segmentation_v2"
+    },
+    "quality_grade": "Local"
+  },
+  {
+    "id": "scan_20260301_224837_111474",
+    "timestamp": "2026-03-01T22:48:37.111474",
+    "url": "https://res.cloudinary.com/dq2bhvzig/image/upload/v1772376520/daing-history/2026-03-01/scan_20260301_224837_111474.jpg",
+    "folder": "daing-history/2026-03-01",
+    "fish_type": "Dalagang Bukid",
+    "grade": "Local",
+    "score": 0.8774,
+    "user_id": "698ec770e3bfaa0470f14408",
+    "user_name": "John Neo Bagon",
+    "detected": true,
+    "is_daing_detected": true,
+    "detections": [
+      {
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.8774
+      },
+      {
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.8737
+      },
+      {
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.829
+      }
+    ],
+    "color_analysis": {
+      "consistency_score": 61.2,
+      "quality_grade": "Local",
+      "color_stats": [
+        {
+          "region_index": 0,
+          "l_std": 28.93,
+          "a_std": 2.89,
+          "b_std": 7.07,
+          "l_mean": 141.65,
+          "a_mean": 133.49,
+          "b_mean": 147.64,
+          "combined_std": 16.95,
+          "rgb_std": [
+            28.14,
+            29.05,
+            30.75
+          ],
+          "pixel_count": 1205882,
+          "coverage_percent": 10.21
+        },
+        {
+          "region_index": 1,
+          "l_std": 29.44,
+          "a_std": 2.93,
+          "b_std": 8.48,
+          "l_mean": 142.14,
+          "a_mean": 132.48,
+          "b_mean": 148.68,
+          "combined_std": 17.57,
+          "rgb_std": [
+            28.03,
+            29.39,
+            32.01
+          ],
+          "pixel_count": 1305048,
+          "coverage_percent": 11.05
+        },
+        {
+          "region_index": 2,
+          "l_std": 29.76,
+          "a_std": 2.17,
+          "b_std": 6.52,
+          "l_mean": 150.71,
+          "a_mean": 131.8,
+          "b_mean": 150.95,
+          "combined_std": 17.05,
+          "rgb_std": [
+            29.92,
+            30.27,
+            30.77
+          ],
+          "pixel_count": 1185526,
+          "coverage_percent": 10.04
+        }
+      ],
+      "avg_std_deviation": 17.19,
+      "analysis_method": "segmentation"
+    },
+    "mold_analysis": {
+      "overall_severity": "Low",
+      "avg_coverage_percent": 1.32,
+      "fish_with_mold": 3,
+      "total_patches": 32
+    },
+    "quality_grade": "Local"
+  },
+  {
+    "id": "scan_20260301_224714_938666",
+    "timestamp": "2026-03-01T22:47:14.938666",
+    "url": "https://res.cloudinary.com/dq2bhvzig/image/upload/v1772376441/daing-history/2026-03-01/scan_20260301_224714_938666.jpg",
+    "folder": "daing-history/2026-03-01",
+    "fish_type": "Dalagang Bukid",
+    "grade": "Reject",
+    "score": 0.9065,
+    "user_id": "698ec770e3bfaa0470f14408",
+    "user_name": "John Neo Bagon",
+    "detected": true,
+    "is_daing_detected": true,
+    "detections": [
+      {
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.9065
+      },
+      {
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.8673
+      },
+      {
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.849
+      },
+      {
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.8252
+      },
+      {
+        "fish_type": "Dalagang Bukid",
+        "confidence": 0.7774
+      }
+    ],
+    "color_analysis": {
+      "consistency_score": 49.3,
+      "quality_grade": "Reject",
+      "color_stats": [
+        {
+          "region_index": 0,
+          "l_std": 46.01,
+          "a_std": 2.88,
+          "b_std": 6.43,
+          "l_mean": 158.6,
+          "a_mean": 120.94,
+          "b_mean": 128.38,
+          "combined_std": 25.33,
+          "rgb_std": [
+            43.62,
+            46.54,
+            49.02
+          ],
+          "pixel_count": 1278379,
+          "coverage_percent": 10.83
+        },
+        {
+          "region_index": 1,
+          "l_std": 48.58,
+          "a_std": 2.73,
+          "b_std": 6.06,
+          "l_mean": 153.11,
+          "a_mean": 120.77,
+          "b_mean": 128.18,
+          "combined_std": 26.49,
+          "rgb_std": [
+            46.23,
+            49.11,
+            50.45
+          ],
+          "pixel_count": 1674156,
+          "coverage_percent": 14.18
+        },
+        {
+          "region_index": 2,
+          "l_std": 45.67,
+          "a_std": 3.08,
+          "b_std": 4.86,
+          "l_mean": 164.23,
+          "a_mean": 123.2,
+          "b_mean": 144.55,
+          "combined_std": 24.82,
+          "rgb_std": [
+            45.8,
+            46.68,
+            44.2
+          ],
+          "pixel_count": 1296542,
+          "coverage_percent": 10.98
+        },
+        {
+          "region_index": 3,
+          "l_std": 44.28,
+          "a_std": 2.3,
+          "b_std": 6.2,
+          "l_mean": 164.33,
+          "a_mean": 120.25,
+          "b_mean": 130.45,
+          "combined_std": 24.26,
+          "rgb_std": [
+            42.05,
+            45.4,
+            46.42
+          ],
+          "pixel_count": 1134000,
+          "coverage_percent": 9.6
+        },
+        {
+          "region_index": 4,
+          "l_std": 41.49,
+          "a_std": 2.55,
+          "b_std": 5.91,
+          "l_mean": 168.63,
+          "a_mean": 122.12,
+          "b_mean": 143.05,
+          "combined_std": 22.86,
+          "rgb_std": [
+            41.24,
+            42.49,
+            41.94
+          ],
+          "pixel_count": 1102238,
+          "coverage_percent": 9.33
+        }
+      ],
+      "avg_std_deviation": 24.75,
+      "analysis_method": "segmentation"
+    },
+    "mold_analysis": {
+      "overall_severity": "Severe",
+      "avg_coverage_percent": 71.47,
+      "fish_with_mold": 5,
+      "total_patches": 17
+    },
+    "quality_grade": "Reject"
+  },
+  {
     "id": "scan_20260223_094953_857190",
     "timestamp": "2026-02-23T09:49:53.857190",
     "url": "https://res.cloudinary.com/dq2bhvzig/image/upload/v1771811403/daing-history/2026-02-23/scan_20260223_094953_857190.jpg",

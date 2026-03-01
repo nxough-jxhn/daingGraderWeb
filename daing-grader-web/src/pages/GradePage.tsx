@@ -4,9 +4,9 @@
  */
 import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { analyzeImage, type AnalyzeResult } from '../services/api'
+import { analyzeImage, type AnalyzeResult, type PerFishResult } from '../services/api'
 import PageTitleHero from '../components/layout/PageTitleHero'
-import { Upload, Camera, Loader2, Lightbulb, RotateCcw, X, History, AlertTriangle, Fish, ShieldCheck, TrendingUp, Bug, FlaskConical, DollarSign } from 'lucide-react'
+import { Upload, Camera, Loader2, Lightbulb, RotateCcw, X, History, AlertTriangle, Fish, ShieldCheck, TrendingUp, Palette, FlaskConical } from 'lucide-react'
 import { DAING_TYPES } from '../data/daingTypes'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
@@ -30,33 +30,91 @@ const GRADE_STYLES: Record<string, { bg: string; text: string; ring: string }> =
   Reject: { bg: 'bg-red-50',     text: 'text-red-700',     ring: 'ring-red-300' },
 }
 
-/* Simulated metrics derived from real AI score — placeholder until backend exposes these */
-function deriveMetrics(result: AnalyzeResult) {
-  const { score, grade, fish_type, detected } = result
-  const confidence = detected ? Math.round(score * 100) : 0
-  // Simulated defect / mold percentages inversely related to score
-  const defect  = detected ? Math.max(0, Math.round((1 - score) * 60 + Math.random() * 5)) : 0
-  const mold    = detected ? Math.max(0, Math.round((1 - score) * 30 + Math.random() * 3)) : 0
-  // Price estimate based on grade (placeholder ₱/kg ranges)
-  const priceMap: Record<string, [number, number]> = {
-    Export: [350, 520],
-    Local:  [200, 349],
-    Reject: [60, 199],
-  }
-  const [lo, hi] = priceMap[grade] ?? [0, 0]
-  const price = detected ? Math.round(lo + (hi - lo) * score) : 0
-  return { confidence, defect, mold, price, grade, fish_type, detected }
+/* Severity color map for mold badges */
+const MOLD_SEVERITY_STYLES: Record<string, { bg: string; text: string }> = {
+  None:     { bg: 'bg-emerald-100', text: 'text-emerald-700' },
+  Low:      { bg: 'bg-yellow-100',  text: 'text-yellow-700' },
+  Moderate: { bg: 'bg-orange-100',  text: 'text-orange-700' },
+  Severe:   { bg: 'bg-red-100',     text: 'text-red-700' },
 }
 
 /* ─── Stat card used inside result panel ─── */
-function StatCard({ icon, label, value, sub, color }: { icon: React.ReactNode; label: string; value: string; sub?: string; color: string }) {
+function StatCard({ icon, label, value, sub, note, color }: { icon: React.ReactNode; label: string; value: string; sub?: string; note?: string; color: string }) {
   return (
-    <div className={`flex items-start gap-3 rounded-xl border p-4 ${color}`}>
-      <div className="mt-0.5 shrink-0">{icon}</div>
-      <div className="min-w-0">
-        <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</p>
-        <p className="text-lg font-bold text-slate-900 leading-tight">{value}</p>
+    <div className={`flex items-start gap-4 rounded-xl border p-4 ${color}`}>
+      <div className="mt-1 shrink-0">{icon}</div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</p>
+          <p className="text-xl font-bold text-slate-900 leading-tight whitespace-nowrap">{value}</p>
+        </div>
         {sub && <p className="text-xs text-slate-500 mt-0.5">{sub}</p>}
+        {note && <p className="text-[11px] text-slate-400 mt-1.5 leading-snug italic">{note}</p>}
+      </div>
+    </div>
+  )
+}
+
+/* ─── Full per-fish detail section with KPI cards ─── */
+function FishDetailSection({ fish, isOnly }: { fish: PerFishResult; isOnly: boolean }) {
+  const gradeStyle = GRADE_STYLES[fish.color_grade] || GRADE_STYLES.Reject
+  const moldStyle = MOLD_SEVERITY_STYLES[fish.mold_severity] || MOLD_SEVERITY_STYLES.None
+  const confPercent = Math.round(fish.confidence * 100)
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+      {/* Fish header bar */}
+      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-blue-50 to-slate-50 border-b border-slate-200">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-600 text-white text-sm font-bold shadow-sm">
+            #{fish.fish_index}
+          </span>
+          <div>
+            <p className="text-sm font-bold text-slate-900">{fish.fish_type}</p>
+            {!isOnly && <p className="text-[11px] text-slate-500">Fish #{fish.fish_index} of detected</p>}
+          </div>
+        </div>
+        <span className={`px-3 py-1 rounded-full text-xs font-bold ring-1 ${gradeStyle.bg} ${gradeStyle.text} ${gradeStyle.ring}`}>
+          {fish.color_grade} Grade
+        </span>
+      </div>
+      {/* KPI cards — one per row */}
+      <div className="p-4 flex flex-col gap-3">
+        <StatCard
+          icon={<TrendingUp className="w-5 h-5 text-blue-500" />}
+          label="Confidence"
+          value={`${confPercent}%`}
+          sub="AI detection certainty"
+          note={confPercent >= 85 ? 'High confidence — the AI is very sure this is a dried fish.' : confPercent >= 70 ? 'Moderate confidence — detection is likely correct but image clarity may affect accuracy.' : 'Low confidence — consider retaking with a clearer, well-lit photo.'}
+          color="border-blue-200 bg-blue-50/50"
+        />
+        <StatCard
+          icon={<Palette className="w-5 h-5 text-orange-500" />}
+          label="Color Score"
+          value={`${Math.round(fish.color_score)}%`}
+          sub={`Grade: ${fish.color_grade}`}
+          note={fish.color_score >= 80 ? 'Excellent color consistency — uniform appearance across the fish surface.' : fish.color_score >= 60 ? 'Acceptable color — some variation detected but within local market standards.' : 'Poor color consistency — significant discoloration or uneven drying observed.'}
+          color="border-orange-200 bg-orange-50/50"
+        />
+        <StatCard
+          icon={<FlaskConical className="w-5 h-5 text-purple-500" />}
+          label="Mold Severity"
+          value={fish.mold_severity}
+          sub={`Coverage: ${fish.mold_coverage_percent}%`}
+          note={fish.mold_severity === 'None' ? 'No mold patches detected — the fish surface appears clean.' : fish.mold_severity === 'Low' ? 'Minor mold traces found — small patches that may not affect overall quality.' : fish.mold_severity === 'Moderate' ? 'Noticeable mold growth — the fish should be inspected before sale or consumption.' : 'Heavy mold contamination — this fish is likely unsafe and should be rejected.'}
+          color="border-purple-200 bg-purple-50/50"
+        />
+        <StatCard
+          icon={<ShieldCheck className="w-5 h-5 text-emerald-500" />}
+          label="Mold Status"
+          value={fish.mold_detected ? 'Detected' : 'Clean'}
+          sub={fish.mold_detected ? `${fish.mold_coverage_percent}% affected` : 'No mold found'}
+          note={fish.mold_detected ? `Mold covers ${fish.mold_coverage_percent}% of the fish surface. Higher coverage lowers the overall grade.` : 'The AI found no visible mold patches on this fish — good to go.'}
+          color={fish.mold_detected
+            ? `border-red-200 ${moldStyle.bg}`
+            : 'border-emerald-200 bg-emerald-50/50'
+          }
+        />
       </div>
     </div>
   )
@@ -64,10 +122,11 @@ function StatCard({ icon, label, value, sub, color }: { icon: React.ReactNode; l
 
 /* ─── Scan result panel ─── */
 function ScanResultPanel({ result }: { result: AnalyzeResult }) {
-  const m = deriveMetrics(result)
-  const gs = GRADE_STYLES[m.grade] || GRADE_STYLES.Reject!
+  const perFish = result.per_fish || []
+  const detected = result.detected
+  const [activeFish, setActiveFish] = useState(1)
 
-  if (!m.detected) {
+  if (!detected) {
     return (
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
         <AlertTriangle className="w-10 h-10 mx-auto text-amber-500 mb-2" />
@@ -77,60 +136,57 @@ function ScanResultPanel({ result }: { result: AnalyzeResult }) {
     )
   }
 
+  // Overall summary line
+  const overallGrade = result.grade
+  const gs = GRADE_STYLES[overallGrade] || GRADE_STYLES.Reject
+  const overallMold = result.mold_analysis?.overall_severity ?? 'None'
+  const moldStyle = MOLD_SEVERITY_STYLES[overallMold] || MOLD_SEVERITY_STYLES.None
+  const selectedFish = perFish.find((f) => f.fish_index === activeFish) || perFish[0]
+
   return (
     <div className="space-y-4">
-      {/* Fish type + grade header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      {/* Overall summary bar */}
+      <div className="flex items-center justify-between flex-wrap gap-3 px-1">
         <div className="flex items-center gap-3">
           <Fish className="w-6 h-6 text-blue-600" />
           <div>
-            <p className="text-lg font-bold text-slate-900">{m.fish_type}</p>
-            <p className="text-xs text-slate-500">Detected fish type</p>
+            <p className="text-lg font-bold text-slate-900">{result.fish_type}</p>
+            <p className="text-xs text-slate-500">{perFish.length} fish detected · Overall mold: <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${moldStyle.bg} ${moldStyle.text}`}>{overallMold}</span></p>
           </div>
         </div>
         <span className={`px-4 py-1.5 rounded-full text-sm font-bold ring-1 ${gs.bg} ${gs.text} ${gs.ring}`}>
-          {m.grade} Grade
+          {overallGrade} Grade
         </span>
       </div>
 
-      {/* Stat cards grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <StatCard
-          icon={<TrendingUp className="w-5 h-5 text-blue-500" />}
-          label="Confidence"
-          value={`${m.confidence}%`}
-          sub="AI detection certainty"
-          color="border-blue-200 bg-blue-50/50"
-        />
-        <StatCard
-          icon={<ShieldCheck className="w-5 h-5 text-emerald-500" />}
-          label="Grade Level"
-          value={m.grade}
-          sub={m.grade === 'Export' ? 'Highest quality' : m.grade === 'Local' ? 'Acceptable quality' : 'Below standard'}
-          color={`border-slate-200 ${gs.bg}`}
-        />
-        <StatCard
-          icon={<Bug className="w-5 h-5 text-orange-500" />}
-          label="Defect"
-          value={`${m.defect}%`}
-          sub="Estimated surface defects"
-          color="border-orange-200 bg-orange-50/50"
-        />
-        <StatCard
-          icon={<FlaskConical className="w-5 h-5 text-purple-500" />}
-          label="Mold"
-          value={`${m.mold}%`}
-          sub="Estimated mold presence"
-          color="border-purple-200 bg-purple-50/50"
-        />
-        <StatCard
-          icon={<DollarSign className="w-5 h-5 text-emerald-600" />}
-          label="Price Est."
-          value={`₱${m.price}/kg`}
-          sub="Estimated market price"
-          color="border-emerald-200 bg-emerald-50/50"
-        />
-      </div>
+      {/* Fish selector tabs — only shown when multiple fish */}
+      {perFish.length > 1 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {perFish.map((f) => {
+            const isActive = f.fish_index === activeFish
+            return (
+              <button
+                key={f.fish_index}
+                type="button"
+                onClick={() => setActiveFish(f.fish_index)}
+                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <Fish className="w-4 h-4" />
+                Fish #{f.fish_index}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Show only the selected fish's detail section */}
+      {selectedFish && (
+        <FishDetailSection fish={selectedFish} isOnly={perFish.length === 1} />
+      )}
     </div>
   )
 }
@@ -141,7 +197,6 @@ export default function GradePage() {
   const { showToast } = useToast()
   const [capturedImageUrl, setCapturedImageUrl] = useState<string | null>(null)
   const [capturedFile, setCapturedFile] = useState<File | null>(null)
-  const [resultUrl, setResultUrl] = useState<string | null>(null)
   const [analyzeResult, setAnalyzeResult] = useState<AnalyzeResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -186,10 +241,8 @@ export default function GradePage() {
 
   const reset = () => {
     if (capturedImageUrl) URL.revokeObjectURL(capturedImageUrl)
-    if (resultUrl) URL.revokeObjectURL(resultUrl)
     setCapturedImageUrl(null)
     setCapturedFile(null)
-    setResultUrl(null)
     setAnalyzeResult(null)
     setError(null)
     stopCamera()
@@ -286,11 +339,9 @@ export default function GradePage() {
     if (!capturedFile) return
     setLoading(true)
     setError(null)
-    setResultUrl(null)
     setAnalyzeResult(null)
     try {
       const result = await analyzeImage(capturedFile)
-      setResultUrl(URL.createObjectURL(result.blob))
       setAnalyzeResult(result)
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Analysis failed. Is the backend running?')
@@ -529,8 +580,12 @@ export default function GradePage() {
                     <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Annotated Result</p>
                     <p className="text-xs text-slate-500">Saved to Cloudinary + history</p>
                   </div>
-                  {resultUrl && (
-                    <img src={resultUrl} alt="Analysis result" className="w-full rounded-lg border border-slate-200" />
+                  {analyzeResult && (
+                    <img
+                      src={analyzeResult.result_image || `data:image/jpeg;base64,${analyzeResult.result_image_b64}`}
+                      alt="Analysis result"
+                      className="w-full rounded-lg border border-slate-200"
+                    />
                   )}
                 </div>
 

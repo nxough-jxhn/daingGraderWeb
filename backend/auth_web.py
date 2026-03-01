@@ -92,8 +92,9 @@ def _verify_firebase_token(token: str) -> dict:
     if not _init_firebase_admin() or not firebase_auth:
         raise HTTPException(status_code=500, detail="Firebase auth not configured")
     try:
-        return firebase_auth.verify_id_token(token)
-    except Exception:
+        return firebase_auth.verify_id_token(token, clock_skew_seconds=5)
+    except Exception as e:
+        print(f"❌ Firebase token verification failed: {type(e).__name__}: {e}")
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 

@@ -10,7 +10,6 @@ import AboutUsPage from './pages/AboutUsPage'
 import AboutDaingTypePage from './pages/AboutDaingTypePage'
 import GradePage from './pages/GradePage'
 import HistoryPage from './pages/HistoryPage'
-import AnalyticsPage from './pages/AnalyticsPage'
 import ContactPage from './pages/ContactPage'
 import PublicationsPage from './pages/PublicationsPage'
 import CommunityForumPage from './pages/CommunityForumPage'
@@ -99,7 +98,6 @@ export default function App() {
       <Route path="/admin/payouts" element={<Layout><RoleRoute allowed={['admin']}><AdminPayoutsPage /></RoleRoute></Layout>} />
       <Route path="/grade" element={<Layout><GradePage /></Layout>} />
       <Route path="/history" element={<Layout><HistoryPage /></Layout>} />
-      <Route path="/analytics" element={<Layout><RoleRoute allowed={['admin']}><AnalyticsPage /></RoleRoute></Layout>} />
       <Route path="/forum" element={<Layout><CommunityForumPage /></Layout>} />
       <Route path="/catalog" element={<Layout><ProductCatalogPage /></Layout>} />
       <Route path="/catalog/:id" element={<Layout><ProductDetailPage /></Layout>} />

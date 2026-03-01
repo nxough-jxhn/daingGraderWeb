@@ -12,7 +12,7 @@ import { DatePickerInput, type DatesRangeValue } from '@mantine/dates'
 import { notifications } from '@mantine/notifications'
 import {
   X, FileText, Eye, Download, Filter, BarChart2,
-  Trash2, RotateCcw,
+  Trash2, RotateCcw, FileSpreadsheet,
 } from 'lucide-react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -20,6 +20,8 @@ import {
 } from 'recharts'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import ExcelJS from 'exceljs'
+import { saveAs } from 'file-saver'
 import {
   getAdminUserChart,
   getAdminMarketChart,
@@ -171,7 +173,7 @@ function toDate(d: Date | string | null | undefined): Date | null { if (!d) retu
  * can fail silently (paths never computed for elements outside the viewport).
  */
 function drawChartToCanvas(
-  chartData: { period: string; [key: string]: any }[],
+  chartData: MultiSeriesPoint[],
   keys: string[],
   colors: string[],
 ): string | null {
@@ -212,7 +214,7 @@ function drawChartToCanvas(
   ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'center'
   chartData.forEach((d, i) => {
     if (i % skipEvery === 0 || i === n - 1)
-      ctx.fillText(d.period, ML + i * xStep, H - MB + 18)
+      ctx.fillText(String(d.period ?? ''), ML + i * xStep, H - MB + 18)
   })
 
   // Lines + dots per series
@@ -354,6 +356,19 @@ function generatePDF(
     doc.text(desc, margin, y); y += 5
     doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 30, 30)
   }
+  const drawDescription = (text: string) => {
+    const lines = doc.splitTextToSize(text, contentW - 8)
+    const boxH = lines.length * 3.2 + 6
+    checkPage(boxH + 2)
+    doc.setFillColor(248, 250, 252)
+    doc.roundedRect(margin, y, contentW, boxH, 1.5, 1.5, 'F')
+    doc.setDrawColor(226, 232, 240)
+    doc.roundedRect(margin, y, contentW, boxH, 1.5, 1.5, 'S')
+    doc.setFontSize(7); doc.setFont('helvetica', 'italic'); doc.setTextColor(100, 116, 139)
+    doc.text(lines, margin + 4, y + 4)
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 30, 30)
+    y += boxH + 4
+  }
 
   // ── Header ─────────────────────────────────
   doc.setFillColor(colors.primary[0], colors.primary[1], colors.primary[2])
@@ -412,7 +427,8 @@ function generatePDF(
         }
       },
     })
-    y = (doc as any).lastAutoTable.finalY + 8
+    y = (doc as any).lastAutoTable.finalY + 4
+    drawDescription(`This table summarizes the key performance indicators for the ${sectionLabel} section. Each metric shows the current value alongside the percentage change compared to the previous equivalent period, enabling quick identification of positive or negative trends.`)
   }
 
   // ── Chart image ───────────────────────────
@@ -429,7 +445,8 @@ function generatePDF(
     doc.setDrawColor(230, 230, 230)
     doc.roundedRect(margin, y - 1, contentW, chartH + 2, 2, 2, 'S')
     doc.addImage(chartImage, 'PNG', margin + 1, y, contentW - 2, chartH)
-    y += chartH + 6
+    y += chartH + 4
+    drawDescription(`This line chart illustrates the ${data.chartTitle.toLowerCase()} trend over the selected time period. Each data point represents a periodic measurement, allowing stakeholders to observe growth patterns, seasonal fluctuations, and overall trajectory at a glance.`)
   }
 
   // ── Progress A ────────────────────────────
@@ -457,7 +474,8 @@ function generatePDF(
       bodyStyles: { fontSize: 7.5 }, columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
       margin: { left: margin, right: margin },
     })
-    y = (doc as any).lastAutoTable.finalY + 8
+    y = (doc as any).lastAutoTable.finalY + 4
+    drawDescription(`The chart above displays ${data.progressA.title.toLowerCase()} — ${data.progressA.subtitle.toLowerCase()}. Each bar represents the proportion of a category relative to its maximum, providing a visual comparison of contributions across different segments.`)
   }
 
   // ── Progress B ────────────────────────────
@@ -485,7 +503,8 @@ function generatePDF(
       bodyStyles: { fontSize: 7.5 }, columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
       margin: { left: margin, right: margin },
     })
-    y = (doc as any).lastAutoTable.finalY + 8
+    y = (doc as any).lastAutoTable.finalY + 4
+    drawDescription(`This breakdown shows ${data.progressB.title.toLowerCase()} — ${data.progressB.subtitle.toLowerCase()}. The horizontal bars and accompanying table illustrate the distribution across different categories, highlighting dominant segments and areas for improvement.`)
   }
 
   // ── Donut distribution ────────────────────
@@ -526,7 +545,8 @@ function generatePDF(
       bodyStyles: { fontSize: 7.5 }, columnStyles: { 1: { halign: 'right' } },
       margin: { left: margin, right: margin },
     })
-    y = (doc as any).lastAutoTable.finalY + 8
+    y = (doc as any).lastAutoTable.finalY + 4
+    drawDescription(`The distribution chart above shows the proportional share of each category within "${data.donut.title}". The stacked bar and legend provide a clear visual breakdown, making it easy to identify the largest and smallest segments at a glance.`)
   }
 
   // ── Data table ────────────────────────────
@@ -553,7 +573,8 @@ function generatePDF(
         doc.setTextColor(30, 30, 30)
       },
     })
-    y = (doc as any).lastAutoTable.finalY + 8
+    y = (doc as any).lastAutoTable.finalY + 4
+    drawDescription(`This data table lists ${filteredRows.length} filtered record${filteredRows.length !== 1 ? 's' : ''} from the ${sectionLabel.toLowerCase()} section. Records are filtered based on the report criteria and sorted by most recent. This raw data supports the visual charts above and can be used for further detailed analysis.`)
   }
 
   // ── Notes ─────────────────────────────────
@@ -584,6 +605,238 @@ function generatePDF(
 
   const slug = sectionLabel.toLowerCase().replace(/\s+/g, '-')
   doc.save(`admin-report-${slug}-${new Date().toISOString().slice(0, 10)}.pdf`)
+}
+
+// ════════════════════════════════ Excel Generator ════
+async function generateExcel(
+  data: SectionData,
+  sectionLabel: string,
+  filters: ReportFilters,
+  metrics: AdminReportMetrics,
+  filteredRows: TableRow[],
+  section: string,
+  chartData: Record<string, string | number>[],
+  chartKeys: string[],
+) {
+  const wb = new ExcelJS.Workbook()
+  wb.creator = 'Daing Grader Admin'
+  wb.created = new Date()
+
+  const rangeLabel =
+    filters.dateRange[0] && filters.dateRange[1]
+      ? `${fmtDate(filters.dateRange[0])} \u2013 ${fmtDate(filters.dateRange[1])}`
+      : 'All time'
+
+  const pdfColors = SECTION_PDF_COLORS[sectionLabel] || SECTION_PDF_COLORS.Users
+  const accentHex = `FF${pdfColors.primary.map(c => c.toString(16).padStart(2, '0')).join('')}` as string
+  const lightHex = `FF${pdfColors.light.map(c => c.toString(16).padStart(2, '0')).join('')}` as string
+
+  // Helpers
+  const addTitleRow = (ws: ExcelJS.Worksheet, title: string, colCount: number) => {
+    const row = ws.addRow([title])
+    row.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } }
+    row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: accentHex } }
+    row.alignment = { horizontal: 'center', vertical: 'middle' }
+    row.height = 28
+    if (colCount > 1) ws.mergeCells(row.number, 1, row.number, colCount)
+  }
+  const addSubtitle = (ws: ExcelJS.Worksheet, text: string, colCount: number) => {
+    const row = ws.addRow([text])
+    row.font = { italic: true, size: 9, color: { argb: 'FF6B7280' } }
+    row.alignment = { horizontal: 'center', wrapText: true }
+    if (colCount > 1) ws.mergeCells(row.number, 1, row.number, colCount)
+  }
+  const addDescription = (ws: ExcelJS.Worksheet, text: string, colCount: number) => {
+    ws.addRow([])
+    const row = ws.addRow([text])
+    row.font = { italic: true, size: 9, color: { argb: 'FF64748B' } }
+    row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
+    row.alignment = { wrapText: true, vertical: 'top' }
+    row.height = 36
+    if (colCount > 1) ws.mergeCells(row.number, 1, row.number, colCount)
+    ws.addRow([])
+  }
+  const styleHeaders = (ws: ExcelJS.Worksheet, row: ExcelJS.Row) => {
+    row.eachCell(cell => {
+      cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } }
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: accentHex } }
+      cell.alignment = { horizontal: 'center', vertical: 'middle' }
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      }
+    })
+    row.height = 22
+  }
+  const styleDataRow = (row: ExcelJS.Row, even: boolean) => {
+    row.eachCell(cell => {
+      cell.font = { size: 10 }
+      cell.alignment = { vertical: 'middle' }
+      if (even) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: lightHex } }
+      cell.border = {
+        bottom: { style: 'hair', color: { argb: 'FFE2E8F0' } },
+        left: { style: 'hair', color: { argb: 'FFE2E8F0' } },
+        right: { style: 'hair', color: { argb: 'FFE2E8F0' } },
+      }
+    })
+  }
+
+  // ═══════ Sheet 1: Summary ═══════
+  const wsSummary = wb.addWorksheet('Summary', { properties: { tabColor: { argb: accentHex.slice(2) } } })
+  wsSummary.columns = [
+    { width: 5 },
+    { width: 25 },
+    { width: 20 },
+    { width: 15 },
+    { width: 40 },
+  ]
+  addTitleRow(wsSummary, `Admin Analytics Report — ${sectionLabel}`, 5)
+  addSubtitle(wsSummary, `Generated: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}  |  Period: ${rangeLabel}`, 5)
+  wsSummary.addRow([])
+
+  // Applied filters
+  const filterLines = buildFilterSummary(filters, section)
+  if (filterLines.length > 0) {
+    const fRow = wsSummary.addRow(['', 'Applied Filters'])
+    fRow.font = { bold: true, size: 10, color: { argb: accentHex } }
+    filterLines.forEach(l => {
+      const r = wsSummary.addRow(['', `  \u2022 ${l}`])
+      r.font = { size: 9, color: { argb: 'FF6B7280' } }
+    })
+    wsSummary.addRow([])
+  }
+
+  // ═══════ Sheet 2: KPIs ═══════
+  if (metrics.kpiSummary) {
+    const wsKpi = wb.addWorksheet('KPIs', { properties: { tabColor: { argb: accentHex.slice(2) } } })
+    wsKpi.columns = [
+      { width: 28 },
+      { width: 18 },
+      { width: 14 },
+      { width: 50 },
+    ]
+    addTitleRow(wsKpi, 'Key Performance Indicators', 4)
+    addSubtitle(wsKpi, `${sectionLabel} section — Critical metrics and changes vs previous period`, 4)
+    wsKpi.addRow([])
+    const hdrRow = wsKpi.addRow(['Metric', 'Value', 'Change', 'Description'])
+    styleHeaders(wsKpi, hdrRow)
+    data.kpis.forEach((k, i) => {
+      const row = wsKpi.addRow([k.label, k.value, `${k.change >= 0 ? '+' : ''}${k.change}%`, k.subtitle])
+      styleDataRow(row, i % 2 === 0)
+      // Color the change cell
+      const changeCell = row.getCell(3)
+      changeCell.font = { bold: true, size: 10, color: { argb: k.change >= 0 ? 'FF16A34A' : 'FFDC2626' } }
+      changeCell.alignment = { horizontal: 'right' }
+      row.getCell(2).alignment = { horizontal: 'right' }
+    })
+    addDescription(wsKpi, `This table summarizes the key performance indicators for the ${sectionLabel} section. Each metric shows the current value alongside the percentage change compared to the previous equivalent period, enabling quick identification of positive or negative trends.`, 4)
+  }
+
+  // ═══════ Sheet 3: Trend Data ═══════
+  if (metrics.chartData && chartData.length > 0) {
+    const wsTrend = wb.addWorksheet('Trend Data', { properties: { tabColor: { argb: accentHex.slice(2) } } })
+    const trendCols = ['Period', ...chartKeys]
+    wsTrend.columns = trendCols.map(c => ({ width: c === 'Period' ? 14 : 18 }))
+    addTitleRow(wsTrend, `${data.chartTitle} — Trend Data`, trendCols.length)
+    addSubtitle(wsTrend, `Raw data behind the trend chart for the ${sectionLabel} section`, trendCols.length)
+    wsTrend.addRow([])
+    const hdr = wsTrend.addRow(trendCols)
+    styleHeaders(wsTrend, hdr)
+    chartData.forEach((d, i) => {
+      const vals = [d.period as string, ...chartKeys.map(k => Number(d[k] ?? 0))]
+      const row = wsTrend.addRow(vals)
+      styleDataRow(row, i % 2 === 0)
+      // Right-align numeric columns
+      for (let ci = 2; ci <= trendCols.length; ci++) row.getCell(ci).alignment = { horizontal: 'right' }
+    })
+    addDescription(wsTrend, `This table contains the raw trend data plotted in the PDF chart. Each row represents one time period with corresponding values for ${chartKeys.join(', ')}. Use this data to create custom charts or perform further analysis in Excel.`, trendCols.length)
+  }
+
+  // ═══════ Sheet 4: Breakdowns ═══════
+  if (metrics.kpiSummary && (data.progressA.items.length > 0 || data.progressB.items.length > 0 || data.donut.slices.length > 0)) {
+    const wsBrk = wb.addWorksheet('Breakdowns', { properties: { tabColor: { argb: accentHex.slice(2) } } })
+    wsBrk.columns = [{ width: 28 }, { width: 16 }, { width: 16 }, { width: 14 }, { width: 40 }]
+
+    // Progress A
+    if (data.progressA.items.length > 0) {
+      addTitleRow(wsBrk, data.progressA.title, 5)
+      addSubtitle(wsBrk, data.progressA.subtitle, 5)
+      wsBrk.addRow([])
+      const h = wsBrk.addRow(['Item', 'Value', 'Max', '%', 'Description'])
+      styleHeaders(wsBrk, h)
+      data.progressA.items.forEach((it, i) => {
+        const pct = `${((it.value / (it.max || 1)) * 100).toFixed(1)}%`
+        const row = wsBrk.addRow([it.label, it.value, it.max, pct, it.description])
+        styleDataRow(row, i % 2 === 0)
+        row.getCell(2).alignment = { horizontal: 'right' }
+        row.getCell(3).alignment = { horizontal: 'right' }
+        row.getCell(4).alignment = { horizontal: 'right' }
+      })
+      addDescription(wsBrk, `The table above displays ${data.progressA.title.toLowerCase()} — ${data.progressA.subtitle.toLowerCase()}. Each row represents the proportion of a category relative to its maximum value.`, 5)
+      wsBrk.addRow([])
+    }
+
+    // Progress B
+    if (data.progressB.items.length > 0) {
+      addTitleRow(wsBrk, data.progressB.title, 5)
+      addSubtitle(wsBrk, data.progressB.subtitle, 5)
+      wsBrk.addRow([])
+      const h2 = wsBrk.addRow(['Item', 'Value', 'Max', '%', 'Description'])
+      styleHeaders(wsBrk, h2)
+      data.progressB.items.forEach((it, i) => {
+        const pct = `${((it.value / (it.max || 1)) * 100).toFixed(1)}%`
+        const row = wsBrk.addRow([it.label, it.value, it.max, pct, it.description])
+        styleDataRow(row, i % 2 === 0)
+        row.getCell(2).alignment = { horizontal: 'right' }
+        row.getCell(3).alignment = { horizontal: 'right' }
+        row.getCell(4).alignment = { horizontal: 'right' }
+      })
+      addDescription(wsBrk, `This breakdown shows ${data.progressB.title.toLowerCase()} — ${data.progressB.subtitle.toLowerCase()}. The data illustrates distribution across different categories.`, 5)
+      wsBrk.addRow([])
+    }
+
+    // Donut distribution
+    if (data.donut.slices.length > 0) {
+      addTitleRow(wsBrk, data.donut.title, 5)
+      addSubtitle(wsBrk, 'Proportional share of each category', 5)
+      wsBrk.addRow([])
+      const h3 = wsBrk.addRow(['Category', 'Share (%)'])
+      styleHeaders(wsBrk, h3)
+      data.donut.slices.forEach((s, i) => {
+        const row = wsBrk.addRow([s.label, `${s.value}%`])
+        styleDataRow(row, i % 2 === 0)
+        row.getCell(2).alignment = { horizontal: 'right' }
+      })
+      addDescription(wsBrk, `The distribution above shows the proportional share of each category within "${data.donut.title}". This data corresponds to the donut chart in the PDF report.`, 5)
+    }
+  }
+
+  // ═══════ Sheet 5: Data Table ═══════
+  if (metrics.tableData && filteredRows.length > 0) {
+    const wsData = wb.addWorksheet('Data Table', { properties: { tabColor: { argb: accentHex.slice(2) } } })
+    const headers = data.table.headers
+    wsData.columns = headers.map(h => ({ width: Math.max(14, Math.min(h.length * 1.8 + 4, 30)) }))
+    addTitleRow(wsData, `${sectionLabel} Data Table`, headers.length)
+    addSubtitle(wsData, `${filteredRows.length} filtered record${filteredRows.length !== 1 ? 's' : ''} — Period: ${rangeLabel}`, headers.length)
+    wsData.addRow([])
+    const hdr = wsData.addRow(headers)
+    styleHeaders(wsData, hdr)
+    // Auto-filter
+    wsData.autoFilter = { from: { row: hdr.number, column: 1 }, to: { row: hdr.number, column: headers.length } }
+    filteredRows.forEach((r, i) => {
+      const row = wsData.addRow(r.cols)
+      styleDataRow(row, i % 2 === 0)
+    })
+    addDescription(wsData, `This data table lists ${filteredRows.length} filtered record${filteredRows.length !== 1 ? 's' : ''} from the ${sectionLabel.toLowerCase()} section. Records are filtered based on the report criteria. Use Excel's built-in auto-filter (enabled on header row) for further analysis.`, headers.length)
+  }
+
+  // ═══════ Save ═══════
+  const buf = await wb.xlsx.writeBuffer()
+  const slug = sectionLabel.toLowerCase().replace(/\s+/g, '-')
+  saveAs(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+    `admin-report-${slug}-${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
 // ════════════════════════════════ Report Preview ════
@@ -765,6 +1018,7 @@ export default function AdminReportPanel({
   const [chartLoading, setChartLoading] = useState(false)
   const [showPreview, setShowPreview] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const [exportFormat, setExportFormat] = useState<'pdf' | 'excel'>('pdf')
   const [panelPosition, setPanelPosition] = useState({ top: 120, left: 16 })
 
   const chartRef = useRef<HTMLDivElement>(null) // kept for layout stability (not used for capture)
@@ -891,16 +1145,21 @@ export default function AdminReportPanel({
     }
     setDownloading(true)
     try {
-      const chartImage = metrics.chartData
-        ? drawChartToCanvas(effectiveChartData, effectiveKeys, effectiveColors)
-        : null
-      generatePDF(data, sectionLabel, filters, metrics, chartImage, filteredRows, section)
-      notifications.show({ title: 'PDF downloaded', message: `${sectionLabel} analytics report saved.`, color: 'green' })
+      if (exportFormat === 'pdf') {
+        const chartImage = metrics.chartData
+          ? drawChartToCanvas(effectiveChartData, effectiveKeys, effectiveColors)
+          : null
+        generatePDF(data, sectionLabel, filters, metrics, chartImage, filteredRows, section)
+        notifications.show({ title: 'PDF downloaded', message: `${sectionLabel} analytics report saved as PDF.`, color: 'green' })
+      } else {
+        await generateExcel(data, sectionLabel, filters, metrics, filteredRows, section, effectiveChartData, effectiveKeys)
+        notifications.show({ title: 'Excel downloaded', message: `${sectionLabel} analytics report saved as Excel.`, color: 'green' })
+      }
     } catch (err) {
-      console.error('PDF error:', err)
-      notifications.show({ title: 'Error', message: 'Failed to generate PDF.', color: 'red' })
+      console.error('Export error:', err)
+      notifications.show({ title: 'Error', message: `Failed to generate ${exportFormat === 'pdf' ? 'PDF' : 'Excel'} report.`, color: 'red' })
     } finally { setDownloading(false) }
-  }, [data, sectionLabel, filters, metrics, filteredRows, section, effectiveChartData, effectiveKeys, effectiveColors])
+  }, [data, sectionLabel, filters, metrics, filteredRows, section, effectiveChartData, effectiveKeys, effectiveColors, exportFormat])
 
   if (!open) return null
 
@@ -1251,6 +1510,39 @@ export default function AdminReportPanel({
                 </div>
               </Collapse>
 
+              {/* Format selector */}
+              <div className="flex items-center gap-3 pb-2 border-b border-slate-200">
+                <Text size="xs" fw={600} c="dimmed" className="uppercase tracking-wide">Format</Text>
+                <label
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all text-xs font-medium ${
+                    exportFormat === 'pdf'
+                      ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                  onClick={() => setExportFormat('pdf')}
+                >
+                  <input type="radio" name="exportFormat" value="pdf" checked={exportFormat === 'pdf'}
+                    onChange={() => setExportFormat('pdf')}
+                    className="w-3.5 h-3.5 accent-indigo-600" />
+                  <FileText className="w-3.5 h-3.5" />
+                  PDF
+                </label>
+                <label
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all text-xs font-medium ${
+                    exportFormat === 'excel'
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                  onClick={() => setExportFormat('excel')}
+                >
+                  <input type="radio" name="exportFormat" value="excel" checked={exportFormat === 'excel'}
+                    onChange={() => setExportFormat('excel')}
+                    className="w-3.5 h-3.5 accent-emerald-600" />
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  Excel
+                </label>
+              </div>
+
               <Group grow gap="xs">
                 <Button variant="subtle" color="gray" size="xs" radius="md"
                   leftSection={<Trash2 className="w-3.5 h-3.5" />}
@@ -1266,10 +1558,17 @@ export default function AdminReportPanel({
                 >{showPreview ? 'Hide Preview' : 'Preview'}</Button>
 
                 <Button
-                  variant="filled" color="indigo" size="xs" radius="md"
-                  leftSection={downloading ? <Loader size={12} color="white" /> : <Download className="w-3.5 h-3.5" />}
+                  variant="filled"
+                  color={exportFormat === 'pdf' ? 'indigo' : 'teal'}
+                  size="xs" radius="md"
+                  leftSection={downloading
+                    ? <Loader size={12} color="white" />
+                    : exportFormat === 'pdf'
+                      ? <Download className="w-3.5 h-3.5" />
+                      : <FileSpreadsheet className="w-3.5 h-3.5" />
+                  }
                   onClick={handleDownload} disabled={downloading}
-                >Download PDF</Button>
+                >Download {exportFormat === 'pdf' ? 'PDF' : 'Excel'}</Button>
               </Group>
             </div>
           </div>

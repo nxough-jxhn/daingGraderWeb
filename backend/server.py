@@ -8,6 +8,7 @@ import csv
 import os
 import json
 import re
+import base64
 from pathlib import Path
 from starlette.responses import StreamingResponse
 from datetime import datetime, timedelta
@@ -18,8 +19,14 @@ import cloudinary
 import cloudinary.uploader
 import cloudinary.api
 from dotenv import load_dotenv
-from ultralytics import YOLO  # <--- NEW IMPORT
+from ultralytics import YOLO
 from mongodb import get_db
+
+# --- AI modules (color analysis, mold detection, drawing) ---
+from ai.model import load_model as ai_load_model, get_model as ai_get_model, run_inference as ai_run_inference
+from ai.color_analysis import analyze_color_consistency_with_masks, analyze_color_consistency_with_boxes
+from ai.mold_analysis import analyze_mold_with_masks, analyze_mold_with_boxes
+from ai.drawing import draw_combined_result_image, draw_no_detection_image
 from order_receipt import build_receipt_pdf_bytes, send_order_receipt_email
 from email_sender import send_item_disabled_email, send_item_enabled_email, send_order_shipped_email, send_order_cancelled_email
 from paymongo import create_payment_intent_for_ewallet, create_payment_intent_for_card, retrieve_payment_intent
@@ -66,15 +73,12 @@ from auth_web import router as auth_router, _get_current_user, JWT_SECRET, JWT_A
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 
 # --- 🧠 LOAD YOUR AI MODEL HERE ---
-# We load it outside the function so it stays in memory (faster)
-# Make sure 'best.pt' is in the same folder as this script!
+# Uses ai/model.py module — loads once, stays in memory
 try:
-    print("Loading AI Model...")
-    model = YOLO("best.pt")
-    print("✅ AI Model Loaded Successfully!")
+    model = ai_load_model("best.pt")
 except Exception as e:
     print(f"❌ Error loading model: {e}")
-    print("Did you forget to put best.pt in the folder?")
+    model = None
 # ----------------------------------
 
 # Dataset & History Setup
@@ -199,6 +203,10 @@ def _fetch_scan_entries_from_db():
         "score": doc.get("score"),
         "user_name": doc.get("user_name") or "Unknown",
         "user_id": doc.get("user_id") or None,
+        "per_fish": doc.get("per_fish") or [],
+        "color_analysis": doc.get("color_analysis"),
+        "mold_analysis": doc.get("mold_analysis"),
+        "detections": doc.get("detections") or [],
       }
     
     # Merge: prefer MongoDB data if available, otherwise use Cloudinary data
@@ -299,7 +307,65 @@ def _normalize_scan_entry(entry: dict) -> dict:
     "user_name": entry.get("user_name") or "Unknown",
     "user_id": entry.get("user_id") or None,
     "detected": detected,
+    "detections": entry.get("detections") or [],
+    "per_fish": entry.get("per_fish") or [],
+    "color_analysis": entry.get("color_analysis"),
+    "mold_analysis": _safe_mold_summary(entry.get("mold_analysis")),
   }
+
+def _safe_mold_summary(mold) -> dict | None:
+  """Return a frontend-safe mold summary (strip large arrays like mold_mask_coords)."""
+  if not mold:
+    return None
+  return {
+    "overall_severity": mold.get("overall_severity", "None"),
+    "avg_coverage_percent": mold.get("avg_coverage_percent", 0),
+    "fish_with_mold": mold.get("fish_with_mold", 0),
+    "total_patches": mold.get("total_patches", 0),
+    "fish_analyzed": mold.get("fish_analyzed", 0),
+    "fish_results": [
+      {
+        "region_index": fr.get("region_index", i),
+        "mold_detected": fr.get("mold_detected", False),
+        "mold_coverage_percent": fr.get("mold_coverage_percent", 0),
+        "severity": fr.get("severity", "None"),
+        "patch_count": fr.get("patch_count", 0),
+      }
+      for i, fr in enumerate(mold.get("fish_results", []))
+    ],
+  }
+
+def _build_per_fish_results(fish_types, confidences, color_analysis, mold_analysis):
+  """Merge detection + color + mold into a per-fish array for the frontend."""
+  color_stats = (color_analysis or {}).get("color_stats", [])
+  mold_fish = (mold_analysis or {}).get("fish_results", [])
+  n = len(fish_types)
+  per_fish = []
+  for i in range(n):
+    ft = _normalize_fish_type(fish_types[i]) if i < len(fish_types) else "Unknown"
+    conf = round(confidences[i], 4) if i < len(confidences) else 0.0
+    # Color for this fish
+    cs = color_stats[i] if i < len(color_stats) else None
+    color_score = 0
+    color_grade = "N/A"
+    if cs:
+      std = cs.get("combined_std", 0)
+      import math
+      color_score = round(min(100, max(0, 100 * math.exp(-std / 35))), 1)
+      color_grade = "Export" if color_score >= 75 else "Local" if color_score >= 50 else "Reject"
+    # Mold for this fish
+    mf = mold_fish[i] if i < len(mold_fish) else None
+    per_fish.append({
+      "fish_index": i + 1,
+      "fish_type": ft,
+      "confidence": conf,
+      "color_score": color_score,
+      "color_grade": color_grade,
+      "mold_severity": mf.get("severity", "None") if mf else "None",
+      "mold_coverage_percent": round(mf.get("mold_coverage_percent", 0), 2) if mf else 0,
+      "mold_detected": mf.get("mold_detected", False) if mf else False,
+    })
+  return per_fish
 
 def _require_admin_user(user=Depends(_get_current_user)):
   role = (user.get("role") or "user").strip().lower()
@@ -358,150 +424,117 @@ app.include_router(payment_router, tags=["payment"])
 
 @app.post("/analyze")
 async def analyze_fish(request: Request, file: UploadFile = File(...)):
-  print("Received an image for AI Analysis...") 
-  
+  """Analyze fish image using AI model with color & mold analysis. Returns JSON."""
+  print("Received an image for AI Analysis...")
+
   # 1. READ IMAGE
   contents = await file.read()
   nparr = np.frombuffer(contents, np.uint8)
   img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-  # 2. RUN AI INFERENCE (The Real Deal)
-  # This replaces the manual cv2.rectangle code
-  results = model(img)
-  
-  # 3. FILTER DETECTIONS BY CONFIDENCE THRESHOLD
-  # Set a minimum confidence threshold to avoid false positives
-  CONFIDENCE_THRESHOLD = 0.8  # Only accept detections with 50% confidence or higher
-  
-  # Get the detection boxes from results
+  # 2. RUN AI INFERENCE via ai/model.py (imgsz=1280, conf=0.7)
+  results, filtered_indices, detected_fish_types, detected_confidences, has_masks = ai_run_inference(img, confidence_threshold=0.7)
+
+  # 3. ANALYSIS
+  is_daing_detected = False
+  result_img = None
+  color_analysis = None
+  mold_analysis = None
+
   boxes = results[0].boxes
-  fish_type = "Unknown"
-  best_score = 0.0
-  if boxes is not None and len(boxes) > 0:
-    confidences = boxes.conf.cpu().numpy()
-    best_idx = int(np.argmax(confidences))
-    best_score = float(confidences[best_idx])
-    class_id = int(boxes.cls[best_idx].cpu().numpy())
-    names = getattr(results[0], "names", {})
-    if isinstance(names, dict) and class_id in names:
-      fish_type = _normalize_fish_type(str(names[class_id]).replace("_", " ").title())
-  
-  # Filter detections based on confidence
-  if boxes is not None and len(boxes) > 0:
-    # Get confidence scores
-    confidences = boxes.conf.cpu().numpy()
-    # Check if any detection meets the threshold
-    high_conf_detections = confidences >= CONFIDENCE_THRESHOLD
-    
-    if not high_conf_detections.any():
-      # NO DAING DETECTED - Add text overlay
-      annotated_img = img.copy()
-      h, w = annotated_img.shape[:2]
-      
-      # Add semi-transparent overlay
-      overlay = annotated_img.copy()
-      cv2.rectangle(overlay, (0, 0), (w, h), (0, 0, 0), -1)
-      cv2.addWeighted(overlay, 0.3, annotated_img, 0.7, 0, annotated_img)
-      
-      # Add "NO DAING DETECTED" text in the center
-      text = "NO DAING DETECTED"
-      font = cv2.FONT_HERSHEY_SIMPLEX
-      font_scale = 1.5
-      thickness = 3
-      
-      # Get text size for centering
-      (text_w, text_h), _ = cv2.getTextSize(text, font, font_scale, thickness)
-      text_x = (w - text_w) // 2
-      text_y = (h + text_h) // 2
-      
-      # Draw text with outline for better visibility
-      cv2.putText(annotated_img, text, (text_x, text_y), font, font_scale, (0, 0, 0), thickness + 2)
-      cv2.putText(annotated_img, text, (text_x, text_y), font, font_scale, (255, 255, 255), thickness)
-      
-      print("⚠️ No high-confidence daing detected")
+  masks = results[0].masks
+  ai_model = ai_get_model()
+
+  if filtered_indices:
+    is_daing_detected = True
+
+    # Color & mold analysis
+    if has_masks:
+      filtered_masks = masks[filtered_indices]
+      filtered_boxes = boxes[filtered_indices]
+      color_analysis = analyze_color_consistency_with_masks(img, filtered_masks, filtered_boxes)
+      mold_analysis = analyze_mold_with_masks(img, filtered_masks, filtered_boxes)
     else:
-      # DAING DETECTED - Filter and draw only high-confidence boxes
-      # Create a mask for high confidence detections
-      indices = [i for i, conf in enumerate(confidences) if conf >= CONFIDENCE_THRESHOLD]
-      
-      # Filter the results to only include high-confidence detections
-      filtered_boxes = boxes[indices]
-      results[0].boxes = filtered_boxes
-      
-      # Draw boxes and labels for filtered detections
-      annotated_img = results[0].plot()
-      print(f"✅ Found {len(indices)} high-confidence daing detection(s)")
+      filtered_boxes = boxes[filtered_indices]
+      color_analysis = analyze_color_consistency_with_boxes(img, filtered_boxes)
+      mold_analysis = analyze_mold_with_boxes(img, filtered_boxes)
+
+    # Draw combined result image (bounding boxes + optional overlays)
+    result_img = draw_combined_result_image(img, results, filtered_indices, ai_model, color_analysis, mold_analysis, hide_color_overlay=True)
+    print(f"✅ Found {len(filtered_indices)} high-confidence daing detection(s)")
+    if color_analysis:
+      print(f"🎨 Color: Score={color_analysis['consistency_score']}% Grade={color_analysis['quality_grade']}")
+    if mold_analysis:
+      print(f"🦠 Mold: Severity={mold_analysis['overall_severity']} Coverage={mold_analysis['avg_coverage_percent']}%")
   else:
-    # No detections at all
-    annotated_img = img.copy()
-    h, w = annotated_img.shape[:2]
-    
-    # Add semi-transparent overlay
-    overlay = annotated_img.copy()
-    cv2.rectangle(overlay, (0, 0), (w, h), (0, 0, 0), -1)
-    cv2.addWeighted(overlay, 0.3, annotated_img, 0.7, 0, annotated_img)
-    
-    # Add "NO DAING DETECTED" text
-    text = "NO DAING DETECTED"
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 1.5
-    thickness = 3
-    
-    (text_w, text_h), _ = cv2.getTextSize(text, font, font_scale, thickness)
-    text_x = (w - text_w) // 2
-    text_y = (h + text_h) // 2
-    
-    cv2.putText(annotated_img, text, (text_x, text_y), font, font_scale, (0, 0, 0), thickness + 2)
-    cv2.putText(annotated_img, text, (text_x, text_y), font, font_scale, (255, 255, 255), thickness)
-    
-    print("⚠️ No daing detected at all")
+    result_img = draw_no_detection_image(img)
+    print("⚠️ No high-confidence daing detected")
 
-  # 4. PREPARE RESPONSE
-  success, encoded_img = cv2.imencode('.jpg', annotated_img)
+  # 4. ENCODE IMAGE TO BASE64
+  success, encoded_img = cv2.imencode('.jpg', result_img)
   if not success:
-    raise ValueError("Failed to encode image")
-
-  # Convert to bytes - this creates the actual JPEG file data
+    raise ValueError("Failed to encode result image")
   image_bytes = encoded_img.tobytes()
+  result_image_b64 = base64.b64encode(image_bytes).decode('utf-8')
+
+  # Determine best fish type / score / grade for backward compat
+  if detected_fish_types:
+    fish_type = _normalize_fish_type(detected_fish_types[0])
+    best_score = detected_confidences[0] if detected_confidences else 0.0
+  else:
+    fish_type = "Unknown"
+    best_score = 0.0
+  grade = color_analysis.get("quality_grade", "Unknown") if color_analysis else _grade_from_score(best_score)
 
   # 5. UPLOAD TO CLOUDINARY & LOG HISTORY
+  result_url = None
   try:
     now = datetime.now()
     date_folder = now.strftime("%Y-%m-%d")
     history_folder = f"daing-history/{date_folder}"
     history_id = f"scan_{now.strftime('%Y%m%d_%H%M%S_%f')}"
-    grade = _grade_from_score(best_score)
     user = _try_get_user_from_request(request)
     user_name = (user or {}).get("name") or "Unknown"
     user_id = str(user["_id"]) if user and user.get("_id") else None
 
-    # We upload the ANNOTATED image (with boxes) so you can see what the AI saw
-    # Use io.BytesIO to create a file-like object from the JPEG encoded data
     upload_result = cloudinary.uploader.upload(
       io.BytesIO(image_bytes),
       folder=history_folder,
       public_id=history_id,
       resource_type="image"
     )
+    result_url = upload_result.get("secure_url")
 
+    # Build per-fish merged results (color + mold + detection per fish)
+    per_fish_results = _build_per_fish_results(detected_fish_types, detected_confidences, color_analysis, mold_analysis)
+
+    # Build rich history entry with analysis data
     entry = {
       "id": history_id,
       "timestamp": now.isoformat(),
-      "url": upload_result.get("secure_url"),
+      "url": result_url,
       "folder": history_folder,
       "fish_type": fish_type,
       "grade": grade,
       "score": round(best_score, 4),
       "user_id": user_id,
       "user_name": user_name,
+      "detected": is_daing_detected,
+      "is_daing_detected": is_daing_detected,
+      "detections": [
+        {"fish_type": _normalize_fish_type(ft), "confidence": round(conf, 4)}
+        for ft, conf in zip(detected_fish_types, detected_confidences)
+      ],
+      "per_fish": per_fish_results,
+      "color_analysis": color_analysis,
+      "mold_analysis": mold_analysis,
+      "quality_grade": grade,
     }
     add_history_entry(entry)
     collection = _get_scan_collection()
     if collection is not None:
-      # for web backend: store full scan metadata for admin dashboard
-      collection.insert_one(entry)
-    
-    # Log audit event for scan
+      collection.insert_one(entry.copy())
+
     _log_audit_event(
       actor=user_name,
       role=user.get("role", "user") if user else "user",
@@ -510,24 +543,36 @@ async def analyze_fish(request: Request, file: UploadFile = File(...)):
       entity="Scan",
       entity_id=history_id,
       status="success",
-      details=f"Fish: {fish_type}, Grade: {grade}, Score: {best_score:.2%}"
+      details=f"Fish: {fish_type}, Grade: {grade}, Score: {best_score:.2%}, Color: {color_analysis.get('consistency_score', 0) if color_analysis else 0}%, Mold: {mold_analysis.get('overall_severity', 'None') if mold_analysis else 'None'}"
     )
-    
     print(f"📚 History saved: {history_folder}/{history_id}")
   except Exception as history_error:
     print(f"⚠️ Failed to save history: {history_error}")
     import traceback
     traceback.print_exc()
 
-  # Return the image with boxes drawn on it, plus metadata in headers
-  headers = {
-    "X-Fish-Type": fish_type,
-    "X-Grade": grade,
-    "X-Score": str(round(best_score, 4)),
-    "X-Detected": "true" if (best_score >= CONFIDENCE_THRESHOLD) else "false",
-    "Access-Control-Expose-Headers": "X-Fish-Type, X-Grade, X-Score, X-Detected",
+  # Build per-fish if not already done (fallback if history save failed)
+  if 'per_fish_results' not in dir():
+    per_fish_results = _build_per_fish_results(detected_fish_types, detected_confidences, color_analysis, mold_analysis)
+
+  # 6. RETURN JSON RESPONSE
+  return {
+    "status": "success",
+    "is_daing_detected": is_daing_detected,
+    "result_image": result_url,
+    "result_image_b64": result_image_b64,
+    "fish_type": fish_type,
+    "grade": grade,
+    "score": round(best_score, 4),
+    "detected": is_daing_detected,
+    "detections": [
+      {"fish_type": _normalize_fish_type(ft), "confidence": round(conf, 4)}
+      for ft, conf in zip(detected_fish_types, detected_confidences)
+    ],
+    "per_fish": per_fish_results,
+    "color_analysis": color_analysis,
+    "mold_analysis": mold_analysis,
   }
-  return StreamingResponse(io.BytesIO(image_bytes), media_type="image/jpeg", headers=headers)
 
 
 # --- KEEP YOUR DATASET/HISTORY ENDPOINTS BELOW AS IS ---
@@ -644,6 +689,10 @@ def get_history_detailed(user=Depends(_get_current_user)):
             "score": doc.get("score"),
             "user_id": doc.get("user_id"),
             "user_name": doc.get("user_name", ""),
+            "detections": doc.get("detections"),
+            "per_fish": doc.get("per_fish"),
+            "color_analysis": doc.get("color_analysis"),
+            "mold_analysis": doc.get("mold_analysis"),
           }
       except Exception as mongo_err:
         print(f"⚠️ MongoDB lookup failed, will use defaults: {mongo_err}")
@@ -686,6 +735,10 @@ def get_history_detailed(user=Depends(_get_current_user)):
           "score": score,
           "user_id": user_id,
           "user_name": user_name,
+          "detections": mongo_meta.get("detections") or [],
+          "per_fish": mongo_meta.get("per_fish") or [],
+          "color_analysis": mongo_meta.get("color_analysis"),
+          "mold_analysis": _safe_mold_summary(mongo_meta.get("mold_analysis")),
         })
     
     # Sort by timestamp descending (newest first)
@@ -1457,6 +1510,339 @@ def get_admin_scan_stats(user=Depends(_require_admin_user)):
       "avg_score": round(avg_score, 4),
     }
   }
+
+
+@app.get("/admin/scans/analytics")
+def get_admin_scan_analytics(start_date: str = None, end_date: str = None, granularity: str = None, days: int = None, user=Depends(_require_admin_user)):
+  """Full analytics aggregation for the admin Scans dashboard.
+
+  Computes all chart data from real scan records:
+    - fish_type_distribution   (donut)
+    - fish_type_trend          (monthly stacked area)
+    - mold_by_type             (grouped bar)
+    - quality_distribution     (donut)
+    - quality_trend            (monthly stacked bar)
+    - color_distribution       (score bands)
+    - color_trend              (monthly avg score)
+    - scan_volume_trend        (monthly scans + avg mold)
+    - severity_distribution    (donut)
+    - records                  (full table — paginated)
+    - kpis                     (summary numbers)
+
+  Query params:
+    - start_date, end_date: YYYY-MM-DD date bounds
+    - granularity: 'daily' | 'monthly' | 'yearly'  (controls trend x-axis bucketing)
+    - days: int (shortcut for last N days, e.g. days=7 for last week)
+  """
+  from collections import defaultdict
+  import calendar as cal_mod
+  from datetime import datetime as dt_cls, timedelta
+
+  all_raw = _fetch_scan_entries_from_db()
+  entries = [_normalize_scan_entry(e) for e in all_raw]
+
+  # ──── Compute date bounds from days shortcut ────
+  if days and not start_date:
+    start_date = (dt_cls.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    end_date = end_date or dt_cls.now().strftime("%Y-%m-%d")
+
+  # ──── Date range filter ────
+  if start_date or end_date:
+    filtered = []
+    for e in entries:
+      ts = (e.get("timestamp") or "")[:10]  # YYYY-MM-DD
+      if start_date and ts < start_date:
+        continue
+      if end_date and ts > end_date:
+        continue
+      filtered.append(e)
+    entries = filtered
+
+  # ──── Determine effective granularity ────
+  effective_gran = (granularity or "monthly").lower()   # daily | monthly | yearly
+
+  # ──── Helper: bucket key from timestamp based on granularity ────
+  def _period_label(ts: str) -> str | None:
+    if not ts or len(ts) < 7:
+      return None
+    try:
+      if effective_gran == "daily":
+        # Return the date portion "Feb 22", "Mar 01", etc.
+        m = int(ts[5:7])
+        d = int(ts[8:10]) if len(ts) >= 10 else 1
+        return f"{cal_mod.month_abbr[m]} {d}"
+      elif effective_gran == "yearly":
+        return ts[:4]   # "2025", "2026"
+      else:
+        m = int(ts[5:7])
+        return cal_mod.month_abbr[m]
+    except Exception:
+      return None
+
+  # ──── Helper: color band from score ────
+  def _color_band(score: float) -> str:
+    if score >= 80:
+      return "Excellent"
+    if score >= 60:
+      return "Good"
+    if score >= 40:
+      return "Fair"
+    return "Poor"
+
+  # ──── Helper: mold severity from per_fish or mold_analysis ────
+  def _extract_severity(entry: dict) -> str:
+    pf = entry.get("per_fish") or []
+    if pf:
+      worst = "None"
+      rank = {"None": 0, "Low": 1, "Moderate": 2, "Severe": 3}
+      for f in pf:
+        s = f.get("mold_severity", "None")
+        if rank.get(s, 0) > rank.get(worst, 0):
+          worst = s
+      return worst
+    ma = entry.get("mold_analysis")
+    if ma:
+      return ma.get("overall_severity", "None")
+    return "None"
+
+  def _extract_mold_pct(entry: dict) -> float:
+    pf = entry.get("per_fish") or []
+    if pf:
+      covs = [f.get("mold_coverage_percent", 0) for f in pf]
+      return sum(covs) / len(covs) if covs else 0
+    ma = entry.get("mold_analysis")
+    if ma:
+      return ma.get("avg_coverage_percent", 0)
+    return 0
+
+  def _extract_color_score(entry: dict) -> float:
+    pf = entry.get("per_fish") or []
+    if pf:
+      scores = [f.get("color_score", 0) for f in pf if f.get("color_score")]
+      return sum(scores) / len(scores) if scores else 0
+    ca = entry.get("color_analysis")
+    if ca:
+      return ca.get("consistency_score", 0)
+    return 0
+
+  def _extract_color_grade(entry: dict) -> str:
+    pf = entry.get("per_fish") or []
+    if pf:
+      # Worst grade
+      rank = {"Export": 0, "Local": 1, "Reject": 2, "N/A": 1}
+      worst = "Export"
+      for f in pf:
+        g = f.get("color_grade", "N/A")
+        if rank.get(g, 1) > rank.get(worst, 0):
+          worst = g
+      return worst
+    ca = entry.get("color_analysis")
+    if ca:
+      return ca.get("quality_grade", "N/A")
+    return "N/A"
+
+  # ──── Collect all period keys in order ────
+  period_set = set()
+  period_sort_key: dict[str, str] = {}  # period label → sortable string
+  for e in entries:
+    ts = e.get("timestamp", "")
+    pl = _period_label(ts)
+    if pl:
+      period_set.add(pl)
+      if effective_gran == "daily" and len(ts) >= 10:
+        period_sort_key[pl] = ts[:10]
+      elif effective_gran == "yearly" and len(ts) >= 4:
+        period_sort_key[pl] = ts[:4]
+      else:
+        period_sort_key.setdefault(pl, ts[:7] if len(ts) >= 7 else ts)
+
+  if effective_gran == "monthly":
+    month_order = list(cal_mod.month_abbr[1:])
+    ordered_periods = [m for m in month_order if m in period_set]
+    if not ordered_periods:
+      ordered_periods = month_order
+  else:
+    ordered_periods = sorted(period_set, key=lambda p: period_sort_key.get(p, p))
+
+  # ──── Accumulators ────
+  fish_type_counts: dict[str, int] = defaultdict(int)
+  fish_type_by_period: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+  mold_by_type: dict[str, list[float]] = defaultdict(list)
+  grade_counts: dict[str, int] = defaultdict(int)
+  grade_by_period: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+  color_band_counts: dict[str, int] = defaultdict(int)
+  color_by_period: dict[str, list[float]] = defaultdict(list)
+  scan_period_count: dict[str, int] = defaultdict(int)
+  scan_period_mold: dict[str, list[float]] = defaultdict(list)
+  severity_counts: dict[str, int] = defaultdict(int)
+
+  total_mold = 0.0
+  total_color = 0.0
+  reject_count = 0
+  total = len(entries)
+
+  # Build table records
+  records = []
+
+  for e in entries:
+    ft = e.get("fish_type", "Unknown")
+    grade = e.get("grade", "Unknown")
+    ml = _period_label(e.get("timestamp", ""))
+    mold_pct = round(_extract_mold_pct(e), 1)
+    mold_sev = _extract_severity(e)
+    col_score = round(_extract_color_score(e), 0)
+    col_grade = _extract_color_grade(e)
+
+    fish_type_counts[ft] += 1
+    if ml:
+      fish_type_by_period[ml][ft] += 1
+      grade_by_period[ml][grade] += 1
+      scan_period_count[ml] += 1
+      scan_period_mold[ml].append(mold_pct)
+      color_by_period[ml].append(col_score)
+    mold_by_type[ft].append(mold_pct)
+    grade_counts[grade] += 1
+    color_band_counts[_color_band(col_score)] += 1
+    severity_counts[mold_sev] += 1
+
+    total_mold += mold_pct
+    total_color += col_score
+    if grade == "Reject":
+      reject_count += 1
+
+    # Table record
+    ts = e.get("timestamp", "")
+    records.append({
+      "id": e.get("id", ""),
+      "date": ts[:10] if len(ts) >= 10 else ts,
+      "scanner": e.get("user_name", "Unknown"),
+      "fishType": ft,
+      "moldPct": mold_pct,
+      "moldSeverity": mold_sev,
+      "colorScore": int(col_score),
+      "colorGrade": col_grade,
+      "qualityGrade": grade,
+      "status": "Completed",
+    })
+
+  # ──── Build response objects ────
+
+  # 1. Fish type distribution (percentages)
+  fish_type_distribution = []
+  for ft, cnt in sorted(fish_type_counts.items(), key=lambda x: -x[1]):
+    fish_type_distribution.append({
+      "name": ft,
+      "value": round((cnt / total) * 100, 1) if total else 0,
+    })
+
+  # 2. Fish type trend
+  all_fish_types = [f["name"] for f in fish_type_distribution[:8]]
+  fish_type_trend = []
+  for m in ordered_periods:
+    row: dict = {"period": m}
+    for ft in all_fish_types:
+      row[ft] = fish_type_by_period[m].get(ft, 0)
+    fish_type_trend.append(row)
+
+  # 3. Mold by type (avg, min, max)
+  mold_by_type_data = []
+  for ft in all_fish_types:
+    vals = mold_by_type.get(ft, [0])
+    mold_by_type_data.append({
+      "type": ft,
+      "avgMold": round(sum(vals) / len(vals), 1) if vals else 0,
+      "minMold": round(min(vals), 1) if vals else 0,
+      "maxMold": round(max(vals), 1) if vals else 0,
+    })
+
+  # 4. Quality distribution
+  quality_distribution = []
+  for g in ["Export", "Local", "Reject"]:
+    cnt = grade_counts.get(g, 0)
+    quality_distribution.append({
+      "name": g,
+      "value": round((cnt / total) * 100, 1) if total else 0,
+    })
+
+  # 5. Quality trend (period %)
+  quality_trend = []
+  for m in ordered_periods:
+    m_total = sum(grade_by_period[m].values()) or 1
+    quality_trend.append({
+      "period": m,
+      "Export": round((grade_by_period[m].get("Export", 0) / m_total) * 100, 1),
+      "Local": round((grade_by_period[m].get("Local", 0) / m_total) * 100, 1),
+      "Reject": round((grade_by_period[m].get("Reject", 0) / m_total) * 100, 1),
+    })
+
+  # 6. Color distribution (band counts)
+  color_band_order = ["Excellent", "Good", "Fair", "Poor"]
+  color_band_colors = {"Excellent": "#22c55e", "Good": "#3b82f6", "Fair": "#f59e0b", "Poor": "#ef4444"}
+  color_distribution = []
+  for band in color_band_order:
+    color_distribution.append({
+      "band": band,
+      "count": color_band_counts.get(band, 0),
+      "color": color_band_colors[band],
+    })
+
+  # 7. Color trend (period avg score)
+  color_trend = []
+  for m in ordered_periods:
+    vals = color_by_period.get(m, [])
+    avg = round(sum(vals) / len(vals), 1) if vals else 0
+    color_trend.append({"period": m, "score": avg})
+
+  # 8. Scan volume trend (period count + avg mold %)
+  scan_volume_trend = []
+  for m in ordered_periods:
+    molds = scan_period_mold.get(m, [])
+    avg_mold = round(sum(molds) / len(molds), 1) if molds else 0
+    scan_volume_trend.append({
+      "period": m,
+      "Scans": scan_period_count.get(m, 0),
+      "Mold %": avg_mold,
+    })
+
+  # 9. Severity distribution
+  severity_order = ["None", "Low", "Moderate", "Severe"]
+  severity_colors = {"None": "#22c55e", "Low": "#f59e0b", "Moderate": "#f97316", "Severe": "#ef4444"}
+  severity_distribution = []
+  for s in severity_order:
+    cnt = severity_counts.get(s, 0)
+    severity_distribution.append({
+      "name": s,
+      "value": round((cnt / total) * 100) if total else 0,
+      "count": cnt,
+    })
+
+  # 10. KPIs
+  avg_mold = round(total_mold / total, 1) if total else 0
+  avg_color = round(total_color / total, 0) if total else 0
+  reject_rate = round((reject_count / total) * 100, 1) if total else 0
+
+  return {
+    "status": "success",
+    "total": total,
+    "fish_types": all_fish_types,
+    "kpis": {
+      "total_scans": total,
+      "avg_mold": avg_mold,
+      "avg_color": int(avg_color),
+      "reject_rate": reject_rate,
+    },
+    "fish_type_distribution": fish_type_distribution,
+    "fish_type_trend": fish_type_trend,
+    "mold_by_type": mold_by_type_data,
+    "quality_distribution": quality_distribution,
+    "quality_trend": quality_trend,
+    "color_distribution": color_distribution,
+    "color_trend": color_trend,
+    "scan_volume_trend": scan_volume_trend,
+    "severity_distribution": severity_distribution,
+    "records": records,
+  }
+
 
 @app.post("/admin/scans/{scan_id}/disable")
 def disable_admin_scan(scan_id: str, reason: str = "", user=Depends(_require_admin_user)):

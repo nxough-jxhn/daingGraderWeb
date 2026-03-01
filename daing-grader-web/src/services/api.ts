@@ -68,6 +68,10 @@ export interface DetailedHistoryEntry {
   score?: number | null
   user_id?: string | null
   user_name?: string
+  detections?: DetectionEntry[]
+  per_fish?: PerFishResult[]
+  color_analysis?: ColorAnalysis | null
+  mold_analysis?: MoldAnalysis | null
 }
 
 export interface DetailedHistoryResponse {
@@ -125,6 +129,10 @@ export interface AdminScanEntry {
   user_name: string
   user_id?: string | null
   detected: boolean
+  detections?: DetectionEntry[]
+  per_fish?: PerFishResult[]
+  color_analysis?: ColorAnalysis | null
+  mold_analysis?: MoldAnalysis | null
 }
 
 export interface AdminScanPage {
@@ -168,6 +176,41 @@ export interface AdminScanStats {
 
 export async function getAdminScanStats(): Promise<{ status: string; stats: AdminScanStats }> {
   const response = await api.get<{ status: string; stats: AdminScanStats }>('/admin/scans/stats')
+  return response.data
+}
+
+// ─── Admin Scans Analytics (full chart aggregation) ───
+export interface AdminScanAnalyticsRecord {
+  id: string
+  date: string
+  scanner: string
+  fishType: string
+  moldPct: number
+  moldSeverity: string
+  colorScore: number
+  colorGrade: string
+  qualityGrade: string
+  status: string
+}
+
+export interface AdminScanAnalytics {
+  total: number
+  fish_types: string[]
+  kpis: { total_scans: number; avg_mold: number; avg_color: number; reject_rate: number }
+  fish_type_distribution: { name: string; value: number }[]
+  fish_type_trend: Record<string, string | number>[]
+  mold_by_type: { type: string; avgMold: number; minMold: number; maxMold: number }[]
+  quality_distribution: { name: string; value: number }[]
+  quality_trend: Record<string, string | number>[]
+  color_distribution: { band: string; count: number; color: string }[]
+  color_trend: { period: string; score: number }[]
+  scan_volume_trend: Record<string, string | number>[]
+  severity_distribution: { name: string; value: number; count: number }[]
+  records: AdminScanAnalyticsRecord[]
+}
+
+export async function getAdminScanAnalytics(params?: { start_date?: string; end_date?: string; granularity?: string; days?: number }): Promise<AdminScanAnalytics> {
+  const response = await api.get<{ status: string } & AdminScanAnalytics>('/admin/scans/analytics', { params })
   return response.data
 }
 
@@ -253,26 +296,79 @@ export async function sendContactMessage(payload: ContactPayload): Promise<{ sta
   return response.data
 }
 
-/** POST image to /analyze; returns blob (image/jpeg) + metadata from headers. */
+/** POST image to /analyze; returns JSON with analysis data + Cloudinary result image URL. */
+export interface ColorAnalysis {
+  consistency_score: number
+  quality_grade: string
+  avg_l: number
+  avg_a: number
+  avg_b: number
+  avg_std: number
+  fish_count: number
+  per_fish: {
+    fish_index: number
+    l_mean: number
+    a_mean: number
+    b_mean: number
+    std_dev: number
+    score: number
+    grade: string
+  }[]
+}
+
+export interface MoldAnalysis {
+  overall_severity: string
+  avg_coverage_percent: number
+  fish_with_mold: number
+  total_patches: number
+  fish_analyzed?: number
+  fish_results?: {
+    region_index: number
+    mold_detected: boolean
+    mold_coverage_percent: number
+    severity: string
+    patch_count: number
+  }[]
+}
+
+export interface DetectionEntry {
+  fish_type: string
+  confidence: number
+}
+
+export interface PerFishResult {
+  fish_index: number
+  fish_type: string
+  confidence: number
+  color_score: number
+  color_grade: string
+  mold_severity: string
+  mold_coverage_percent: number
+  mold_detected: boolean
+}
+
 export interface AnalyzeResult {
-  blob: Blob
+  status: string
+  is_daing_detected: boolean
+  /** Cloudinary URL of the annotated result image */
+  result_image: string | null
+  /** Base64-encoded JPEG fallback (always present) */
+  result_image_b64: string
   fish_type: string
   grade: string
   score: number
   detected: boolean
+  detections: DetectionEntry[]
+  per_fish: PerFishResult[]
+  color_analysis: ColorAnalysis | null
+  mold_analysis: MoldAnalysis | null
 }
 
 export async function analyzeImage(file: File): Promise<AnalyzeResult> {
   const formData = new FormData()
   formData.append('file', file)
-  const response = await api.post<Blob>('/analyze', formData, { responseType: 'blob' })
-  return {
-    blob: response.data,
-    fish_type: response.headers['x-fish-type'] || 'Unknown',
-    grade: response.headers['x-grade'] || 'Unknown',
-    score: parseFloat(response.headers['x-score'] || '0'),
-    detected: response.headers['x-detected'] === 'true',
-  }
+  const response = await api.post<AnalyzeResult>('/analyze', formData)
+  return response.data
 }
 
 // --- Seller Products & Categories ---

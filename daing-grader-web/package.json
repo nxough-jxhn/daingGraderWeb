@@ -18,6 +18,8 @@
     "@tremor/react": "^3.18.7",
     "axios": "^1.4.0",
     "dayjs": "^1.11.19",
+    "exceljs": "^4.4.0",
+    "file-saver": "^2.0.5",
     "firebase": "^12.9.0",
     "framer-motion": "^10.12.8",
     "jspdf": "^4.1.0",
@@ -29,6 +31,7 @@
     "recharts": "^3.7.0"
   },
   "devDependencies": {
+    "@types/file-saver": "^2.0.7",
     "@types/react": "^18.2.21",
     "@types/react-dom": "^18.2.7",
     "@vitejs/plugin-react": "^4.0.0",
