@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Filter, RefreshCw, ChevronDown, ChevronLeft, ChevronRight, Maximize2, X, Activity, Clock, User, Tag } from 'lucide-react'
+import { RefreshCw, ChevronDown, ChevronLeft, ChevronRight, Maximize2, X, Activity, Clock, User, Tag, Download, Search } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import PageTitleHero from '../components/layout/PageTitleHero'
 import { getAdminAuditLogs, type AdminAuditLogEntry } from '../services/api'
 
@@ -136,7 +137,7 @@ function ActivityCategoryLineChart({ logs, year }: { logs: AdminAuditLogEntry[];
                   y1={y}
                   x2={width - padding.right}
                   y2={y}
-                  stroke="#DBEAFE"
+                  stroke="#E2E8F0"
                   strokeWidth="1"
                 />
                 <text x={padding.left - 6} y={y + 3} textAnchor="end" fontSize="10" fill="#64748B">
@@ -305,16 +306,18 @@ function ActivityCalendarChart({
             return (
               <div
                 key={idx}
-                className={`${cellHeightClass} cursor-pointer relative flex items-center justify-center font-medium rounded border border-blue-200 ${cellTextClass} ${bgColor} transition-colors`}
+                className={`${cellHeightClass} cursor-pointer relative flex items-center justify-center font-medium rounded border border-slate-200 ${cellTextClass} ${bgColor} transition-colors`}
                 onMouseMove={(e) => dayData.day !== null && !dayData.isFuture && dayData.count > 0 ? setHover({ x: e.clientX, y: e.clientY, text: `Activities: ${dayData.count}` }) : null}
                 onMouseLeave={() => setHover(null)}
               >
-                {dayData.day !== null && !dayData.isFuture && dayData.count > 0 ? (
+                {dayData.day !== null && (
                   <div className="text-center">
-                    <div className={dayTextClass}>{dayData.day}</div>
-                    <div className={`${countTextClass} font-bold`}>{dayData.count}</div>
+                    {!dayData.isFuture && dayData.count > 0 && (
+                      <div className={`${countTextClass} font-bold`}>{dayData.count}</div>
+                    )}
+                    <div className={`${dayTextClass} opacity-50`}>{dayData.day}</div>
                   </div>
-                ) : null}
+                )}
               </div>
             )
           })}
@@ -535,58 +538,58 @@ export default function AdminAuditLogsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Activity Monitoring</h2>
-          <p className="text-sm text-slate-500">Real-time audit log analytics and filtering</p>
+          <h2 className="text-sm font-bold text-slate-800">Activity Monitoring</h2>
+          <p className="text-[10px] text-slate-500">Real-time audit log analytics and filtering</p>
         </div>
         <button
           onClick={loadLogs}
-          className="px-3 py-2 border border-black shadow-md bg-white text-sm font-semibold flex items-center gap-2 hover:bg-slate-50 rounded"
+          className="px-3 py-1.5 border border-slate-300 bg-white text-sm font-medium flex items-center gap-1.5 hover:bg-slate-50 rounded-md text-slate-700"
         >
-          <RefreshCw className="w-4 h-4" />
+          <RefreshCw className="w-3.5 h-3.5" />
           Refresh
         </button>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Total Activities */}
-        <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-sm font-bold text-blue-700">Total Activities</div>
-            <Activity className="w-6 h-6 text-blue-600" />
+        <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px]">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-1.5 rounded-lg bg-blue-50"><Activity className="w-3.5 h-3.5 text-blue-600" /></div>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total Activities</span>
           </div>
-          <div className="text-3xl font-bold text-slate-900">{kpis[0].value}</div>
-          <div className="text-xs text-blue-600 mt-2">All system events</div>
+          <div className="text-xl font-bold text-slate-900">{kpis[0].value}</div>
+          <div className="text-[10px] italic text-slate-500 mt-1">All recorded system events</div>
         </div>
 
         {/* Last 24h */}
-        <div className="bg-gradient-to-br from-white to-green-50 border border-green-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-sm font-bold text-green-700">Last 24h</div>
-            <Clock className="w-6 h-6 text-green-600" />
+        <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px]">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-1.5 rounded-lg bg-green-50"><Clock className="w-3.5 h-3.5 text-green-600" /></div>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Last 24h</span>
           </div>
-          <div className="text-3xl font-bold text-green-600">{kpis[1].value}</div>
-          <div className="text-xs text-green-600 mt-2">Recent activity</div>
+          <div className="text-xl font-bold text-slate-900">{kpis[1].value}</div>
+          <div className="text-[10px] italic text-slate-500 mt-1">Recent platform activity count</div>
         </div>
 
         {/* Most Active User */}
-        <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-sm font-bold text-purple-700">Most Active User</div>
-            <User className="w-6 h-6 text-purple-600" />
+        <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px]">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-1.5 rounded-lg bg-purple-50"><User className="w-3.5 h-3.5 text-purple-600" /></div>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Most Active User</span>
           </div>
-          <div className="text-lg font-bold text-purple-600">{kpis[2].value}</div>
-          <div className="text-xs text-purple-600 mt-2">Top contributor</div>
+          <div className="text-xl font-bold text-slate-900 truncate">{kpis[2].value}</div>
+          <div className="text-[10px] italic text-slate-500 mt-1">Top contributing platform user</div>
         </div>
 
         {/* Top Category */}
-        <div className="bg-gradient-to-br from-white to-orange-50 border border-orange-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-sm font-bold text-orange-700">Top Category</div>
-            <Tag className="w-6 h-6 text-orange-600" />
+        <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px]">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-1.5 rounded-lg bg-orange-50"><Tag className="w-3.5 h-3.5 text-orange-600" /></div>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Top Category</span>
           </div>
-          <div className="text-lg font-bold text-orange-600">{kpis[3].value}</div>
-          <div className="text-xs text-orange-600 mt-2">Most active type</div>
+          <div className="text-xl font-bold text-slate-900 truncate">{kpis[3].value}</div>
+          <div className="text-[10px] italic text-slate-500 mt-1">Most active event category</div>
         </div>
       </div>
           </div>{/* end section 1 */}
@@ -598,22 +601,25 @@ export default function AdminAuditLogsPage() {
       {/* Analytics Graphs */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         {/* Category Line Chart */}
-        <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-4 rounded-lg">
+        <div className="bg-white border border-slate-300 p-4 rounded-xl">
           <div className="flex items-center justify-between mb-3">
-            <div className="text-sm font-bold text-blue-900">Category Trends</div>
+            <div>
+              <div className="text-sm font-bold text-slate-800">Category Trends</div>
+              <div className="text-[10px] text-slate-500">Monthly activity by category</div>
+            </div>
             <button
               onClick={() => { setGraphType('category'); setShowGraphModal(true) }}
-              className="p-1 hover:bg-blue-100 rounded transition-colors"
+              className="p-1 hover:bg-slate-50 rounded-md transition-colors"
               title="Expand graph"
             >
-              <Maximize2 className="w-4 h-4 text-blue-600" />
+              <Maximize2 className="w-4 h-4 text-slate-500" />
             </button>
           </div>
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <select
               value={graphYear}
               onChange={(e) => setGraphYear(parseInt(e.target.value))}
-              className="px-2 py-1 border border-black shadow-md bg-white text-xs font-semibold rounded"
+              className="px-2 py-1 border border-slate-300 bg-white text-xs font-semibold rounded-md"
             >
               {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
                 <option key={y} value={y}>{y}</option>
@@ -625,29 +631,32 @@ export default function AdminAuditLogsPage() {
           ) : logsError ? (
             <div className="h-40 flex items-center justify-center text-xs text-red-600">{logsError}</div>
           ) : (
-            <div className="h-56">
+            <div className="h-40 overflow-hidden">
               <ActivityCategoryLineChart logs={isFiltered ? filteredLogs : logs} year={graphYear} />
             </div>
           )}
         </div>
 
         {/* Activity Calendar */}
-        <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-4 rounded-lg">
+        <div className="bg-white border border-slate-300 p-4 rounded-xl">
           <div className="flex items-center justify-between mb-3">
-            <div className="text-sm font-bold text-blue-900">Activity Calendar</div>
+            <div>
+              <div className="text-sm font-bold text-slate-800">Activity Calendar</div>
+              <div className="text-[10px] text-slate-500">Daily activity heatmap</div>
+            </div>
             <button
               onClick={() => { setGraphType('calendar'); setShowGraphModal(true) }}
-              className="p-1 hover:bg-blue-100 rounded transition-colors"
+              className="p-1 hover:bg-slate-50 rounded-md transition-colors"
               title="Expand graph"
             >
-              <Maximize2 className="w-4 h-4 text-blue-600" />
+              <Maximize2 className="w-4 h-4 text-slate-500" />
             </button>
           </div>
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <select
               value={graphYear}
               onChange={(e) => setGraphYear(parseInt(e.target.value))}
-              className="px-2 py-1 border border-black shadow-md bg-white text-xs font-semibold rounded"
+              className="px-2 py-1 border border-slate-300 bg-white text-xs font-semibold rounded-md"
             >
               {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
                 <option key={y} value={y}>{y}</option>
@@ -656,7 +665,7 @@ export default function AdminAuditLogsPage() {
             <select
               value={graphMonth}
               onChange={(e) => setGraphMonth(parseInt(e.target.value))}
-              className="px-2 py-1 border border-black shadow-md bg-white text-xs font-semibold rounded"
+              className="px-2 py-1 border border-slate-300 bg-white text-xs font-semibold rounded-md"
             >
               {Array.from({ length: 12 }, (_, i) => (
                 <option key={i + 1} value={i + 1}>
@@ -670,22 +679,22 @@ export default function AdminAuditLogsPage() {
           ) : logsError ? (
             <div className="h-40 flex items-center justify-center text-xs text-red-600">{logsError}</div>
           ) : (
-            <div className="h-56">
+            <div className="h-40 overflow-hidden">
               <ActivityCalendarChart year={graphYear} month={graphMonth} logs={isFiltered ? filteredLogs : logs} />
             </div>
           )}
         </div>
 
         {/* Filter Options Panel */}
-        <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-4 rounded-lg">
-          <div className="text-sm font-bold text-blue-900 mb-3">Filter Options</div>
+        <div className="bg-white border border-slate-300 p-4 rounded-xl">
+          <div className="text-sm font-bold text-slate-800 mb-3">Filter Options</div>
           <div className="space-y-3">
             <div>
               <label className="text-xs text-slate-500">Category</label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as 'All' | AuditCategory)}
-                className="w-full mt-1 px-2 py-1 border border-slate-200 shadow-md bg-white text-xs"
+                className="w-full mt-1 px-2 py-1 border border-slate-300 bg-white text-xs rounded-md"
               >
                 {categoryOptions.map((c) => (
                   <option key={c} value={c}>{c}</option>
@@ -697,7 +706,7 @@ export default function AdminAuditLogsPage() {
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as 'All' | AuditStatus)}
-                className="w-full mt-1 px-2 py-1 border border-slate-200 shadow-md bg-white text-xs"
+                className="w-full mt-1 px-2 py-1 border border-slate-300 bg-white text-xs rounded-md"
               >
                 {statusOptions.map((s) => (
                   <option key={s} value={s}>{s}</option>
@@ -727,7 +736,7 @@ export default function AdminAuditLogsPage() {
                 value={actorQuery}
                 onChange={(e) => setActorQuery(e.target.value)}
                 placeholder="Enter actor name or ID"
-                className="w-full mt-1 px-2 py-1 border border-slate-300 shadow-md text-xs focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="w-full mt-1 px-2 py-1 border border-slate-300 text-xs rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               />
             </div>
           </div>
@@ -741,44 +750,44 @@ export default function AdminAuditLogsPage() {
 
       {/* Filtered Activity Table (Collapsible) */}
       {isFiltered && (
-        <div className="bg-white border border-blue-200 shadow-md overflow-hidden rounded-lg">
+        <div className="bg-white border border-slate-300 overflow-hidden rounded-xl">
           <div
-            className="flex items-center justify-between px-5 py-4 border-b border-blue-200 cursor-pointer hover:bg-blue-50 transition-colors bg-gradient-to-r from-white to-blue-50"
+            className="flex items-center justify-between px-4 py-3 border-b border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors"
             onClick={() => setFilteredCollapsed(!filteredCollapsed)}
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <div className="flex-1">
                 {category !== 'All' && category in categoryDescriptions && (
                   <>
-                    <span className="font-bold text-blue-900 text-base">{categoryDescriptions[category as AuditCategory].title}</span>
-                    <p className="text-xs text-slate-700">{categoryDescriptions[category as AuditCategory].description}</p>
+                    <span className="font-bold text-slate-800 text-sm">{categoryDescriptions[category as AuditCategory].title}</span>
+                    <p className="text-[10px] text-slate-500">{categoryDescriptions[category as AuditCategory].description}</p>
                   </>
                 )}
                 {category === 'All' && (
                   <>
-                    <span className="font-bold text-blue-900 text-base">Filtered Activity</span>
-                    <p className="text-xs text-slate-700">Activities matching current filters</p>
+                    <span className="font-bold text-slate-800 text-sm">Filtered Activity</span>
+                    <p className="text-[10px] text-slate-500">Activities matching current filters</p>
                   </>
                 )}
               </div>
-              <span className="text-sm text-white bg-blue-600 px-3 py-1 font-semibold whitespace-nowrap rounded">{filteredLogs.length}</span>
+              <span className="text-xs text-white bg-slate-600 px-1.5 py-0.5 font-semibold whitespace-nowrap rounded">{filteredLogs.length}</span>
             </div>
-            <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform flex-shrink-0 ${filteredCollapsed ? '-rotate-90' : ''}`} />
+            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${filteredCollapsed ? '-rotate-90' : ''}`} />
           </div>
 
           {!filteredCollapsed && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="text-slate-700 border-b border-blue-200 bg-gradient-to-r from-blue-50 to-white">
-                  <tr>
-                    <th className="text-left py-3 px-4 whitespace-nowrap font-bold text-blue-900">Time</th>
-                    <th className="text-left py-3 px-4 whitespace-nowrap font-bold text-blue-900">Actor</th>
-                    <th className="text-left py-3 px-4 whitespace-nowrap font-bold text-blue-900">Role</th>
-                    <th className="text-left py-3 px-4 font-bold text-blue-900">Action</th>
-                    <th className="text-left py-3 px-4 whitespace-nowrap font-bold text-blue-900">Entity</th>
-                    <th className="text-left py-3 px-4 whitespace-nowrap font-bold text-blue-900">Entity ID</th>
-                    <th className="text-left py-3 px-4 whitespace-nowrap font-bold text-blue-900">Status</th>
-                    <th className="text-left py-3 px-4 font-bold text-blue-900">Details</th>
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="text-left py-3 px-3 whitespace-nowrap text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Time</th>
+                    <th className="text-left py-3 px-3 whitespace-nowrap text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Actor</th>
+                    <th className="text-left py-3 px-3 whitespace-nowrap text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Role</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Action</th>
+                    <th className="text-left py-3 px-3 whitespace-nowrap text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Entity</th>
+                    <th className="text-left py-3 px-3 whitespace-nowrap text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Entity ID</th>
+                    <th className="text-left py-3 px-3 whitespace-nowrap text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Status</th>
+                    <th className="text-left py-3 px-3 text-xs font-semibold text-slate-600 uppercase tracking-wide">Details</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -792,14 +801,14 @@ export default function AdminAuditLogsPage() {
                     </tr>
                   ) : (
                     filteredLogs.slice(0, 10).map((log) => (
-                      <tr key={log.id} className="border-b border-slate-200 hover:bg-slate-50">
-                        <td className="py-3 px-4 font-medium text-slate-800 whitespace-nowrap text-xs">{formatDate(log.timestamp)} {formatTime(log.timestamp)}</td>
-                        <td className="py-3 px-4 whitespace-nowrap">{log.actor}</td>
-                        <td className="py-3 px-4 capitalize text-xs whitespace-nowrap">{log.role}</td>
-                        <td className="py-3 px-4">{log.action}</td>
-                        <td className="py-3 px-4 text-xs whitespace-nowrap">{log.entity}</td>
-                        <td className="py-3 px-4 font-mono text-xs whitespace-nowrap">{log.entity_id?.substring(0, 12)}...</td>
-                        <td className="py-3 px-4 whitespace-nowrap">
+                      <tr key={log.id} className="border-b border-slate-100 hover:bg-slate-50">
+                        <td className="py-3 px-3 font-medium text-slate-800 whitespace-nowrap text-xs border-r border-slate-100">{formatDate(log.timestamp)} {formatTime(log.timestamp)}</td>
+                        <td className="py-3 px-3 whitespace-nowrap text-sm border-r border-slate-100">{log.actor}</td>
+                        <td className="py-3 px-3 capitalize text-xs whitespace-nowrap border-r border-slate-100">{log.role}</td>
+                        <td className="py-3 px-3 text-sm border-r border-slate-100">{log.action}</td>
+                        <td className="py-3 px-3 text-xs whitespace-nowrap border-r border-slate-100">{log.entity}</td>
+                        <td className="py-3 px-3 font-mono text-xs whitespace-nowrap border-r border-slate-100">{log.entity_id?.substring(0, 12)}...</td>
+                        <td className="py-3 px-3 whitespace-nowrap border-r border-slate-100">
                           <span className={`px-2 py-1 text-xs font-semibold capitalize rounded inline-block ${
                             log.status === 'success' ? 'bg-green-100 text-green-800' :
                             log.status === 'warning' ? 'bg-yellow-100 text-yellow-800' :
@@ -808,7 +817,7 @@ export default function AdminAuditLogsPage() {
                             {log.status}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-slate-600 text-sm">{log.details}</td>
+                        <td className="py-3 px-3 text-slate-600 text-sm">{log.details}</td>
                       </tr>
                     ))
                   )}
@@ -820,34 +829,34 @@ export default function AdminAuditLogsPage() {
       )}
 
       {/* All Activity Table (Collapsible) */}
-      <div className="bg-white border border-blue-200 shadow-md overflow-hidden rounded-lg">
+      <div className="bg-white border border-slate-300 overflow-hidden rounded-xl">
         <div
-          className="flex items-center justify-between px-5 py-4 border-b border-blue-200 cursor-pointer hover:bg-blue-50 transition-colors bg-gradient-to-r from-white to-blue-50"
+          className="flex items-center justify-between px-4 py-3 border-b border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors"
           onClick={() => setAllActivityCollapsed(!allActivityCollapsed)}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <div className="flex-1">
-              <span className="font-bold text-blue-900 text-base">All Activity</span>
-              <p className="text-xs text-slate-700">Complete audit log of all events in the system</p>
+              <span className="font-bold text-slate-800 text-sm">All Activity</span>
+              <p className="text-[10px] text-slate-500">Complete audit log of all events</p>
             </div>
-            <span className="text-sm text-white bg-blue-600 px-3 py-1 font-semibold whitespace-nowrap rounded">{logs.length}</span>
+            <span className="text-xs text-white bg-slate-600 px-1.5 py-0.5 font-semibold whitespace-nowrap rounded">{logs.length}</span>
           </div>
-          <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform flex-shrink-0 ${allActivityCollapsed ? '-rotate-90' : ''}`} />
+          <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${allActivityCollapsed ? '-rotate-90' : ''}`} />
         </div>
 
         {!allActivityCollapsed && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="text-slate-700 border-b border-blue-200 bg-gradient-to-r from-blue-50 to-white">
-                <tr>
-                  <th className="text-left py-3 px-4 whitespace-nowrap font-bold text-blue-900">Time</th>
-                  <th className="text-left py-3 px-4 whitespace-nowrap font-bold text-blue-900">Actor</th>
-                  <th className="text-left py-3 px-4 whitespace-nowrap font-bold text-blue-900">Role</th>
-                  <th className="text-left py-3 px-4 font-bold text-blue-900">Action</th>
-                  <th className="text-left py-3 px-4 whitespace-nowrap font-bold text-blue-900">Entity</th>
-                  <th className="text-left py-3 px-4 whitespace-nowrap font-bold text-blue-900">Entity ID</th>
-                  <th className="text-left py-3 px-4 whitespace-nowrap font-bold text-blue-900">Status</th>
-                  <th className="text-left py-3 px-4 font-bold text-blue-900">Details</th>
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <th className="text-left py-3 px-3 whitespace-nowrap text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Time</th>
+                  <th className="text-left py-3 px-3 whitespace-nowrap text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Actor</th>
+                  <th className="text-left py-3 px-3 whitespace-nowrap text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Role</th>
+                  <th className="text-left py-3 px-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Action</th>
+                  <th className="text-left py-3 px-3 whitespace-nowrap text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Entity</th>
+                  <th className="text-left py-3 px-3 whitespace-nowrap text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Entity ID</th>
+                  <th className="text-left py-3 px-3 whitespace-nowrap text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Status</th>
+                  <th className="text-left py-3 px-3 text-xs font-semibold text-slate-600 uppercase tracking-wide">Details</th>
                 </tr>
               </thead>
               <tbody>
@@ -865,14 +874,14 @@ export default function AdminAuditLogsPage() {
                   </tr>
                 ) : (
                   logs.slice((allActivityPage - 1) * allActivityPageSize, allActivityPage * allActivityPageSize).map((log) => (
-                    <tr key={log.id} className="border-b border-slate-200 hover:bg-slate-50">
-                      <td className="py-3 px-4 font-medium text-slate-800 whitespace-nowrap text-xs">{formatDate(log.timestamp)} {formatTime(log.timestamp)}</td>
-                      <td className="py-3 px-4 whitespace-nowrap">{log.actor}</td>
-                      <td className="py-3 px-4 capitalize text-xs whitespace-nowrap">{log.role}</td>
-                      <td className="py-3 px-4">{log.action}</td>
-                      <td className="py-3 px-4 text-xs whitespace-nowrap">{log.entity}</td>
-                      <td className="py-3 px-4 font-mono text-xs whitespace-nowrap">{log.entity_id?.substring(0, 12)}...</td>
-                      <td className="py-3 px-4 whitespace-nowrap">
+                    <tr key={log.id} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="py-3 px-3 font-medium text-slate-800 whitespace-nowrap text-xs border-r border-slate-100">{formatDate(log.timestamp)} {formatTime(log.timestamp)}</td>
+                      <td className="py-3 px-3 whitespace-nowrap text-sm border-r border-slate-100">{log.actor}</td>
+                      <td className="py-3 px-3 capitalize text-xs whitespace-nowrap border-r border-slate-100">{log.role}</td>
+                      <td className="py-3 px-3 text-sm border-r border-slate-100">{log.action}</td>
+                      <td className="py-3 px-3 text-xs whitespace-nowrap border-r border-slate-100">{log.entity}</td>
+                      <td className="py-3 px-3 font-mono text-xs whitespace-nowrap border-r border-slate-100">{log.entity_id?.substring(0, 12)}...</td>
+                      <td className="py-3 px-3 whitespace-nowrap border-r border-slate-100">
                         <span className={`px-2 py-1 text-xs font-semibold capitalize rounded inline-block ${
                           log.status === 'success' ? 'bg-green-100 text-green-800' :
                           log.status === 'warning' ? 'bg-yellow-100 text-yellow-800' :
@@ -881,7 +890,7 @@ export default function AdminAuditLogsPage() {
                           {log.status}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-slate-600 text-sm">{log.details}</td>
+                      <td className="py-3 px-3 text-slate-600 text-sm">{log.details}</td>
                     </tr>
                   ))
                 )}
@@ -891,26 +900,26 @@ export default function AdminAuditLogsPage() {
           )}
 
           {logs.length > allActivityPageSize && (
-            <div className="px-5 py-4 border-t border-blue-200 flex items-center justify-between">
-              <div className="text-sm text-slate-600">
+            <div className="px-4 py-3 border-t border-slate-200 flex items-center justify-between bg-slate-50">
+              <div className="text-xs text-slate-500">
                 Page {allActivityPage} of {Math.ceil(logs.length / allActivityPageSize)}
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => setAllActivityPage(Math.max(1, allActivityPage - 1))}
                   disabled={allActivityPage === 1}
-                  className="flex items-center gap-1 px-3 py-2 border border-blue-300 text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded text-sm font-medium"
+                  className="flex items-center gap-1 px-2.5 py-1.5 border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded text-xs font-medium"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-3.5 h-3.5" />
                   Previous
                 </button>
                 <button
                   onClick={() => setAllActivityPage(Math.min(Math.ceil(logs.length / allActivityPageSize), allActivityPage + 1))}
                   disabled={allActivityPage === Math.ceil(logs.length / allActivityPageSize)}
-                  className="flex items-center gap-1 px-3 py-2 border border-blue-300 text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded text-sm font-medium"
+                  className="flex items-center gap-1 px-2.5 py-1.5 border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded text-xs font-medium"
                 >
                   Next
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
@@ -918,18 +927,18 @@ export default function AdminAuditLogsPage() {
       </div>
 
       {/* Activity Guide */}
-      <div className="bg-gradient-to-br from-blue-50 to-white border border-blue-200 shadow-md p-6 rounded-lg">
-        <h3 className="font-bold text-blue-900 mb-4 text-xl">Activity Categories Guide</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="bg-white border border-slate-300 p-4 rounded-xl">
+        <h3 className="font-bold text-slate-800 mb-3 text-sm">Activity Categories Guide</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {Object.entries(categoryDescriptions).map(([key, value]) => (
-            <div key={key} className="p-4 bg-white border-l-4 border-l-blue-500 shadow hover:shadow-md transition-shadow rounded">
-              <div className="font-bold text-slate-900 text-sm mb-1">{value.title}</div>
-              <div className="text-xs text-slate-700 mb-3 font-medium">{value.description}</div>
-              <div className="text-xs text-slate-700">
-                <strong className="text-blue-700">Examples:</strong>
-                <ul className="list-disc list-inside mt-2 space-y-1">
+            <div key={key} className="p-3 bg-white border border-slate-200 rounded-lg">
+              <div className="font-bold text-slate-900 text-xs mb-1">{value.title}</div>
+              <div className="text-[10px] text-slate-500 mb-2 font-medium">{value.description}</div>
+              <div className="text-[10px] text-slate-600">
+                <strong className="text-slate-700">Examples:</strong>
+                <ul className="list-disc list-inside mt-1 space-y-0.5">
                   {value.activities.map((act, i) => (
-                    <li key={i} className="text-slate-800">{act}</li>
+                    <li key={i} className="text-slate-600">{act}</li>
                   ))}
                 </ul>
               </div>
@@ -944,31 +953,31 @@ export default function AdminAuditLogsPage() {
 
       {/* Expandable Graph Modal */}
       {showGraphModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-auto">
-            <div className="sticky top-0 flex items-center justify-between px-6 py-4 border-b border-blue-200 bg-white">
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-6xl w-full max-h-[90vh] overflow-auto">
+            <div className="sticky top-0 flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-white rounded-t-xl">
               <div>
-                <h3 className="text-lg font-bold text-blue-900">
+                <h3 className="text-sm font-bold text-slate-800">
                   {graphType === 'category' ? 'Activity Category Trends' : 'Activity Calendar'}
                 </h3>
-                <p className="text-xs text-slate-600 mt-1">
+                <p className="text-[10px] text-slate-500 mt-0.5">
                   {graphType === 'category' ? `Year ${graphYear}` : `${new Date(graphYear, graphMonth - 1).toLocaleString('en-US', { month: 'long' })} ${graphYear}`}
                 </p>
               </div>
               <button
                 onClick={() => setShowGraphModal(false)}
-                className="p-1 hover:bg-slate-100 rounded transition-colors"
+                className="p-1 hover:bg-slate-50 rounded-md transition-colors"
               >
-                <X className="w-6 h-6 text-slate-600" />
+                <X className="w-4 h-4 text-slate-500" />
               </button>
             </div>
 
-            <div className="p-6">
-              <div className="flex items-center gap-4 mb-6 flex-wrap">
+            <div className="p-4">
+              <div className="flex items-center gap-3 mb-4 flex-wrap">
                 <select
                   value={graphYear}
                   onChange={(e) => setGraphYear(parseInt(e.target.value))}
-                  className="px-2 py-1 border border-black shadow-md bg-white text-xs font-semibold rounded"
+                  className="px-2 py-1 border border-slate-300 bg-white text-xs font-semibold rounded-md"
                 >
                   {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
                     <option key={y} value={y}>{y}</option>
@@ -978,7 +987,7 @@ export default function AdminAuditLogsPage() {
                   <select
                     value={graphMonth}
                     onChange={(e) => setGraphMonth(parseInt(e.target.value))}
-                    className="px-2 py-1 border border-black shadow-md bg-white text-xs font-semibold rounded"
+                    className="px-2 py-1 border border-slate-300 bg-white text-xs font-semibold rounded-md"
                   >
                     {Array.from({ length: 12 }, (_, i) => (
                       <option key={i + 1} value={i + 1}>

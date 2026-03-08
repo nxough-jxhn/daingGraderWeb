@@ -4,6 +4,7 @@
  * Users & Market: Real data from backend. Other tabs: Sample data.
  */
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Users, ScanLine, ShoppingBag, MessageCircle, Activity,
   TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight,
@@ -224,9 +225,20 @@ const marketColumnHelper = createColumnHelper<AdminMarketProduct>()
 
 // ──────────────────────────────── Main Component ─
 export default function AdminDashboardPageNew() {
-  const [activeSection, setActiveSection] = useState<SectionKey>('users')
-  const [reportPanelOpen, setReportPanelOpen] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [activeSection, setActiveSection] = useState<SectionKey>(() => {
+    const s = searchParams.get('section')
+    return s && ['users', 'scans', 'market', 'community', 'activities'].includes(s) ? s as SectionKey : 'users'
+  })
+  const [reportPanelOpen, setReportPanelOpen] = useState(() => searchParams.get('report') === 'open')
   const reportPanelAnchorRef = useRef<HTMLDivElement>(null)
+
+  // Clear query params after consuming them
+  useEffect(() => {
+    if (searchParams.get('section') || searchParams.get('report')) {
+      setSearchParams({}, { replace: true })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Generic section state ───
   const [genericSearch, setGenericSearch] = useState('')
@@ -299,6 +311,7 @@ export default function AdminDashboardPageNew() {
   const [communityHeatMapYear, setCommunityHeatMapYear] = useState(currentYear)
   const [communityHeatMapMonth, setCommunityHeatMapMonth] = useState(currentMonth)
   const [communityTableSearch, setCommunityTableSearch] = useState('')
+  const [communityDonutFilter, setCommunityDonutFilter] = useState<'all' | 'likes' | 'comments'>('all')
 
   // ═══════════════════ ACTIVITIES STATE ═══════════════════
   const [activitiesData, setActivitiesData] = useState<ActivitiesAnalyticsResponse | null>(null)
@@ -314,6 +327,7 @@ export default function AdminDashboardPageNew() {
   const [activitiesHeatMapYear, setActivitiesHeatMapYear] = useState(currentYear)
   const [activitiesHeatMapMonth, setActivitiesHeatMapMonth] = useState(currentMonth)
   const [activitiesTableSearch, setActivitiesTableSearch] = useState('')
+  const [activitiesDonutFilter, setActivitiesDonutFilter] = useState<'all' | string>('all')
 
   // ═══════════════════ USERS DATA LOADERS ═══════════════════
   const loadUsersKpis = useCallback(async () => {
@@ -663,11 +677,12 @@ export default function AdminDashboardPageNew() {
 
   // ─── Report Data Builder ───
   const usersReportData: SectionData = useMemo(() => {
+    const capChange = (v: number) => Math.sign(v) * Math.min(Math.abs(v), 100)
     const kpis: KpiItem[] = usersKpis ? [
-      { label: 'Total Users', value: usersKpis.total_users.toLocaleString(), change: usersKpis.total_change, subtitle: 'All registered accounts', icon: Users, iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
-      { label: 'Active Users', value: usersKpis.active_users.toLocaleString(), change: usersKpis.active_change, subtitle: 'Not disabled', icon: Activity, iconBg: 'bg-green-100', iconColor: 'text-green-600' },
-      { label: 'Verified Sellers', value: usersKpis.verified_sellers.toLocaleString(), change: usersKpis.sellers_change, subtitle: 'Active seller accounts', icon: ShoppingBag, iconBg: 'bg-violet-100', iconColor: 'text-violet-600' },
-      { label: 'Disabled Users', value: usersKpis.disabled_users.toLocaleString(), change: usersKpis.disabled_change, subtitle: 'Deactivated accounts', icon: TrendingDown, iconBg: 'bg-red-100', iconColor: 'text-red-600' },
+      { label: 'Total Users', value: usersKpis.total_users.toLocaleString(), change: capChange(usersKpis.total_change), subtitle: 'All registered accounts', icon: Users, iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
+      { label: 'Active Users', value: usersKpis.active_users.toLocaleString(), change: capChange(usersKpis.active_change), subtitle: 'Not disabled', icon: Activity, iconBg: 'bg-green-100', iconColor: 'text-green-600' },
+      { label: 'Verified Sellers', value: usersKpis.verified_sellers.toLocaleString(), change: capChange(usersKpis.sellers_change), subtitle: 'Active seller accounts', icon: ShoppingBag, iconBg: 'bg-violet-100', iconColor: 'text-violet-600' },
+      { label: 'Disabled Users', value: usersKpis.disabled_users.toLocaleString(), change: capChange(usersKpis.disabled_change), subtitle: 'Deactivated accounts', icon: TrendingDown, iconBg: 'bg-red-100', iconColor: 'text-red-600' },
     ] : []
     return {
       kpis, chartTitle: 'User Signups', chartData: usersChartData.map(d => ({ period: d.period, value: d['New Users'] })), chartColor: 'blue',
@@ -769,6 +784,22 @@ export default function AdminDashboardPageNew() {
     if (!activitiesData) return null
     return activitiesReportData
   }, [activitiesData, activitiesReportData])
+
+  // Filtered donut slices for Community
+  const communityDonutSlices = useMemo(() => {
+    if (!communityGenericData) return []
+    const all = communityGenericData.donut.slices
+    if (communityDonutFilter === 'all') return all
+    return all.filter(s => s.label.toLowerCase() === communityDonutFilter)
+  }, [communityGenericData, communityDonutFilter])
+
+  // Filtered donut slices for Activities
+  const activitiesDonutSlices = useMemo(() => {
+    if (!activitiesGenericData) return []
+    const all = activitiesGenericData.donut.slices
+    if (activitiesDonutFilter === 'all') return all
+    return all.filter(s => s.label.toLowerCase() === activitiesDonutFilter)
+  }, [activitiesGenericData, activitiesDonutFilter])
 
   const communityFilteredRows = useMemo(() => {
     if (!communityData) return []
@@ -880,7 +911,7 @@ export default function AdminDashboardPageNew() {
   // ═══════════════════ RENDER ═══════════════════
   return (
     <div className="min-h-screen bg-[var(--bg)]" style={{ fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}>
-      <div className="px-6 pb-8 pt-0 max-w-[1400px] mx-auto">
+      <div className="px-6 pb-8 pt-0">
 
         {/* Header Hero (full width, directly below app header line) */}
         <div className="-mt-6 mb-6 relative w-screen left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] overflow-hidden border-y border-slate-300 shadow-sidebar-subtle h-64">
@@ -890,13 +921,13 @@ export default function AdminDashboardPageNew() {
           />
           <div className="absolute inset-0 bg-slate-900/32" />
           <div className="absolute inset-0 z-10 flex flex-col justify-between">
-            <div className="w-full max-w-[1400px] mx-auto px-6 pt-6 self-start">
+            <div className="pl-16 pr-6 pt-6">
               <div className="text-sm text-white/75 font-medium"
                 style={{ textShadow: '0 1px 4px rgba(0, 0, 0, 0.5)' }}>
                 <span>Pages</span><span className="mx-2">/</span><span>Admin Dashboard</span>
               </div>
             </div>
-            <div className="w-full px-6 pb-6">
+            <div className="px-6 pb-6">
               <div className="w-1/2 bg-slate-900/65 backdrop-blur-sm rounded-lg px-8 py-6 shadow-xl border border-white/10">
                 <h1 className="text-4xl font-bold text-white"
                   style={{ textShadow: '0 2px 10px rgba(0, 0, 0, 0.55), 0 0 1px rgba(0,0,0,0.8)' }}>
@@ -908,7 +939,7 @@ export default function AdminDashboardPageNew() {
                 </p>
               </div>
             </div>
-            <div className="w-full max-w-[1400px] mx-auto px-6 pb-6 flex items-end gap-4 text-white/80 font-medium"
+            <div className="pl-16 pr-6 pb-6 flex items-end gap-4 text-white/80 font-medium"
               style={{ textShadow: '0 1px 4px rgba(0, 0, 0, 0.5)' }}>
               <span>DaingGrader</span>
               <span>{new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
@@ -990,16 +1021,16 @@ export default function AdminDashboardPageNew() {
                 </div>
               )) : usersKpis ? (<>
                 <KpiCard icon={<Users className="w-5 h-5 text-blue-600" />} iconBg="bg-blue-100" emoji="👥" title="Total Users"
-                  value={usersKpis.total_users.toLocaleString()} badge={<DynamicPercentageBadge value={usersKpis.total_change} size="xs" />}
+                  value={usersKpis.total_users.toLocaleString()} badge={<DynamicPercentageBadge value={Math.sign(usersKpis.total_change) * Math.min(Math.abs(usersKpis.total_change), 100)} size="xs" />}
                   badgeLabel="vs last 30 days" description="Total number of registered accounts on the platform" />
                 <KpiCard icon={<Activity className="w-5 h-5 text-green-600" />} iconBg="bg-green-100" emoji="✅" title="Active Users"
-                  value={usersKpis.active_users.toLocaleString()} badge={<DynamicPercentageBadge value={usersKpis.active_change} size="xs" />}
+                  value={usersKpis.active_users.toLocaleString()} badge={<DynamicPercentageBadge value={Math.sign(usersKpis.active_change) * Math.min(Math.abs(usersKpis.active_change), 100)} size="xs" />}
                   badgeLabel="vs last 30 days" description="Users whose accounts are not disabled or deactivated" />
                 <KpiCard icon={<ShoppingBag className="w-5 h-5 text-violet-600" />} iconBg="bg-violet-100" emoji="🏪" title="Verified Sellers"
-                  value={usersKpis.verified_sellers.toLocaleString()} badge={<DynamicPercentageBadge value={usersKpis.sellers_change} size="xs" />}
+                  value={usersKpis.verified_sellers.toLocaleString()} badge={<DynamicPercentageBadge value={Math.sign(usersKpis.sellers_change) * Math.min(Math.abs(usersKpis.sellers_change), 100)} size="xs" />}
                   badgeLabel="vs last 30 days" description="Active seller accounts with marketplace access" />
                 <KpiCard icon={<UserX className="w-5 h-5 text-red-600" />} iconBg="bg-red-100" emoji="🚫" title="Disabled Users"
-                  value={usersKpis.disabled_users.toLocaleString()} badge={<DynamicPercentageBadge value={usersKpis.disabled_change} size="xs" />}
+                  value={usersKpis.disabled_users.toLocaleString()} badge={<DynamicPercentageBadge value={Math.sign(usersKpis.disabled_change) * Math.min(Math.abs(usersKpis.disabled_change), 100)} size="xs" />}
                   badgeLabel="vs last 30 days" description="Accounts that have been deactivated by administrators" />
               </>) : null}
               </div>
@@ -1130,7 +1161,7 @@ export default function AdminDashboardPageNew() {
                           return (
                             <Tooltip key={dayIdx} label={day.day !== null ? `${usersCalendar.month_name} ${day.day}: ${day.count} signup${day.count !== 1 ? 's' : ''}` : ''} disabled={day.day === null} position="top" withArrow>
                               <div
-                                className={`h-7 border border-slate-200 flex items-center justify-center text-[9px] font-medium rounded-sm cursor-default transition-transform hover:scale-110 ${
+                                className={`h-9 border border-slate-200 flex items-center justify-center rounded-sm cursor-default transition-transform hover:scale-110 ${
                                   day.day === null ? 'bg-slate-50' :
                                   intensity > 0.7 ? 'bg-blue-600 text-white' :
                                   intensity > 0.4 ? 'bg-blue-400 text-white' :
@@ -1138,7 +1169,12 @@ export default function AdminDashboardPageNew() {
                                   'bg-blue-50 text-slate-400'
                                 }`}
                               >
-                                {day.day !== null ? (day.count || '') : ''}
+                                {day.day !== null ? (
+                                  <div className="text-center leading-none">
+                                    {day.count > 0 && <div className="text-[10px] font-bold">{day.count}</div>}
+                                    <div className="text-[7px] opacity-50 mt-px">{day.day}</div>
+                                  </div>
+                                ) : ''}
                               </div>
                             </Tooltip>
                           )
@@ -1425,7 +1461,7 @@ export default function AdminDashboardPageNew() {
                           return (
                             <Tooltip key={dayIdx} label={day.day !== null ? `${marketCalendar.month_name} ${day.day}: ${day.count} order${day.count !== 1 ? 's' : ''}` : ''} disabled={day.day === null} position="top" withArrow>
                               <div
-                                className={`h-7 border border-slate-200 flex items-center justify-center text-[9px] font-medium rounded-sm cursor-default transition-transform hover:scale-110 ${
+                                className={`h-9 border border-slate-200 flex items-center justify-center rounded-sm cursor-default transition-transform hover:scale-110 ${
                                   day.day === null ? 'bg-slate-50' :
                                   intensity > 0.7 ? 'bg-emerald-600 text-white' :
                                   intensity > 0.4 ? 'bg-emerald-400 text-white' :
@@ -1433,7 +1469,12 @@ export default function AdminDashboardPageNew() {
                                   'bg-emerald-50 text-slate-400'
                                 }`}
                               >
-                                {day.day !== null ? (day.count || '') : ''}
+                                {day.day !== null ? (
+                                  <div className="text-center leading-none">
+                                    {day.count > 0 && <div className="text-[10px] font-bold">{day.count}</div>}
+                                    <div className="text-[7px] opacity-50 mt-px">{day.day}</div>
+                                  </div>
+                                ) : ''}
                               </div>
                             </Tooltip>
                           )
@@ -1710,7 +1751,7 @@ export default function AdminDashboardPageNew() {
                               return (
                                 <Tooltip key={dayIdx} label={day.day !== null ? `${communityCalendar.month_name} ${day.day}: ${day.count} post${day.count !== 1 ? 's' : ''}` : ''} disabled={day.day === null} position="top" withArrow>
                                   <div
-                                    className={`h-7 border border-slate-200 flex items-center justify-center text-[9px] font-medium rounded-sm cursor-default transition-transform hover:scale-110 ${
+                                    className={`h-9 border border-slate-200 flex items-center justify-center rounded-sm cursor-default transition-transform hover:scale-110 ${
                                       day.day === null ? 'bg-slate-50' :
                                       intensity > 0.7 ? 'bg-rose-600 text-white' :
                                       intensity > 0.4 ? 'bg-rose-400 text-white' :
@@ -1718,7 +1759,12 @@ export default function AdminDashboardPageNew() {
                                       'bg-rose-50 text-slate-400'
                                     }`}
                                   >
-                                    {day.day !== null ? (day.count || '') : ''}
+                                    {day.day !== null ? (
+                                      <div className="text-center leading-none">
+                                        {day.count > 0 && <div className="text-[10px] font-bold">{day.count}</div>}
+                                        <div className="text-[7px] opacity-50 mt-px">{day.day}</div>
+                                      </div>
+                                    ) : ''}
                                   </div>
                                 </Tooltip>
                               )
@@ -1753,10 +1799,28 @@ export default function AdminDashboardPageNew() {
                   <div className="bg-white border border-slate-300 rounded-xl p-4">
                     <p className="text-xs text-slate-900 font-bold">🍩 Engagement Type</p>
                     <p className="text-[10px] text-slate-500 mb-3 italic">Likes vs Comments</p>
+
+                    {/* Filter Buttons */}
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                      {([
+                        { key: 'all' as const, label: 'All', color: 'bg-slate-600' },
+                        { key: 'likes' as const, label: 'Likes', color: 'bg-rose-500' },
+                        { key: 'comments' as const, label: 'Comments', color: 'bg-pink-400' },
+                      ]).map(opt => (
+                        <button key={opt.key} onClick={() => setCommunityDonutFilter(opt.key)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                            communityDonutFilter === opt.key ? `${opt.color} text-white shadow-sm` : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}>
+                          <div className={`w-2 h-2 rounded-full ${communityDonutFilter === opt.key ? 'bg-white' : opt.color}`} />
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+
                     <div className="flex flex-col items-center">
-                      <StraightAnglePie slices={communityGenericData.donut.slices} />
+                      <StraightAnglePie slices={communityDonutSlices} />
                       <div className="mt-4 w-full space-y-2">
-                        {communityGenericData.donut.slices.map((s, i) => (
+                        {communityDonutSlices.map((s, i) => (
                           <div key={i} className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
                             <span className="text-xs text-slate-700 flex-1">{s.label}</span>
@@ -1959,7 +2023,7 @@ export default function AdminDashboardPageNew() {
                               return (
                                 <Tooltip key={dayIdx} label={day.day !== null ? `${activitiesCalendar.month_name} ${day.day}: ${day.count} event${day.count !== 1 ? 's' : ''}` : ''} disabled={day.day === null} position="top" withArrow>
                                   <div
-                                    className={`h-7 border border-slate-200 flex items-center justify-center text-[9px] font-medium rounded-sm cursor-default transition-transform hover:scale-110 ${
+                                    className={`h-9 border border-slate-200 flex items-center justify-center rounded-sm cursor-default transition-transform hover:scale-110 ${
                                       day.day === null ? 'bg-slate-50' :
                                       intensity > 0.7 ? 'bg-cyan-600 text-white' :
                                       intensity > 0.4 ? 'bg-cyan-400 text-white' :
@@ -1967,7 +2031,12 @@ export default function AdminDashboardPageNew() {
                                       'bg-cyan-50 text-slate-400'
                                     }`}
                                   >
-                                    {day.day !== null ? (day.count || '') : ''}
+                                    {day.day !== null ? (
+                                      <div className="text-center leading-none">
+                                        {day.count > 0 && <div className="text-[10px] font-bold">{day.count}</div>}
+                                        <div className="text-[7px] opacity-50 mt-px">{day.day}</div>
+                                      </div>
+                                    ) : ''}
                                   </div>
                                 </Tooltip>
                               )
@@ -2002,10 +2071,29 @@ export default function AdminDashboardPageNew() {
                   <div className="bg-white border border-slate-300 rounded-xl p-4">
                     <p className="text-xs text-slate-900 font-bold">🍩 Actor Roles</p>
                     <p className="text-[10px] text-slate-500 mb-3 italic">Events by actor role</p>
+
+                    {/* Filter Buttons */}
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                      {([
+                        { key: 'all', label: 'All', color: 'bg-slate-600' },
+                        { key: 'user', label: 'User', color: 'bg-cyan-500' },
+                        { key: 'admin', label: 'Admin', color: 'bg-violet-500' },
+                        { key: 'seller', label: 'Seller', color: 'bg-green-500' },
+                      ]).map(opt => (
+                        <button key={opt.key} onClick={() => setActivitiesDonutFilter(opt.key)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                            activitiesDonutFilter === opt.key ? `${opt.color} text-white shadow-sm` : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}>
+                          <div className={`w-2 h-2 rounded-full ${activitiesDonutFilter === opt.key ? 'bg-white' : opt.color}`} />
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+
                     <div className="flex flex-col items-center">
-                      <StraightAnglePie slices={activitiesGenericData.donut.slices} />
+                      <StraightAnglePie slices={activitiesDonutSlices} />
                       <div className="mt-4 w-full space-y-2">
-                        {activitiesGenericData.donut.slices.map((s, i) => (
+                        {activitiesDonutSlices.map((s, i) => (
                           <div key={i} className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
                             <span className="text-xs text-slate-700 flex-1">{s.label}</span>

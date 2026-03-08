@@ -188,7 +188,7 @@ export default function SellerDashboardPage() {
         getSellerRecentOrders(100),
         getSellerSalesCategories(),
         getSellerSalesOverview({ granularity: 'daily', days: 7 }),
-        getSellerRecentReviews(5),
+        getSellerRecentReviews(3),
         getSellerStoreDetails(),
       ])
       

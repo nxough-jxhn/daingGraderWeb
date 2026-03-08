@@ -198,8 +198,8 @@ export default function StoreProfilePage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        {/* Store Header Info - Overlays the hero */}
-        <div className="relative -mt-20 mb-6 bg-gradient-to-br from-white to-blue-50 border border-blue-200 rounded-xl shadow-md p-6">
+        {/* Store Header Info */}
+        <div className="relative -mt-8 mb-6 bg-gradient-to-br from-white to-blue-50 border border-blue-200 rounded-xl shadow-md p-6">
           <div className="flex flex-col sm:flex-row gap-6">
             {/* Avatar */}
             <div className="flex-shrink-0">

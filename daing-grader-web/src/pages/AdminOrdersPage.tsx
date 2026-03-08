@@ -105,30 +105,30 @@ function OrdersTable({
   const StatusIcon = filterType && filterValue ? statusIcons[filterValue as OrderStatus] : null
 
   return (
-    <div className="bg-white border border-blue-200 shadow-sm overflow-hidden transition-all duration-300">
+    <div className="bg-white border border-slate-200 shadow-sm overflow-hidden transition-all duration-300 rounded-xl">
       {/* Table header with collapse toggle */}
       {title && (
         <div
-          className={`flex items-center justify-between px-5 py-4 border-b border-blue-200 cursor-pointer hover:bg-blue-50 transition-colors bg-gradient-to-r from-white to-blue-50`}
+          className={`flex items-center justify-between px-4 py-3 border-b border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors bg-white`}
           onClick={onToggleCollapse}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {StatusIcon && (
-              <div className={`p-2 rounded ${getStatusColor(filterValue as OrderStatus).split(' ')[0]}`}>
-                <StatusIcon className="w-5 h-5" />
+              <div className={`p-1.5 rounded-md ${getStatusColor(filterValue as OrderStatus).split(' ')[0]}`}>
+                <StatusIcon className="w-4 h-4" />
               </div>
             )}
-            <span className="font-bold text-blue-900 text-base">{title}</span>
-            <span className="text-sm text-white bg-blue-600 px-2 py-0.5 rounded">{orders.length}</span>
+            <span className="font-bold text-slate-900 text-sm">{title}</span>
+            <span className="text-[10px] text-white bg-blue-600 px-1.5 py-0.5 rounded-md">{orders.length}</span>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-slate-600">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-slate-500">
               {isCollapsed ? 'Click to expand' : `Showing ${paginatedOrders.length} of ${orders.length}`}
             </span>
             {isCollapsed ? (
-              <ChevronDown className="w-5 h-5 text-blue-600" />
+              <ChevronDown className="w-4 h-4 text-slate-500" />
             ) : (
-              <ChevronUp className="w-5 h-5 text-blue-600" />
+              <ChevronUp className="w-4 h-4 text-slate-500" />
             )}
           </div>
         </div>
@@ -142,9 +142,9 @@ function OrdersTable({
       >
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gradient-to-r from-blue-50 to-white border-b border-blue-200">
+            <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="w-12 px-4 py-4">
+                <th className="w-10 px-3 py-3">
                   <input
                     type="checkbox"
                     checked={allSelected}
@@ -155,63 +155,63 @@ function OrdersTable({
                         onSelectAll(paginatedOrders.map((o) => o.id))
                       }
                     }}
-                    className="w-4 h-4 accent-blue-600"
+                    className="w-3.5 h-3.5 accent-blue-600"
                   />
                 </th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">
                   Order #
                 </th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">
                   Buyer
                 </th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">
                   Seller
                 </th>
-                <th className="text-right px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">
+                <th className="text-right px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">
                   Amount
                 </th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">
                   Status
                 </th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">
                   Date
                 </th>
-                <th className="text-center px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">
+                <th className="text-center px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-blue-100">
+            <tbody className="divide-y divide-slate-100">
               {paginatedOrders.map((order) => (
-                <tr key={order.id} className="hover:bg-blue-50/50 transition-colors">
-                  <td className="px-4 py-4">
+                <tr key={order.id} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-3 py-3">
                     <input
                       type="checkbox"
                       checked={selectedIds.has(order.id)}
                       onChange={() => onToggleSelect(order.id)}
-                      className="w-4 h-4 accent-blue-600"
+                      className="w-3.5 h-3.5 accent-blue-600"
                     />
                   </td>
-                  <td className="px-4 py-4 font-medium text-slate-900">{order.order_number}</td>
-                  <td className="px-4 py-4 text-slate-700">{order.buyer_name}</td>
-                  <td className="px-4 py-4 text-slate-700">{order.seller_name}</td>
-                  <td className="px-4 py-4 text-right font-semibold text-blue-700">
+                  <td className="px-3 py-3 text-sm font-medium text-slate-900 border-r border-slate-100">{order.order_number}</td>
+                  <td className="px-3 py-3 text-sm text-slate-700 border-r border-slate-100">{order.buyer_name}</td>
+                  <td className="px-3 py-3 text-sm text-slate-700 border-r border-slate-100">{order.seller_name}</td>
+                  <td className="px-3 py-3 text-right text-sm font-semibold text-blue-700 border-r border-slate-100">
                     ₱{order.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </td>
-                  <td className="px-4 py-4">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-sm font-medium border rounded ${getStatusColor(order.status)}`}>
-                      {React.createElement(statusIcons[order.status], { className: 'w-3.5 h-3.5' })}
+                  <td className="px-3 py-3 border-r border-slate-100">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold border rounded ${getStatusColor(order.status)}`}>
+                      {React.createElement(statusIcons[order.status], { className: 'w-3 h-3' })}
                       {statusLabels[order.status]}
                     </span>
                   </td>
-                  <td className="px-4 py-4 text-slate-600">{formatDate(order.created_at)}</td>
-                  <td className="px-4 py-4">
+                  <td className="px-3 py-3 text-sm text-slate-600 border-r border-slate-100">{formatDate(order.created_at)}</td>
+                  <td className="px-3 py-3">
                     <div className="flex items-center justify-center">
                       <button
                         onClick={() => onViewOrder(order)}
-                        className="p-2 hover:bg-blue-100 text-slate-500 hover:text-blue-700 border border-transparent hover:border-blue-300 transition-all"
+                        className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-blue-700 border border-transparent hover:border-slate-300 rounded-md transition-all"
                       >
-                        <Eye className="w-4 h-4" />
+                        <Eye className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </td>
@@ -223,24 +223,24 @@ function OrdersTable({
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-5 py-4 border-t border-blue-200 bg-slate-50">
-            <div className="text-sm text-slate-600">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-slate-50">
+            <div className="text-xs text-slate-500">
               Page {page} of {totalPages}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <button
                 onClick={() => setPage(Math.max(1, page - 1))}
                 disabled={page === 1}
-                className="p-2 border border-blue-300 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-7 h-7 flex items-center justify-center border border-slate-300 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded"
               >
-                <ChevronLeft className="w-4 h-4 text-blue-600" />
+                <ChevronLeft className="w-3.5 h-3.5 text-slate-600" />
               </button>
               <button
                 onClick={() => setPage(Math.min(totalPages, page + 1))}
                 disabled={page === totalPages}
-                className="p-2 border border-blue-300 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-7 h-7 flex items-center justify-center border border-slate-300 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded"
               >
-                <ChevronRight className="w-4 h-4 text-blue-600" />
+                <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
               </button>
             </div>
           </div>
@@ -295,7 +295,7 @@ function SellerSalesBarChart({ orders }: { orders: AdminOrder[] }) {
                 y1={y}
                 x2={width - padding.right}
                 y2={y}
-                stroke="#DBEAFE"
+                stroke="#e2e8f0"
                 strokeWidth="1"
               />
               <text x={padding.left - 6} y={y + 3} textAnchor="end" fontSize="10" fill="#64748B">
@@ -318,7 +318,9 @@ function SellerSalesBarChart({ orders }: { orders: AdminOrder[] }) {
                 y={y}
                 width={barWidth}
                 height={barHeight}
-                fill="#3B82F6"
+                rx="4"
+                ry="4"
+                fill="url(#seller-bar-grad)"
                 className="cursor-pointer transition-all"
                 onMouseMove={(e) => setHover({ x: e.clientX, y: e.clientY, text: `${data.name}: ${data.count}` })}
                 onMouseLeave={() => setHover(null)}
@@ -404,6 +406,13 @@ function SalesLineChart({ orders, year }: { orders: AdminOrder[]; year: number }
   return (
     <div className="h-full flex flex-col relative">
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
+        {/* Gradient for area fill */}
+        <defs>
+          <linearGradient id="sales-line-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="#10B981" stopOpacity={0.02} />
+          </linearGradient>
+        </defs>
         {/* Grid lines and Y-axis */}
         {[1, 0.75, 0.5, 0.25, 0].map((tick, i) => {
           const y = padding.top + chartHeight - tick * chartHeight
@@ -416,7 +425,7 @@ function SalesLineChart({ orders, year }: { orders: AdminOrder[]; year: number }
                 y1={y}
                 x2={width - padding.right}
                 y2={y}
-                stroke="#DBEAFE"
+                stroke="#e2e8f0"
                 strokeWidth="1"
               />
               <text x={padding.left - 6} y={y + 3} textAnchor="end" fontSize="9" fill="#64748B">
@@ -426,7 +435,8 @@ function SalesLineChart({ orders, year }: { orders: AdminOrder[]; year: number }
           )
         })}
 
-        {/* Line and points */}
+        {/* Area fill and line */}
+        <path d={`${path} L ${pathPoints[pathPoints.length - 1].x} ${padding.top + chartHeight} L ${pathPoints[0].x} ${padding.top + chartHeight} Z`} fill="url(#sales-line-grad)" />
         <path d={path} fill="none" stroke="#10B981" strokeWidth="2" />
         {pathPoints.map((point, idx) => (
           <g
@@ -802,60 +812,63 @@ export default function AdminOrdersPage() {
             <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-semibold shadow-sm">1 Analytics</div>
 
       {/* Analytics Section - Side by Side Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Left: 4 KPIs in 2x2 Grid */}
-        <div className="grid grid-cols-2 gap-4 lg:items-start">
+        <div className="bg-white/80 border border-slate-200 rounded-xl p-3 grid grid-cols-2 gap-3">
           {/* Total Orders */}
-          <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold text-blue-700">Total Orders</div>
-              <ShoppingCart className="w-6 h-6 text-blue-600" />
+          <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px]">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-1.5 bg-blue-100 rounded-lg"><ShoppingCart className="w-4 h-4 text-blue-600" /></div>
+              <span className="text-xs font-semibold text-slate-700">Total Orders</span>
             </div>
-            <div className="text-3xl font-bold text-slate-900">{analyticsKPIs[0].value}</div>
-            <div className="text-xs text-blue-600 mt-2">All orders</div>
+            <div className="text-xl font-bold text-slate-900">{analyticsKPIs[0].value}</div>
+            <div className="text-[10px] text-slate-500 mt-1 italic">All orders placed across the platform</div>
           </div>
 
           {/* Total Sales */}
-          <div className="bg-gradient-to-br from-white to-green-50 border border-green-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold text-green-700">Total Sales</div>
-              <DollarSign className="w-6 h-6 text-green-600" />
+          <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px]">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-1.5 bg-green-100 rounded-lg"><DollarSign className="w-4 h-4 text-green-600" /></div>
+              <span className="text-xs font-semibold text-slate-700">Total Sales</span>
             </div>
-            <div className="text-3xl font-bold text-green-600">{analyticsKPIs[1].value}</div>
-            <div className="text-xs text-green-600 mt-2">Delivered revenue</div>
+            <div className="text-xl font-bold text-green-600">{analyticsKPIs[1].value}</div>
+            <div className="text-[10px] text-slate-500 mt-1 italic">Revenue from delivered orders only</div>
           </div>
 
           {/* Top Seller */}
-          <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold text-purple-700">Top Seller</div>
-              <Store className="w-6 h-6 text-purple-600" />
+          <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px]">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-1.5 bg-purple-100 rounded-lg"><Store className="w-4 h-4 text-purple-600" /></div>
+              <span className="text-xs font-semibold text-slate-700">Top Seller</span>
             </div>
-            <div className="text-lg font-bold text-purple-600">{analyticsKPIs[2].value}</div>
-            <div className="text-xs text-purple-600 mt-2">Best performer</div>
+            <div className="text-sm font-bold text-purple-600 truncate">{analyticsKPIs[2].value}</div>
+            <div className="text-[10px] text-slate-500 mt-1 italic">Seller with most delivered orders</div>
           </div>
 
           {/* Most Active Buyer */}
-          <div className="bg-gradient-to-br from-white to-orange-50 border border-orange-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold text-orange-700">Most Active Buyer</div>
-              <UserCheck className="w-6 h-6 text-orange-600" />
+          <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px]">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-1.5 bg-orange-100 rounded-lg"><UserCheck className="w-4 h-4 text-orange-600" /></div>
+              <span className="text-xs font-semibold text-slate-700">Most Active Buyer</span>
             </div>
-            <div className="text-lg font-bold text-orange-600">{analyticsKPIs[3].value}</div>
-            <div className="text-xs text-orange-600 mt-2">Top customer</div>
+            <div className="text-sm font-bold text-orange-600 truncate">{analyticsKPIs[3].value}</div>
+            <div className="text-[10px] text-slate-500 mt-1 italic">Customer with the most purchases</div>
           </div>
         </div>
 
         {/* Right: Order Analytics - Combined Graph Card */}
-        <div className="lg:col-span-2 bg-white border border-blue-200 shadow-md rounded-lg p-3 max-h-[300px] flex flex-col overflow-hidden">
+        <div className="lg:col-span-2 bg-white border border-slate-300 rounded-xl p-3 max-h-[300px] flex flex-col overflow-hidden">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold text-blue-900">Order Analytics</h3>
+            <div>
+              <p className="text-xs text-slate-900 font-bold">Order Analytics</p>
+              <p className="text-[10px] text-slate-500 italic">Sales trends & seller distribution</p>
+            </div>
             <button
               onClick={() => setShowGraphModal(true)}
-              className="p-2 text-blue-600 hover:bg-blue-50 transition-colors border border-blue-300 rounded"
+              className="p-1.5 text-slate-600 hover:bg-slate-100 transition-colors border border-slate-300 rounded-md"
               title="Expand view"
             >
-              <Maximize2 className="w-4 h-4" />
+              <Maximize2 className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -863,10 +876,10 @@ export default function AdminOrdersPage() {
           <div className="flex items-center gap-1.5 mb-2 flex-wrap">
             <button
               onClick={() => setGraphType('seller')}
-              className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
+              className={`px-2 py-1 text-xs font-semibold border rounded-md transition-colors ${
                 graphType === 'seller'
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
               }`}
             >
               <BarChart3 className="w-3 h-3 inline mr-0.5" />
@@ -874,10 +887,10 @@ export default function AdminOrdersPage() {
             </button>
             <button
               onClick={() => setGraphType('sales')}
-              className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
+              className={`px-2 py-1 text-xs font-semibold border rounded-md transition-colors ${
                 graphType === 'sales'
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
               }`}
             >
               <DollarSign className="w-3 h-3 inline mr-0.5" />
@@ -885,10 +898,10 @@ export default function AdminOrdersPage() {
             </button>
             <button
               onClick={() => setGraphType('calendar')}
-              className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
+              className={`px-2 py-1 text-xs font-semibold border rounded-md transition-colors ${
                 graphType === 'calendar'
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
               }`}
             >
               <Calendar className="w-3 h-3 inline mr-0.5" />
@@ -898,7 +911,7 @@ export default function AdminOrdersPage() {
             <select
               value={graphYear}
               onChange={(e) => setGraphYear(Number(e.target.value))}
-              className="px-1.5 py-1 border border-blue-300 bg-white text-xs rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="px-1.5 py-1 border border-slate-300 bg-white text-xs rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             >
               {[currentYear, currentYear - 1, currentYear - 2].map((y) => (
                 <option key={y} value={y}>{y}</option>
@@ -908,7 +921,7 @@ export default function AdminOrdersPage() {
               <select
                 value={graphMonth}
                 onChange={(e) => setGraphMonth(Number(e.target.value))}
-                className="px-1.5 py-1 border border-blue-300 bg-white text-xs rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="px-1.5 py-1 border border-slate-300 bg-white text-xs rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               >
                 {[
                   { val: 1, name: 'January' }, { val: 2, name: 'February' }, { val: 3, name: 'March' },
@@ -923,19 +936,19 @@ export default function AdminOrdersPage() {
           </div>
 
           {/* Graph Display */}
-          <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="flex-1 overflow-hidden min-h-0">
             {loading ? (
-              <div className="h-64 flex items-center justify-center text-xs text-slate-500">Loading...</div>
+              <div className="h-40 flex items-center justify-center text-xs text-slate-500">Loading...</div>
             ) : graphType === 'seller' ? (
-              <div className="h-64">
+              <div className="h-40">
                 <SellerSalesBarChart orders={isFiltered ? filteredOrders : allOrders} />
               </div>
             ) : graphType === 'sales' ? (
-              <div className="h-64">
+              <div className="h-40">
                 <SalesLineChart orders={isFiltered ? filteredOrders : allOrders} year={graphYear} />
               </div>
             ) : (
-              <div className="h-64">
+              <div className="h-40">
                 <OrderCalendarChart year={graphYear} month={graphMonth} orders={isFiltered ? filteredOrders : allOrders} />
               </div>
             )}
@@ -949,24 +962,24 @@ export default function AdminOrdersPage() {
             <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-semibold shadow-sm">2 Filters</div>
 
       {/* Filter Bar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px] max-w-[320px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500" />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px] max-w-[280px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
           <input
             type="text"
             placeholder="Search order #, buyer, seller..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-3 py-2.5 border border-blue-300 bg-white text-base focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full pl-9 pr-3 py-2 border border-slate-300 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded-md"
           />
         </div>
 
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-blue-600" />
+        <div className="flex items-center gap-1.5">
+          <Filter className="w-3.5 h-3.5 text-slate-500" />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as FilterStatus)}
-            className="px-3 py-2.5 border border-blue-300 bg-white text-base min-w-[120px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+            className="px-2 py-2 border border-slate-300 bg-white text-sm min-w-[120px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded-md"
           >
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
@@ -980,7 +993,7 @@ export default function AdminOrdersPage() {
         <select
           value={sellerFilter}
           onChange={(e) => setSellerFilter(e.target.value as FilterSeller)}
-          className="px-3 py-2.5 border border-blue-300 bg-white text-base min-w-[140px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+          className="px-2 py-2 border border-slate-300 bg-white text-sm min-w-[140px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded-md"
         >
           <option value="all">All Sellers</option>
           {sellers.map((seller) => (
@@ -1088,107 +1101,107 @@ export default function AdminOrdersPage() {
       {/* Order Detail Modal */}
       {detailModal.open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
           onClick={() => setDetailModal({ order: null, open: false })}
         >
           <div
-            className="bg-white w-full max-w-lg border border-black/15 shadow-xl overflow-y-auto max-h-[90vh]"
+            className="bg-white w-full max-w-lg border border-slate-200 shadow-xl overflow-y-auto max-h-[90vh] rounded-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-5 border-b border-black/15 sticky top-0 bg-white">
-              <h2 className="text-lg font-semibold text-slate-900">Order Details</h2>
-              <button onClick={() => setDetailModal({ order: null, open: false })} className="p-1 hover:bg-slate-100">
-                <X className="w-5 h-5" />
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 sticky top-0 bg-white rounded-t-xl">
+              <h2 className="text-sm font-bold text-slate-900">Order Details</h2>
+              <button onClick={() => setDetailModal({ order: null, open: false })} className="p-1 hover:bg-slate-100 rounded-md">
+                <X className="w-4 h-4 text-slate-500" />
               </button>
             </div>
 
             {detailLoading ? (
               <div className="p-10 text-center text-slate-500">Loading...</div>
             ) : orderDetail ? (
-              <div className="p-5 space-y-5">
+              <div className="p-5 space-y-4">
                 {/* Order Header */}
-                <div className="flex items-center justify-between p-3 bg-slate-50 border border-black/10">
+                <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg">
                   <div>
-                    <div className="text-sm text-slate-500">Order Number</div>
-                    <div className="text-lg font-bold text-slate-900">{orderDetail.order_number}</div>
+                    <div className="text-[10px] text-slate-500">Order Number</div>
+                    <div className="text-sm font-bold text-slate-900">{orderDetail.order_number}</div>
                   </div>
                   <span
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border rounded ${statusColors[orderDetail.status]}`}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold border rounded ${statusColors[orderDetail.status]}`}
                   >
-                    {React.createElement(statusIcons[orderDetail.status], { className: 'w-4 h-4' })}
+                    {React.createElement(statusIcons[orderDetail.status], { className: 'w-3 h-3' })}
                     {statusLabels[orderDetail.status]}
                   </span>
                 </div>
 
                 {/* Buyer & Seller Info */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="flex items-center gap-3 p-3 bg-slate-50 border border-black/10">
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center font-medium text-blue-700">
+                  <div className="flex items-center gap-2.5 p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-xs font-medium text-blue-700">
                       {orderDetail.buyer_name.charAt(0).toUpperCase()}
                     </div>
-                    <div>
-                      <div className="text-xs text-slate-500">Buyer</div>
-                      <div className="text-sm font-medium text-slate-900">{orderDetail.buyer_name}</div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] text-slate-500">Buyer</div>
+                      <div className="text-xs font-medium text-slate-900 truncate">{orderDetail.buyer_name}</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 p-3 bg-slate-50 border border-black/10">
-                    <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center font-medium text-purple-700">
+                  <div className="flex items-center gap-2.5 p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                    <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-xs font-medium text-purple-700">
                       {orderDetail.seller_name.charAt(0).toUpperCase()}
                     </div>
-                    <div>
-                      <div className="text-xs text-slate-500">Seller</div>
-                      <div className="text-sm font-medium text-slate-900">{orderDetail.seller_name}</div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] text-slate-500">Seller</div>
+                      <div className="text-xs font-medium text-slate-900 truncate">{orderDetail.seller_name}</div>
                     </div>
                   </div>
                 </div>
 
                 {/* Order Details Grid */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="flex items-center gap-2 p-3 bg-slate-50 border border-black/10">
-                    <DollarSign className="w-5 h-5 text-slate-400" />
+                  <div className="flex items-center gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                    <DollarSign className="w-4 h-4 text-slate-400" />
                     <div>
-                      <div className="text-xs text-slate-500">Total Amount</div>
-                      <div className="text-sm font-bold text-slate-900">
+                      <div className="text-[10px] text-slate-500">Total Amount</div>
+                      <div className="text-xs font-bold text-slate-900">
                         ₱{orderDetail.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 p-3 bg-slate-50 border border-black/10">
-                    <Package className="w-5 h-5 text-slate-400" />
+                  <div className="flex items-center gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                    <Package className="w-4 h-4 text-slate-400" />
                     <div>
-                      <div className="text-xs text-slate-500">Items</div>
-                      <div className="text-sm font-bold text-slate-900">{orderDetail.total_items}</div>
+                      <div className="text-[10px] text-slate-500">Items</div>
+                      <div className="text-xs font-bold text-slate-900">{orderDetail.total_items}</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 p-3 bg-slate-50 border border-black/10">
-                    <Calendar className="w-5 h-5 text-slate-400" />
+                  <div className="flex items-center gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                    <Calendar className="w-4 h-4 text-slate-400" />
                     <div>
-                      <div className="text-xs text-slate-500">Order Date</div>
-                      <div className="text-sm font-medium text-slate-900">{formatDate(orderDetail.created_at)}</div>
+                      <div className="text-[10px] text-slate-500">Order Date</div>
+                      <div className="text-xs font-medium text-slate-900">{formatDate(orderDetail.created_at)}</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 p-3 bg-slate-50 border border-black/10">
-                    <ShoppingCart className="w-5 h-5 text-slate-400" />
+                  <div className="flex items-center gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                    <ShoppingCart className="w-4 h-4 text-slate-400" />
                     <div>
-                      <div className="text-xs text-slate-500">Category</div>
-                      <div className="text-sm font-medium text-slate-900">{orderDetail.category}</div>
+                      <div className="text-[10px] text-slate-500">Category</div>
+                      <div className="text-xs font-medium text-slate-900">{orderDetail.category}</div>
                     </div>
                   </div>
                 </div>
 
                 {/* Items Table */}
                 <div>
-                  <div className="text-sm font-bold text-slate-900 mb-2">Order Items</div>
-                  <div className="border border-black/10">
-                    <table className="w-full text-sm">
-                      <thead className="bg-slate-50 border-b border-black/10">
+                  <div className="text-xs font-bold text-slate-900 mb-2">Order Items</div>
+                  <div className="border border-slate-200 rounded-lg overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead className="bg-slate-50 border-b border-slate-200">
                         <tr>
-                          <th className="text-left px-3 py-2 font-bold">Product</th>
-                          <th className="text-right px-3 py-2 font-bold">Qty</th>
-                          <th className="text-right px-3 py-2 font-bold">Price</th>
+                          <th className="text-left px-3 py-2 font-semibold text-slate-600">Product</th>
+                          <th className="text-right px-3 py-2 font-semibold text-slate-600">Qty</th>
+                          <th className="text-right px-3 py-2 font-semibold text-slate-600">Price</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-black/10">
+                      <tbody className="divide-y divide-slate-100">
                         {orderDetail.items.map((item, idx) => (
                           <tr key={idx}>
                             <td className="px-3 py-2">{item.name}</td>
@@ -1205,8 +1218,8 @@ export default function AdminOrdersPage() {
 
                 {/* Shipping Address */}
                 <div>
-                  <div className="text-sm font-bold text-slate-900 mb-2">Shipping Address</div>
-                  <div className="p-3 bg-slate-50 border border-black/10 text-sm text-slate-700 space-y-1">
+                  <div className="text-xs font-bold text-slate-900 mb-2">Shipping Address</div>
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 space-y-1">
                     <div>
                       <strong>{orderDetail.address.full_name}</strong>
                     </div>
@@ -1215,19 +1228,19 @@ export default function AdminOrdersPage() {
                       {orderDetail.address.city}, {orderDetail.address.province} {orderDetail.address.postal_code}
                     </div>
                     {orderDetail.address.notes && (
-                      <div className="text-xs text-slate-600">{orderDetail.address.notes}</div>
+                      <div className="text-[10px] text-slate-600">{orderDetail.address.notes}</div>
                     )}
-                    <div className="pt-2 border-t border-black/10">
-                      <Phone className="w-4 h-4 inline-block mr-1" />
+                    <div className="pt-2 border-t border-slate-200">
+                      <Phone className="w-3.5 h-3.5 inline-block mr-1" />
                       {orderDetail.address.phone}
                     </div>
                   </div>
                 </div>
 
                 {/* Payment Method */}
-                <div className="p-3 bg-blue-50 border border-blue-200">
-                  <div className="text-xs text-blue-700 font-medium">Payment Method</div>
-                  <div className="text-sm font-medium text-blue-900">{orderDetail.payment_method}</div>
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="text-[10px] text-blue-700 font-semibold">Payment Method</div>
+                  <div className="text-xs font-medium text-blue-900">{orderDetail.payment_method}</div>
                 </div>
               </div>
             ) : null}
@@ -1237,66 +1250,66 @@ export default function AdminOrdersPage() {
 
       {/* Expandable Graph Modal */}
       {showGraphModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-auto">
-            <div className="sticky top-0 flex items-center justify-between px-6 py-4 border-b border-blue-200 bg-white">
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xl max-w-6xl w-full max-h-[90vh] overflow-auto">
+            <div className="sticky top-0 flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white rounded-t-xl z-10">
               <div>
-                <h3 className="text-lg font-bold text-blue-900">
+                <h3 className="text-sm font-bold text-slate-900">
                   {graphType === 'seller' ? 'Top Sellers Distribution' : graphType === 'sales' ? 'Sales Trend Over Time' : 'Order Calendar'}
                 </h3>
-                <p className="text-xs text-slate-600 mt-1">
+                <p className="text-[10px] text-slate-500 mt-0.5">
                   {graphType === 'calendar' ? `${new Date(graphYear, graphMonth - 1).toLocaleString('en-US', { month: 'long' })} ${graphYear}` : `Year ${graphYear}`}
                 </p>
               </div>
               <button
                 onClick={() => setShowGraphModal(false)}
-                className="p-1 hover:bg-slate-100 rounded transition-colors"
+                className="p-1.5 hover:bg-slate-100 rounded-md transition-colors"
               >
-                <X className="w-6 h-6 text-slate-600" />
+                <X className="w-4 h-4 text-slate-500" />
               </button>
             </div>
 
-            <div className="p-6">
-              <div className="flex items-center gap-4 mb-6 flex-wrap">
+            <div className="p-5">
+              <div className="flex items-center gap-2 mb-4 flex-wrap">
                 {/* Graph Type Toggle */}
                 <button
                   onClick={() => setGraphType('seller')}
-                  className={`px-3 py-1.5 text-sm font-semibold border rounded transition-colors ${
+                  className={`px-3 py-1.5 text-xs font-semibold border rounded-md transition-colors ${
                     graphType === 'seller'
                       ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  <BarChart3 className="w-4 h-4 inline mr-1" />
+                  <BarChart3 className="w-3.5 h-3.5 inline mr-1" />
                   Top Sellers
                 </button>
                 <button
                   onClick={() => setGraphType('sales')}
-                  className={`px-3 py-1.5 text-sm font-semibold border rounded transition-colors ${
+                  className={`px-3 py-1.5 text-xs font-semibold border rounded-md transition-colors ${
                     graphType === 'sales'
                       ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  <DollarSign className="w-4 h-4 inline mr-1" />
+                  <DollarSign className="w-3.5 h-3.5 inline mr-1" />
                   Sales Trend
                 </button>
                 <button
                   onClick={() => setGraphType('calendar')}
-                  className={`px-3 py-1.5 text-sm font-semibold border rounded transition-colors ${
+                  className={`px-3 py-1.5 text-xs font-semibold border rounded-md transition-colors ${
                     graphType === 'calendar'
                       ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  <Calendar className="w-4 h-4 inline mr-1" />
+                  <Calendar className="w-3.5 h-3.5 inline mr-1" />
                   Order Calendar
                 </button>
 
                 <select
                   value={graphYear}
                   onChange={(e) => setGraphYear(parseInt(e.target.value))}
-                  className="px-2 py-1 border border-black shadow-md bg-white text-xs font-semibold rounded"
+                  className="px-3 py-1.5 border border-slate-300 bg-white text-xs font-semibold rounded-md"
                 >
                   {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
                     <option key={y} value={y}>{y}</option>
@@ -1306,7 +1319,7 @@ export default function AdminOrdersPage() {
                   <select
                     value={graphMonth}
                     onChange={(e) => setGraphMonth(parseInt(e.target.value))}
-                    className="px-2 py-1 border border-black shadow-md bg-white text-xs font-semibold rounded"
+                    className="px-3 py-1.5 border border-slate-300 bg-white text-xs font-semibold rounded-md"
                   >
                     {Array.from({ length: 12 }, (_, i) => (
                       <option key={i + 1} value={i + 1}>

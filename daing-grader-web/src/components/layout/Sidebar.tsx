@@ -81,7 +81,7 @@ const sellerPanelItems = [
   { to: '/seller/orders', label: 'Orders', icon: ClipboardList },
   { to: '/seller/reviews', label: 'Reviews', icon: Star },
   { to: '/seller/discounts', label: 'Vouchers', icon: Gift },
-  { to: '/seller/earnings', label: 'Earnings', icon: DollarSign },
+  // { to: '/seller/earnings', label: 'Earnings', icon: DollarSign },
 ]
 
 // Management items (Admin only)
@@ -92,7 +92,7 @@ const managementItems = [
   { to: '/admin/audit-logs', label: 'Audit Logs' },
   { to: '/admin/orders', label: 'Orders' },
   { to: '/admin/discounts', label: 'Vouchers' },
-  { to: '/admin/payouts', label: 'Payouts' },
+  // { to: '/admin/payouts', label: 'Payouts' },
 ]
 
 interface SidebarProps {

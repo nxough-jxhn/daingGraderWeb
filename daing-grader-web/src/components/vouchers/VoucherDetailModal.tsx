@@ -40,30 +40,30 @@ export default function VoucherDetailModal({ isOpen, onClose, voucher }: Voucher
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-auto">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+      <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full max-h-[90vh] overflow-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 p-6 flex items-center justify-between">
+        <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 p-4 flex items-center justify-between rounded-t-xl">
           <div>
-            <h2 className="text-white text-xl font-bold">{voucher.code}</h2>
+            <h2 className="text-white text-sm font-bold">{voucher.code}</h2>
             {voucher.seller_name && (
-              <p className="text-blue-100 text-sm mt-1">by {voucher.seller_name}</p>
+              <p className="text-blue-100 text-xs mt-0.5">by {voucher.seller_name}</p>
             )}
           </div>
           <button
             onClick={onClose}
-            className="text-white hover:bg-blue-800 p-2 rounded-lg transition-colors"
+            className="text-white hover:bg-blue-800 p-1 rounded-md transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-4 space-y-4">
           {/* Status Badge */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <div
-              className={`px-4 py-2 rounded-full text-sm font-semibold text-white ${
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold text-white ${
                 isExpired
                   ? 'bg-red-500'
                   : !voucher.active
@@ -78,19 +78,19 @@ export default function VoucherDetailModal({ isOpen, onClose, voucher }: Voucher
           </div>
 
           {/* Discount Info */}
-          <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
             <div className="flex items-center justify-between">
-              <span className="text-slate-600 font-medium">Discount</span>
-              <div className="flex items-center gap-2">
+              <span className="text-slate-600 text-sm font-medium">Discount</span>
+              <div className="flex items-center gap-1.5">
                 {voucher.discount_type === 'percentage' ? (
                   <>
-                    <Percent className="w-6 h-6 text-blue-600" />
-                    <span className="text-3xl font-bold text-blue-600">{voucher.value}%</span>
+                    <Percent className="w-4 h-4 text-blue-600" />
+                    <span className="text-xl font-bold text-blue-600">{voucher.value}%</span>
                   </>
                 ) : (
                   <>
-                    <DollarSign className="w-6 h-6 text-blue-600" />
-                    <span className="text-3xl font-bold text-blue-600">{formatCurrency(voucher.value)}</span>
+                    <DollarSign className="w-4 h-4 text-blue-600" />
+                    <span className="text-xl font-bold text-blue-600">{formatCurrency(voucher.value)}</span>
                   </>
                 )}
               </div>
@@ -98,7 +98,7 @@ export default function VoucherDetailModal({ isOpen, onClose, voucher }: Voucher
           </div>
 
           {/* Details Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Expiration Date */}
             {voucher.expiration_date && (
               <div className="border border-slate-200 rounded-lg p-4">
@@ -161,10 +161,10 @@ export default function VoucherDetailModal({ isOpen, onClose, voucher }: Voucher
         </div>
 
         {/* Footer */}
-        <div className="border-t border-slate-200 p-6">
+        <div className="border-t border-slate-200 p-4">
           <button
             onClick={onClose}
-            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+            className="w-full px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors"
           >
             Close
           </button>

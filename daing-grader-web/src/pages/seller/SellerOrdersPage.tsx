@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Package, Truck, CheckCircle, XCircle, RefreshCcw, MapPin, User, Phone, Mail, Calendar, ShoppingBag, X } from 'lucide-react'
+import { Package, Truck, CheckCircle, XCircle, RefreshCcw, MapPin, User, Phone, Mail, Calendar, ShoppingBag, X, Download } from 'lucide-react'
 import PageTitleHero from '../../components/layout/PageTitleHero'
-import { getSellerOrders, updateSellerOrderStatus, type OrderDetail } from '../../services/api'
+import { getSellerOrders, updateSellerOrderStatus, downloadOrderReceipt, type OrderDetail } from '../../services/api'
 import { useToast } from '../../contexts/ToastContext'
 
 type OrderStatus = 'confirmed' | 'shipped' | 'delivered' | 'cancelled'
@@ -48,6 +48,7 @@ export default function SellerOrdersPage() {
   const [statusDrafts, setStatusDrafts] = useState<Record<string, OrderStatus>>({})
   const [selectedOrder, setSelectedOrder] = useState<OrderDetail | null>(null)
   const [showModal, setShowModal] = useState(false)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   const loadOrders = async () => {
     setLoading(true)
@@ -112,6 +113,26 @@ export default function SellerOrdersPage() {
     setSelectedOrder(order)
   }
 
+  const handleDownloadReceipt = async () => {
+    if (!selectedOrder) return
+    setDownloadingId(selectedOrder.id)
+    try {
+      const { blob, filename } = await downloadOrderReceipt(selectedOrder.id)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (err: any) {
+      showToast(err?.response?.data?.detail || 'Failed to download receipt')
+    } finally {
+      setDownloadingId(null)
+    }
+  }
+
   const handleModalOpen = (order: OrderDetail, e: React.MouseEvent) => {
     e.stopPropagation()
     setSelectedOrder(order)
@@ -126,9 +147,9 @@ export default function SellerOrdersPage() {
         breadcrumb="Orders"
       />
 
-      <div className="flex h-[calc(100vh-14rem)] gap-4 overflow-hidden px-6 py-4">
+      <div className="flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-14rem)] gap-4 overflow-visible lg:overflow-hidden px-6 py-4">
       {/* LEFT PANEL - Order List */}
-      <div className="w-2/5 flex flex-col">
+      <div className="w-full lg:w-2/5 flex flex-col min-h-[300px] lg:min-h-0">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-2xl font-semibold text-blue-900">Orders</h1>
@@ -229,7 +250,7 @@ export default function SellerOrdersPage() {
       </div>
 
       {/* RIGHT PANEL - Order Details & Delivery Summary */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-h-[400px] lg:min-h-0">
         {selectedOrder ? (
           <div className="flex-1 bg-white border border-blue-200 shadow-sm rounded-lg overflow-hidden flex flex-col">
             {/* Header */}
@@ -249,12 +270,22 @@ export default function SellerOrdersPage() {
                       : '—'}
                   </p>
                 </div>
-                <button
-                  onClick={(e) => handleModalOpen(selectedOrder, e)}
-                  className="px-3 py-1.5 text-sm border border-blue-300 text-blue-700 rounded-md hover:bg-blue-50"
-                >
-                  View Full Details
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleDownloadReceipt}
+                    disabled={downloadingId === selectedOrder.id}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold border border-blue-200 text-blue-700 rounded-md hover:bg-blue-50 transition-colors disabled:opacity-60"
+                  >
+                    <Download className="w-4 h-4" />
+                    {downloadingId === selectedOrder.id ? 'Preparing...' : 'Download Receipt'}
+                  </button>
+                  <button
+                    onClick={(e) => handleModalOpen(selectedOrder, e)}
+                    className="px-3 py-1.5 text-sm border border-blue-300 text-blue-700 rounded-md hover:bg-blue-50"
+                  >
+                    View Full Details
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -405,7 +436,7 @@ export default function SellerOrdersPage() {
 
       {/* Full Details Modal */}
       {showModal && selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowModal(false)}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowModal(false)}>
           <div
             className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
@@ -531,13 +562,23 @@ export default function SellerOrdersPage() {
                   : '—'}
               </div>
 
-              {/* Close Button */}
-              <button
-                onClick={() => setShowModal(false)}
-                className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-              >
-                Close
-              </button>
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleDownloadReceipt}
+                  disabled={downloadingId === selectedOrder.id}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-60"
+                >
+                  <Download className="w-4 h-4" />
+                  {downloadingId === selectedOrder.id ? 'Preparing...' : 'Download Receipt'}
+                </button>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="flex-1 px-4 py-3 border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

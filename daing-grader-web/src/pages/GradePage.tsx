@@ -11,12 +11,26 @@ import { DAING_TYPES } from '../data/daingTypes'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 
+import espadaDataset from '../../image-dataset/espada.jpeg'
+import danggitDataset from '../../image-dataset/danggit.jpg'
+import bukidDataset from '../../image-dataset/bukid.jpg'
+import flyingDataset from '../../image-dataset/flying.jpg'
+import bisugoDataset from '../../image-dataset/bisugo.jpg'
+
 const ACCEPT = '.png,.jpg,.jpeg'
 const MAX_FILE_MB = 10
 
+const GRADE_IMAGE_MAP: Record<string, string> = {
+  Espada: espadaDataset,
+  Danggit: danggitDataset,
+  'Dalagang Bukid': bukidDataset,
+  'Flying Fish': flyingDataset,
+  Bisugo: bisugoDataset,
+}
+
 const GRADE_CAROUSEL_SLIDES = DAING_TYPES.map((t) => ({
   name: t.name,
-  imageSrc: t.carousel[0]?.imageSrc,
+  imageSrc: GRADE_IMAGE_MAP[t.name] || t.carousel[0]?.imageSrc,
   placeholderColor: t.carousel[0]?.placeholderColor ?? '#1e3a5f',
   alt: t.carousel[0]?.alt ?? `${t.name} dried fish`,
 }))

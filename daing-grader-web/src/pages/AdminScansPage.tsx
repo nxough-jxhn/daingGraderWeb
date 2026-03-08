@@ -3,6 +3,7 @@
  * Features: scans table with filtering, disable/delete, pagination
  */
 import React, { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Search,
   ChevronLeft,
@@ -166,10 +167,12 @@ function ScanCalendarChart({
                 onMouseMove={(e) => dayData.day !== null && !dayData.isFuture && dayData.count > 0 ? setHover({ x: e.clientX, y: e.clientY, text: `Scans: ${dayData.count}` }) : null}
                 onMouseLeave={() => setHover(null)}
               >
-                {dayData.day !== null && !dayData.isFuture && dayData.count > 0 ? (
+                {dayData.day !== null ? (
                   <div className="text-center">
-                    <div className={dayTextClass}>{dayData.day}</div>
-                    <div className={`${countTextClass} font-bold`}>{dayData.count}</div>
+                    {dayData.count > 0 && !dayData.isFuture && (
+                      <div className={`${countTextClass} font-bold`}>{dayData.count}</div>
+                    )}
+                    <div className={`${dayTextClass} opacity-50`}>{dayData.day}</div>
                   </div>
                 ) : null}
               </div>
@@ -252,6 +255,12 @@ function DaingTypeLineChart({ scans, year }: { scans: AdminScanEntry[]; year: nu
     <div className="space-y-2 h-full flex flex-col">
       <div className="flex-1 flex flex-col relative min-h-0 w-full">
         <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
+          <defs>
+            <linearGradient id="lineAreaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#2563EB" stopOpacity="0.2" />
+              <stop offset="100%" stopColor="#2563EB" stopOpacity="0" />
+            </linearGradient>
+          </defs>
           {[1, 0.75, 0.5, 0.25, 0].map((tick, i) => {
             const y = padding.top + chartHeight - tick * chartHeight
             const value = Math.round(maxValue * tick)
@@ -262,7 +271,7 @@ function DaingTypeLineChart({ scans, year }: { scans: AdminScanEntry[]; year: nu
                   y1={y}
                   x2={width - padding.right}
                   y2={y}
-                  stroke="#DBEAFE"
+                  stroke="#e2e8f0"
                   strokeWidth="1"
                 />
                 <text x={padding.left - 6} y={y + 3} textAnchor="end" fontSize="10" fill="#64748B">
@@ -271,6 +280,12 @@ function DaingTypeLineChart({ scans, year }: { scans: AdminScanEntry[]; year: nu
               </g>
             )
           })}
+
+          {/* Area fill under line */}
+          <path
+            d={`${path} L ${points[points.length - 1].x} ${padding.top + chartHeight} L ${points[0].x} ${padding.top + chartHeight} Z`}
+            fill="url(#lineAreaGrad)"
+          />
 
           <path d={path} fill="none" stroke="#2563EB" strokeWidth="2" />
           {points.map((point, idx) => (
@@ -392,6 +407,7 @@ function ScanQualityDonut({ scans, year }: { scans: AdminScanEntry[]; year: numb
 }
 
 export default function AdminScansPage() {
+  const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const [gradeFilter, setGradeFilter] = useState<FilterGrade>('all')
   const [fishTypeFilter, setFishTypeFilter] = useState('all')
@@ -636,52 +652,55 @@ export default function AdminScansPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* KPIs on the left - 2x2 grid */}
         <div className="grid grid-cols-2 gap-4 lg:items-start">
-          <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold text-blue-700">Total Scans</div>
-              <ImageIcon className="w-6 h-6 text-blue-600" />
+          <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px] hover:shadow-sm transition-shadow">
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-xs font-semibold text-slate-700">Total Scans</div>
+              <div className="p-1.5 rounded-lg bg-blue-50"><ImageIcon className="w-4 h-4 text-blue-600" /></div>
             </div>
-            <div className="text-3xl font-bold text-slate-900">{stats?.total_scans?.toLocaleString() || '-'}</div>
-            <div className="text-xs text-blue-600 mt-2">All scans</div>
+            <div className="text-xl font-bold text-slate-900">{stats?.total_scans?.toLocaleString() || '-'}</div>
+            <div className="text-[10px] italic text-slate-500 mt-1">All AI grading scans processed</div>
           </div>
-          <div className="bg-gradient-to-br from-white to-red-50 border border-red-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold text-red-700">Total Rejects</div>
-              <XCircle className="w-6 h-6 text-red-600" />
+          <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px] hover:shadow-sm transition-shadow">
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-xs font-semibold text-slate-700">Total Rejects</div>
+              <div className="p-1.5 rounded-lg bg-red-50"><XCircle className="w-4 h-4 text-red-600" /></div>
             </div>
-            <div className="text-3xl font-bold text-red-600">{stats?.reject_count ?? '-'}</div>
-            <div className="text-xs text-red-600 mt-2">Rejected scans</div>
+            <div className="text-xl font-bold text-red-600">{stats?.reject_count ?? '-'}</div>
+            <div className="text-[10px] italic text-slate-500 mt-1">Scans graded below export quality</div>
           </div>
-          <div className="bg-gradient-to-br from-white to-emerald-50 border border-emerald-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold text-emerald-700">Daing Detected</div>
-              <Fish className="w-6 h-6 text-emerald-600" />
+          <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px] hover:shadow-sm transition-shadow">
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-xs font-semibold text-slate-700">Daing Detected</div>
+              <div className="p-1.5 rounded-lg bg-emerald-50"><Fish className="w-4 h-4 text-emerald-600" /></div>
             </div>
-            <div className="text-3xl font-bold text-emerald-600">{analyticsLoading ? '-' : totalDetected}</div>
-            <div className="text-xs text-emerald-600 mt-2">Detected scans</div>
+            <div className="text-xl font-bold text-emerald-600">{analyticsLoading ? '-' : totalDetected}</div>
+            <div className="text-[10px] italic text-slate-500 mt-1">Scans with daing fish identified</div>
           </div>
-          <div className="bg-gradient-to-br from-white to-indigo-50 border border-indigo-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold text-indigo-700">Avg Confidence</div>
-              <Award className="w-6 h-6 text-indigo-600" />
+          <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px] hover:shadow-sm transition-shadow">
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-xs font-semibold text-slate-700">Avg Confidence</div>
+              <div className="p-1.5 rounded-lg bg-indigo-50"><Award className="w-4 h-4 text-indigo-600" /></div>
             </div>
-            <div className="text-3xl font-bold text-indigo-700">
+            <div className="text-xl font-bold text-indigo-700">
               {avgScoreValue !== null ? `${(avgScoreValue * 100).toFixed(1)}%` : 'N/A'}
             </div>
-            <div className="text-xs text-indigo-600 mt-2">Average score</div>
+            <div className="text-[10px] italic text-slate-500 mt-1">Mean AI detection confidence score</div>
           </div>
         </div>
 
         {/* Graph on the right */}
-        <div className="lg:col-span-2 bg-white border border-blue-200 shadow-md p-3 rounded-lg max-h-[300px] flex flex-col overflow-hidden">
+        <div className="lg:col-span-2 bg-white border border-slate-300 rounded-xl p-3 max-h-[300px] flex flex-col overflow-hidden">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold text-blue-900">Scan Analytics</h3>
+            <div>
+              <h3 className="text-sm font-bold text-slate-800">Scan Analytics</h3>
+              <p className="text-[10px] text-slate-500">AI grading trends and distributions</p>
+            </div>
             <button
               onClick={() => setShowGraphModal(true)}
-              className="p-2 text-blue-600 hover:bg-blue-50 transition-colors border border-blue-300 rounded"
+              className="p-1.5 text-slate-500 hover:bg-slate-50 transition-colors border border-slate-300 rounded-md"
               title="Expand view"
             >
-              <Maximize2 className="w-4 h-4" />
+              <Maximize2 className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -692,7 +711,7 @@ export default function AdminScansPage() {
               className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
                 graphType === 'types'
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
               }`}
             >
               <LineChart className="w-3 h-3 inline mr-0.5" />
@@ -700,10 +719,10 @@ export default function AdminScansPage() {
             </button>
             <button
               onClick={() => setGraphType('quality')}
-              className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
+              className={`px-2 py-1 text-xs font-semibold border rounded-md transition-colors ${
                 graphType === 'quality'
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
               }`}
             >
               <PieChart className="w-3 h-3 inline mr-0.5" />
@@ -711,10 +730,10 @@ export default function AdminScansPage() {
             </button>
             <button
               onClick={() => setGraphType('calendar')}
-              className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
+              className={`px-2 py-1 text-xs font-semibold border rounded-md transition-colors ${
                 graphType === 'calendar'
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
               }`}
             >
               <Calendar className="w-3 h-3 inline mr-0.5" />
@@ -723,7 +742,7 @@ export default function AdminScansPage() {
             <select
               value={graphYear}
               onChange={(e) => setGraphYear(Number(e.target.value))}
-              className="px-1.5 py-1 border border-blue-300 bg-white text-xs rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="px-1.5 py-1 border border-slate-300 bg-white text-xs rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             >
               {[today.getFullYear(), today.getFullYear() - 1, today.getFullYear() - 2].map((y) => (
                 <option key={y} value={y}>{y}</option>
@@ -733,7 +752,7 @@ export default function AdminScansPage() {
               <select
                 value={graphMonth}
                 onChange={(e) => setGraphMonth(Number(e.target.value))}
-                className="px-1.5 py-1 border border-blue-300 bg-white text-xs rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="px-1.5 py-1 border border-slate-300 bg-white text-xs rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               >
                 {[
                   { val: 1, name: 'January' }, { val: 2, name: 'February' }, { val: 3, name: 'March' },
@@ -748,7 +767,7 @@ export default function AdminScansPage() {
           </div>
 
           {/* Graph Display */}
-          <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="flex-1 overflow-hidden min-h-0 h-40">
             {graphType === 'types' ? (
               <DaingTypeLineChart scans={analyticsScans} year={graphYear} />
             ) : graphType === 'quality' ? (
@@ -769,26 +788,26 @@ export default function AdminScansPage() {
       <div className="flex flex-wrap items-center gap-4">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px] max-w-[320px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
             placeholder="Search by ID, fish type, user..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-3 py-2.5 border border-blue-300 bg-white text-base text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded"
+            className="w-full pl-10 pr-3 py-2 border border-slate-300 bg-white text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded-md"
           />
         </div>
 
         {/* Grade Filter */}
         <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-blue-600" />
+          <Filter className="w-4 h-4 text-slate-500" />
           <select
             value={gradeFilter}
             onChange={(e) => {
               setGradeFilter(e.target.value as FilterGrade)
               setPage(1)
             }}
-            className="px-3 py-2.5 border border-blue-300 bg-white text-base text-slate-900 min-w-[130px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded"
+            className="px-3 py-2 border border-slate-300 bg-white text-sm text-slate-900 min-w-[130px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded-md"
           >
             <option value="all">All Grades</option>
             <option value="Export">Export</option>
@@ -804,7 +823,7 @@ export default function AdminScansPage() {
             setFishTypeFilter(e.target.value)
             setPage(1)
           }}
-          className="px-3 py-2.5 border border-blue-300 bg-white text-base text-slate-900 min-w-[160px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded"
+          className="px-3 py-2 border border-slate-300 bg-white text-sm text-slate-900 min-w-[160px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded-md"
         >
           <option value="all">All Fish Types</option>
           <option value="Danggit">Danggit</option>
@@ -822,7 +841,7 @@ export default function AdminScansPage() {
             setDetectionFilter(e.target.value as FilterDetection)
             setPage(1)
           }}
-          className="px-3 py-2.5 border border-blue-300 bg-white text-base text-slate-900 min-w-[160px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded"
+          className="px-3 py-2 border border-slate-300 bg-white text-sm text-slate-900 min-w-[160px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded-md"
         >
           <option value="all">All Detections</option>
           <option value="detected">Daing Detected</option>
@@ -832,7 +851,7 @@ export default function AdminScansPage() {
         {/* Bulk Actions */}
         {selectedIds.size > 0 && (
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-blue-700 bg-blue-100 px-3 py-2 border border-blue-300 rounded">
+            <span className="text-sm font-semibold text-blue-700 bg-blue-100 px-3 py-1.5 border border-blue-300 rounded-md">
               {selectedIds.size} selected
             </span>
             <button
@@ -840,7 +859,7 @@ export default function AdminScansPage() {
                 const firstScan = scans.find((s) => selectedIds.has(s.id))
                 if (firstScan) handleDeleteClick(firstScan)
               }}
-              className="flex items-center gap-1 px-3 py-2 bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors rounded"
+              className="flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors rounded-md"
             >
               <Trash2 className="w-4 h-4" />
               Delete Selected
@@ -849,7 +868,9 @@ export default function AdminScansPage() {
         )}
 
         {/* Export */}
-        <button className="flex items-center gap-2 px-4 py-2.5 border border-blue-300 bg-white text-base text-blue-700 hover:bg-blue-50 ml-auto font-semibold transition-colors rounded">
+        <button
+          onClick={() => navigate('/admin?section=scans&report=open')}
+          className="flex items-center gap-2 px-4 py-2 border border-slate-300 bg-white text-sm text-slate-700 hover:bg-slate-50 ml-auto font-semibold transition-colors rounded-md">
           <Download className="w-4 h-4" />
           Export
         </button>
@@ -891,12 +912,12 @@ export default function AdminScansPage() {
       )}
 
       {/* Scans Table */}
-      <div className="bg-white border border-blue-200 shadow-sm overflow-hidden rounded-lg">
+      <div className="bg-white border border-slate-200 shadow-sm overflow-hidden rounded-lg">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gradient-to-r from-blue-50 to-white border-b border-blue-200">
+            <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="w-12 px-4 py-4">
+                <th className="w-12 px-3 py-3 border-r border-slate-200">
                   <input
                     type="checkbox"
                     checked={allSelected}
@@ -904,18 +925,18 @@ export default function AdminScansPage() {
                     className="w-4 h-4 accent-blue-600"
                   />
                 </th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">ID</th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Image</th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Fish Type</th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Detection</th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Grade</th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Score</th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">User</th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Date</th>
-                <th className="text-center px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Actions</th>
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">ID</th>
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Image</th>
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Fish Type</th>
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Detection</th>
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Grade</th>
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Score</th>
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">User</th>
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Date</th>
+                <th className="text-center px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-blue-100">
+            <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
                   <td colSpan={10} className="py-10 text-center text-slate-600">
@@ -939,8 +960,8 @@ export default function AdminScansPage() {
                   const score = scan.score
 
                   return (
-                    <tr key={scan.id} className="hover:bg-blue-50 transition-colors">
-                      <td className="px-4 py-4">
+                    <tr key={scan.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-3 py-3 border-r border-slate-100">
                         <input
                           type="checkbox"
                           checked={selectedIds.has(scan.id)}
@@ -948,39 +969,39 @@ export default function AdminScansPage() {
                           className="w-4 h-4 accent-blue-600"
                         />
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-3 border-r border-slate-100">
                         <div className="flex items-center gap-1">
                           <span className="text-xs text-slate-800 font-mono">{scan.id.slice(0, 12)}</span>
                           <CopyButton text={scan.id} />
                         </div>
                       </td>
-                      <td className="px-4 py-4">
-                        <div className="w-16 h-16 bg-blue-50 flex items-center justify-center border border-blue-200 overflow-hidden rounded">
+                      <td className="px-3 py-3 border-r border-slate-100">
+                        <div className="w-14 h-14 bg-slate-50 flex items-center justify-center border border-slate-200 overflow-hidden rounded">
                           {scan.url ? (
                             <img src={scan.url} alt="Scan" className="w-full h-full object-cover" />
                           ) : (
-                            <ImageIcon className="w-6 h-6 text-blue-400" />
+                            <ImageIcon className="w-5 h-5 text-slate-400" />
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-3 border-r border-slate-100">
                         <div className="flex items-center gap-2">
-                          <Fish className="w-4 h-4 text-blue-600" />
+                          <Fish className="w-4 h-4 text-slate-500" />
                           <span className="text-sm text-slate-800 font-medium">{fishType}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-3 border-r border-slate-100">
                         <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded ${scan.detected ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                           {scan.detected ? 'Detected' : 'No Detection'}
                         </span>
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-3 border-r border-slate-100">
                         <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium ${gradeColors[grade]}`}>
                           <Award className="w-3 h-3" />
                           {grade}
                         </span>
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-3 border-r border-slate-100">
                         {score !== null && score !== undefined ? (
                           <div className="flex items-center gap-2">
                             <div className="w-16 h-2 bg-slate-200 rounded-full overflow-hidden">
@@ -995,18 +1016,18 @@ export default function AdminScansPage() {
                           <span className="text-sm text-slate-500">N/A</span>
                         )}
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-3 border-r border-slate-100">
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-sm font-medium text-slate-700">
+                          <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-xs font-medium text-slate-700">
                             {userName.charAt(0).toUpperCase()}
                           </div>
                           <div className="text-sm text-slate-800">{userName}</div>
                         </div>
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-3 border-r border-slate-100">
                         <div className="text-sm text-slate-800">{formatDate(scan.timestamp)}</div>
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-3">
                         <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={() => setDetailModal({ open: true, scan })}
@@ -1041,17 +1062,17 @@ export default function AdminScansPage() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-5 py-4 border-t border-blue-200 bg-gradient-to-r from-blue-50 to-white">
-            <div className="text-sm text-slate-700">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-slate-50">
+            <div className="text-xs text-slate-500">
               {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalScans)} of {totalScans}
             </div>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="p-2 border border-blue-300 bg-white text-blue-600 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded"
+                className="w-7 h-7 flex items-center justify-center border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-3.5 h-3.5" />
               </button>
               {[...Array(Math.min(5, totalPages))].map((_, i) => {
                 let startPage = Math.max(1, page - 2)
@@ -1063,8 +1084,8 @@ export default function AdminScansPage() {
                   <button
                     key={pageNum}
                     onClick={() => setPage(pageNum)}
-                    className={`px-3 py-2 text-sm border rounded transition-colors ${
-                      page === pageNum ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-blue-300 hover:bg-blue-50 text-slate-800'
+                    className={`w-7 h-7 text-xs border rounded transition-colors ${
+                      page === pageNum ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-slate-300 hover:bg-slate-50 text-slate-800'
                     }`}
                   >
                     {pageNum}
@@ -1074,9 +1095,9 @@ export default function AdminScansPage() {
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="p-2 border border-blue-300 bg-white text-blue-600 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded"
+                className="w-7 h-7 flex items-center justify-center border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -1089,63 +1110,63 @@ export default function AdminScansPage() {
 
       {/* Graph Expansion Modal */}
       {showGraphModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowGraphModal(false)}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowGraphModal(false)}>
           <div
-            className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-blue-200 shadow-xl rounded-lg"
+            className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-slate-200 shadow-xl rounded-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-6 border-b border-blue-200 sticky top-0 bg-white z-10">
-              <h2 className="text-xl font-bold text-blue-900">Scan Analytics - Expanded View</h2>
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 sticky top-0 bg-white z-10">
+              <h2 className="text-sm font-bold text-slate-800">Scan Analytics - Expanded View</h2>
               <button
                 onClick={() => setShowGraphModal(false)}
-                className="p-2 hover:bg-blue-50 transition-colors rounded"
+                className="p-1 hover:bg-slate-50 transition-colors rounded-md"
               >
-                <X className="w-5 h-5 text-slate-600" />
+                <X className="w-4 h-4 text-slate-500" />
               </button>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="p-4 space-y-4">
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => setGraphType('types')}
-                  className={`px-4 py-2 text-sm font-semibold border rounded transition-colors ${
+                  className={`px-3 py-1.5 text-xs font-semibold border rounded-md transition-colors ${
                     graphType === 'types'
                       ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  <LineChart className="w-4 h-4 inline mr-1" />
+                  <LineChart className="w-3.5 h-3.5 inline mr-1" />
                   Daing Types
                 </button>
                 <button
                   onClick={() => setGraphType('quality')}
-                  className={`px-4 py-2 text-sm font-semibold border rounded transition-colors ${
+                  className={`px-3 py-1.5 text-xs font-semibold border rounded-md transition-colors ${
                     graphType === 'quality'
                       ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  <PieChart className="w-4 h-4 inline mr-1" />
+                  <PieChart className="w-3.5 h-3.5 inline mr-1" />
                   Quality Distribution
                 </button>
                 <button
                   onClick={() => setGraphType('calendar')}
-                  className={`px-4 py-2 text-sm font-semibold border rounded transition-colors ${
+                  className={`px-3 py-1.5 text-xs font-semibold border rounded-md transition-colors ${
                     graphType === 'calendar'
                       ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  <Calendar className="w-4 h-4 inline mr-1" />
+                  <Calendar className="w-3.5 h-3.5 inline mr-1" />
                   Scan Calendar
                 </button>
               </div>
 
-              <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
                 <select
                   value={graphYear}
                   onChange={(e) => setGraphYear(Number(e.target.value))}
-                  className="px-4 py-2 border border-blue-300 bg-white text-sm rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="px-3 py-1.5 border border-slate-300 bg-white text-xs rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 >
                   {[today.getFullYear(), today.getFullYear() - 1, today.getFullYear() - 2].map((y) => (
                     <option key={y} value={y}>{y}</option>
@@ -1155,7 +1176,7 @@ export default function AdminScansPage() {
                   <select
                     value={graphMonth}
                     onChange={(e) => setGraphMonth(Number(e.target.value))}
-                    className="px-4 py-2 border border-blue-300 bg-white text-sm rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="px-3 py-1.5 border border-slate-300 bg-white text-xs rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   >
                     {[
                       { val: 1, name: 'January' }, { val: 2, name: 'February' }, { val: 3, name: 'March' },
@@ -1169,7 +1190,7 @@ export default function AdminScansPage() {
                 )}
               </div>
 
-              <div className="p-8 bg-gradient-to-br from-white to-blue-50 border border-blue-200 rounded-lg">
+              <div className="p-6 bg-white border border-slate-200 rounded-xl">
                 {graphType === 'types' ? (
                   <DaingTypeLineChart scans={analyticsScans} year={graphYear} />
                 ) : graphType === 'quality' ? (
@@ -1185,22 +1206,22 @@ export default function AdminScansPage() {
 
       {/* Detail Modal */}
       {detailModal.open && detailModal.scan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setDetailModal({ open: false, scan: null })}>
-          <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-black/15 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setDetailModal({ open: false, scan: null })}>
+          <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-slate-200 shadow-xl rounded-xl" onClick={(e) => e.stopPropagation()}>
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-5 border-b border-black/15 shrink-0">
-              <h2 className="text-lg font-semibold text-slate-900">Scan Details</h2>
-              <button onClick={() => setDetailModal({ open: false, scan: null })} className="p-1 hover:bg-slate-100">
-                <X className="w-5 h-5" />
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 shrink-0">
+              <h2 className="text-sm font-bold text-slate-800">Scan Details</h2>
+              <button onClick={() => setDetailModal({ open: false, scan: null })} className="p-1 hover:bg-slate-50 rounded-md">
+                <X className="w-4 h-4 text-slate-500" />
               </button>
             </div>
 
             {/* Modal Content */}
-            <div className="flex-1 overflow-y-auto p-5">
+            <div className="flex-1 overflow-y-auto p-4">
               <div className="flex flex-col md:flex-row gap-6">
                 {/* Image */}
                 <div className="shrink-0">
-                  <div className="w-full md:w-64 aspect-square bg-slate-100 border border-black/10 overflow-hidden">
+                  <div className="w-full md:w-64 aspect-square bg-slate-100 border border-slate-200 overflow-hidden rounded-lg">
                     {detailModal.scan.url ? (
                       <img src={detailModal.scan.url} alt="Scan" className="w-full h-full object-cover" />
                     ) : (
@@ -1277,7 +1298,7 @@ export default function AdminScansPage() {
                   </div>
 
                   {/* Scan ID */}
-                  <div className="pt-4 border-t border-black/10">
+                  <div className="pt-4 border-t border-slate-200">
                     <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Scan ID</div>
                     <div className="flex items-center gap-2">
                       <code className="bg-slate-100 px-2 py-1 font-mono text-sm text-slate-800">{detailModal.scan.id}</code>
@@ -1289,24 +1310,24 @@ export default function AdminScansPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex justify-between p-5 border-t border-black/15 bg-slate-50 shrink-0">
+            <div className="flex justify-between p-4 border-t border-slate-200 bg-slate-50 shrink-0">
               <div className="flex gap-2">
                 <button
                   onClick={() => handleDisableClick(detailModal.scan!)}
-                  className="px-4 py-2 border border-orange-300 text-orange-600 text-base font-medium hover:bg-orange-50"
+                  className="px-3 py-1.5 border border-orange-300 text-orange-600 text-sm font-medium hover:bg-orange-50 rounded-md"
                 >
                   Disable Scan
                 </button>
                 <button
                   onClick={() => handleDeleteClick(detailModal.scan!)}
-                  className="px-4 py-2 border border-red-300 text-red-600 text-base font-medium hover:bg-red-50"
+                  className="px-3 py-1.5 border border-red-300 text-red-600 text-sm font-medium hover:bg-red-50 rounded-md"
                 >
                   Delete Scan
                 </button>
               </div>
               <button
                 onClick={() => setDetailModal({ open: false, scan: null })}
-                className="px-4 py-2 bg-blue-600 text-white text-base font-medium hover:bg-blue-700"
+                className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 rounded-md"
               >
                 Close
               </button>
@@ -1317,21 +1338,21 @@ export default function AdminScansPage() {
 
       {/* Disable Scan Modal */}
       {disableModal.open && disableModal.scan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white w-full max-w-md border border-black/15 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-black/15">
-              <h2 className="text-lg font-semibold text-slate-900">Disable Scan</h2>
-              <button onClick={() => setDisableModal({ open: false, scan: null })} className="p-1 hover:bg-slate-100">
-                <X className="w-5 h-5" />
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white w-full max-w-md border border-slate-200 shadow-xl rounded-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+              <h2 className="text-sm font-bold text-slate-800">Disable Scan</h2>
+              <button onClick={() => setDisableModal({ open: false, scan: null })} className="p-1 hover:bg-slate-50 rounded-md">
+                <X className="w-4 h-4 text-slate-500" />
               </button>
             </div>
-            <div className="p-5 space-y-4">
-              <div className="p-3 bg-slate-50 border border-black/10">
-                <div className="font-medium text-slate-900">Scan ID: {disableModal.scan.id.slice(0, 20)}...</div>
-                <div className="text-sm text-slate-600 mt-1">by {disableModal.scan.user_name || 'Unknown'}</div>
+            <div className="p-4 space-y-4">
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <div className="font-medium text-sm text-slate-900">Scan ID: {disableModal.scan.id.slice(0, 20)}...</div>
+                <div className="text-xs text-slate-600 mt-1">by {disableModal.scan.user_name || 'Unknown'}</div>
               </div>
 
-              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 text-amber-900 text-sm">
+              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-lg">
                 <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                 <div>
                   This scan will be disabled and hidden from public view. The user will be notified via email with the reason provided.
@@ -1339,27 +1360,27 @@ export default function AdminScansPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-800 mb-2">Reason for disabling</label>
+                <label className="block text-xs font-medium text-slate-800 mb-2">Reason for disabling</label>
                 <textarea
                   value={disableReason}
                   onChange={(e) => setDisableReason(e.target.value)}
                   rows={3}
-                  className="w-full px-3 py-2 border border-black/15 text-base text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                  className="w-full px-3 py-2 border border-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none rounded-md"
                   placeholder="e.g., Image quality issues, inappropriate content, copyright violation..."
                 />
               </div>
             </div>
-            <div className="flex justify-end gap-2 p-5 border-t border-black/15 bg-slate-50">
+            <div className="flex justify-end gap-2 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
               <button
                 onClick={() => setDisableModal({ open: false, scan: null })}
-                className="px-4 py-2 border border-black/15 text-base text-slate-800 hover:bg-white"
+                className="px-3 py-1.5 border border-slate-300 text-sm text-slate-800 hover:bg-white rounded-md"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDisableConfirm}
                 disabled={disableLoading}
-                className="px-4 py-2 bg-orange-600 text-white text-base font-medium hover:bg-orange-700 disabled:opacity-50"
+                className="px-3 py-1.5 bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 disabled:opacity-50 rounded-md"
               >
                 {disableLoading ? 'Processing...' : 'Disable'}
               </button>
@@ -1370,38 +1391,38 @@ export default function AdminScansPage() {
 
       {/* Delete Scan Modal */}
       {deleteModal.open && deleteModal.scan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white w-full max-w-md border border-black/15 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-black/15">
-              <h2 className="text-lg font-semibold text-slate-900">Delete Scan Permanently</h2>
-              <button onClick={() => setDeleteModal({ open: false, scan: null })} className="p-1 hover:bg-slate-100">
-                <X className="w-5 h-5" />
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white w-full max-w-md border border-slate-200 shadow-xl rounded-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+              <h2 className="text-sm font-bold text-slate-800">Delete Scan Permanently</h2>
+              <button onClick={() => setDeleteModal({ open: false, scan: null })} className="p-1 hover:bg-slate-50 rounded-md">
+                <X className="w-4 h-4 text-slate-500" />
               </button>
             </div>
-            <div className="p-5 space-y-4">
-              <div className="p-3 bg-slate-50 border border-black/10">
-                <div className="font-medium text-slate-900">Scan ID: {deleteModal.scan.id.slice(0, 20)}...</div>
-                <div className="text-sm text-slate-600 mt-1">by {deleteModal.scan.user_name || 'Unknown'}</div>
+            <div className="p-4 space-y-4">
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <div className="font-medium text-sm text-slate-900">Scan ID: {deleteModal.scan.id.slice(0, 20)}...</div>
+                <div className="text-xs text-slate-600 mt-1">by {deleteModal.scan.user_name || 'Unknown'}</div>
               </div>
 
-              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 text-red-900 text-sm">
+              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 text-red-900 text-xs rounded-lg">
                 <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                 <div>
                   <strong>Warning:</strong> This action is permanent and cannot be undone. The scan image will be permanently deleted from the database and cloud storage.
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-2 p-5 border-t border-black/15 bg-slate-50">
+            <div className="flex justify-end gap-2 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
               <button
                 onClick={() => setDeleteModal({ open: false, scan: null })}
-                className="px-4 py-2 border border-black/15 text-base text-slate-800 hover:bg-white"
+                className="px-3 py-1.5 border border-slate-300 text-sm text-slate-800 hover:bg-white rounded-md"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteConfirm}
                 disabled={deleteLoading}
-                className="px-4 py-2 bg-red-600 text-white text-base font-medium hover:bg-red-700 disabled:opacity-50"
+                className="px-3 py-1.5 bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50 rounded-md"
               >
                 {deleteLoading ? 'Deleting...' : 'Delete Permanently'}
               </button>

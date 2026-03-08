@@ -3,6 +3,7 @@
  * Features: KPI dashboard with analytics graphs, collapsible tables, role filtering
  */
 import React, { useState, useMemo, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Search,
   ChevronDown,
@@ -65,16 +66,16 @@ const roleLabels: Record<UserRole, string> = {
 function RoleDistributionChart({ stats }: { stats: AdminUsersStats | null }) {
   const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null)
 
-  if (!stats) return <div className="h-48 flex items-center justify-center text-slate-500">Loading...</div>
+  if (!stats) return <div className="h-36 flex items-center justify-center text-slate-500">Loading...</div>
 
   const data = [
-    { label: 'Admin', value: stats.admins, color: '#8B5CF6' },
-    { label: 'Seller', value: stats.sellers, color: '#2563EB' },
-    { label: 'User', value: stats.users, color: '#60A5FA' },
+    { label: 'Admin', value: stats.admins, color: '#8B5CF6', colorEnd: '#c4b5fd' },
+    { label: 'Seller', value: stats.sellers, color: '#2563EB', colorEnd: '#93c5fd' },
+    { label: 'User', value: stats.users, color: '#60A5FA', colorEnd: '#bfdbfe' },
   ]
 
   const maxValue = Math.max(...data.map((d) => d.value), 1)
-  const chartHeight = 250
+  const chartHeight = 150
 
   return (
     <div className="space-y-2 h-full flex flex-col relative">
@@ -93,11 +94,23 @@ function RoleDistributionChart({ stats }: { stats: AdminUsersStats | null }) {
 
         {/* Chart area with gridlines */}
         <div className="flex-1 flex items-end justify-around gap-6 px-4 pb-8 ml-12 relative">
+          {/* SVG gradient definitions */}
+          <svg width="0" height="0" className="absolute">
+            <defs>
+              {data.map((item) => (
+                <linearGradient key={item.label} id={`bar-grad-${item.label}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={item.color} stopOpacity={1} />
+                  <stop offset="100%" stopColor={item.colorEnd} stopOpacity={0.7} />
+                </linearGradient>
+              ))}
+            </defs>
+          </svg>
+
           {/* Horizontal grid lines */}
           {[1, 0.75, 0.5, 0.25].map((tick, i) => (
             <div
               key={`grid-${i}`}
-              className="absolute left-0 right-0 border-t border-blue-100"
+              className="absolute left-0 right-0 border-t border-slate-200/60"
               style={{ bottom: `${(tick * 100) / (1.2)}%` }}
             />
           ))}
@@ -105,6 +118,7 @@ function RoleDistributionChart({ stats }: { stats: AdminUsersStats | null }) {
           {data.map((item) => {
             const percentage = (item.value / maxValue) * 100
             const barHeight = (percentage / 100) * chartHeight
+            const h = Math.max(barHeight, 15)
             return (
               <div
                 key={item.label}
@@ -113,15 +127,9 @@ function RoleDistributionChart({ stats }: { stats: AdminUsersStats | null }) {
                 onMouseLeave={() => setHover(null)}
               >
                 <div className="text-xs font-bold text-slate-900">{item.value}</div>
-                <div
-                  className="rounded-sm shadow-md transition-all duration-300 hover:shadow-lg"
-                  style={{
-                    backgroundColor: item.color,
-                    width: '50px',
-                    height: `${Math.max(barHeight, 15)}px`,
-                    border: `2px solid ${item.color}`,
-                  }}
-                />
+                <svg width="50" height={h} className="rounded-t-md drop-shadow-md transition-all duration-300 hover:drop-shadow-lg">
+                  <rect width="50" height={h} rx="6" ry="6" fill={`url(#bar-grad-${item.label})`} />
+                </svg>
                 <div className="text-[10px] font-semibold text-slate-700 text-center">{item.label}</div>
               </div>
             )
@@ -330,30 +338,30 @@ function UserTable({
   }
 
   return (
-    <div className="bg-white border border-blue-200 shadow-sm overflow-hidden transition-all duration-300 rounded-lg">
+    <div className="bg-white border border-slate-300 rounded-xl overflow-hidden transition-all duration-300">
       {/* Table header with collapse toggle */}
       {title && (
         <div
-          className={`flex items-center justify-between px-5 py-4 border-b border-blue-200 cursor-pointer hover:bg-blue-50 transition-colors bg-gradient-to-r from-white to-blue-50`}
+          className={`flex items-center justify-between px-5 py-3 border-b border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors`}
           onClick={onToggleCollapse}
         >
           <div className="flex items-center gap-3">
             {RoleIcon && (
-              <div className={`p-2 ${roleColors[roleType!].split(' ')[0]}`}>
-                <RoleIcon className="w-5 h-5" />
+              <div className={`p-1.5 rounded-lg ${roleColors[roleType!].split(' ')[0]}`}>
+                <RoleIcon className="w-4 h-4" />
               </div>
             )}
-            <span className="font-bold text-blue-900 text-base">{title}</span>
-            <span className="text-sm text-white bg-blue-600 px-2 py-0.5 rounded">{users.length}</span>
+            <span className="font-bold text-slate-900 text-sm">{title}</span>
+            <span className="text-[10px] text-white bg-blue-600 px-1.5 py-0.5 rounded font-semibold">{users.length}</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-slate-600">
+            <span className="text-xs text-slate-500">
               {isCollapsed ? 'Click to expand' : `Showing ${paginatedUsers.length} of ${users.length}`}
             </span>
             {isCollapsed ? (
-              <ChevronDown className="w-5 h-5 text-blue-600" />
+              <ChevronDown className="w-4 h-4 text-slate-500" />
             ) : (
-              <ChevronUp className="w-5 h-5 text-blue-600" />
+              <ChevronUp className="w-4 h-4 text-slate-500" />
             )}
           </div>
         </div>
@@ -366,10 +374,10 @@ function UserTable({
         }`}
       >
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gradient-to-r from-blue-50 to-white border-b border-blue-200">
-              <tr>
-                <th className="w-12 px-4 py-4">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="w-10 px-3 py-3 border-r border-slate-200">
                   <input
                     type="checkbox"
                     checked={allSelected}
@@ -380,94 +388,94 @@ function UserTable({
                         onSelectAll(paginatedUsers.map((u) => u.id))
                       }
                     }}
-                    className="w-4 h-4 accent-blue-600"
+                    className="w-3.5 h-3.5 accent-blue-600"
                   />
                 </th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">
                   User
                 </th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">
                   Email
                 </th>
                 {showRoleColumn && (
-                  <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">
                     Role
                   </th>
                 )}
                 {(roleType === 'user' || showRoleColumn) ? (
-                  <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">
                     Orders
                   </th>
                 ) : null}
                 {roleType === 'seller' && (
-                  <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">
                     Products
                   </th>
                 )}
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">
                   Status
                 </th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">
                   Joined
                 </th>
-                <th className="text-center px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">
+                <th className="text-center px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-blue-100">
+            <tbody className="divide-y divide-slate-200">
               {paginatedUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-blue-50/50 transition-colors">
-                  <td className="px-4 py-4">
+                <tr key={user.id} className="hover:bg-blue-50/30 transition-colors">
+                  <td className="px-3 py-3 border-r border-slate-100">
                     <input
                       type="checkbox"
                       checked={selectedIds.has(user.id)}
                       onChange={() => onToggleSelect(user.id)}
-                      className="w-4 h-4 accent-blue-600"
+                      className="w-3.5 h-3.5 accent-blue-600"
                     />
                   </td>
-                  <td className="px-4 py-4">
-                    <div className="flex items-center gap-3">
+                  <td className="px-4 py-3 border-r border-slate-100">
+                    <div className="flex items-center gap-2.5">
                       {user.avatar ? (
                         <img
                           src={user.avatar}
                           alt={user.name}
-                          className="w-10 h-10 rounded-full object-cover border border-blue-200"
+                          className="w-8 h-8 rounded-full object-cover border border-slate-200"
                         />
                       ) : (
-                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-base font-medium text-blue-700">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-medium text-blue-700">
                           {user.name.charAt(0).toUpperCase()}
                         </div>
                       )}
                       <div>
-                        <div className="font-medium text-slate-900 text-base">{user.name}</div>
-                        <div className="text-sm text-slate-600">ID: {user.id.slice(-8)}</div>
+                        <div className="font-medium text-slate-900 text-sm">{user.name}</div>
+                        <div className="text-[10px] text-slate-500">ID: {user.id.slice(-8)}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-4 text-base text-slate-700">{user.email}</td>
+                  <td className="px-4 py-3 text-sm text-slate-600 border-r border-slate-100">{user.email}</td>
                   {showRoleColumn && (
-                    <td className="px-4 py-4">
+                    <td className="px-4 py-3 border-r border-slate-100">
                       <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-sm font-medium border rounded ${
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium border rounded ${
                           roleColors[user.role]
                         }`}
                       >
-                        {React.createElement(roleIcons[user.role], { className: 'w-3.5 h-3.5' })}
+                        {React.createElement(roleIcons[user.role], { className: 'w-3 h-3' })}
                         {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                       </span>
                     </td>
                   )}
                   {(roleType === 'user' || showRoleColumn) && (
-                    <td className="px-4 py-4 text-base text-slate-700">{user.orders_count}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600 border-r border-slate-100">{user.orders_count}</td>
                   )}
                   {roleType === 'seller' && (
-                    <td className="px-4 py-4 text-base text-slate-700">{user.products_count}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600 border-r border-slate-100">{user.products_count}</td>
                   )}
-                  <td className="px-4 py-4">
+                  <td className="px-4 py-3 border-r border-slate-100">
                     <button
                       onClick={() => onStatusClick(user)}
-                      className={`inline-block px-3 py-1.5 text-sm font-medium cursor-pointer transition-all hover:opacity-80 rounded ${
+                      className={`inline-block px-2 py-1 text-xs font-medium cursor-pointer transition-all hover:opacity-80 rounded ${
                         user.status === 'active'
                           ? 'bg-green-100 text-green-700 hover:bg-green-200'
                           : 'bg-red-100 text-red-700 hover:bg-red-200'
@@ -476,15 +484,15 @@ function UserTable({
                       {user.status === 'active' ? 'Active' : 'Inactive'}
                     </button>
                   </td>
-                  <td className="px-4 py-4 text-base text-slate-600">{formatDate(user.joined_at)}</td>
-                  <td className="px-4 py-4">
+                  <td className="px-4 py-3 text-sm text-slate-500 border-r border-slate-100">{formatDate(user.joined_at)}</td>
+                  <td className="px-4 py-3">
                     <div className="flex items-center justify-center">
                       <button
                         onClick={() => onViewUser(user)}
-                        className="p-2 hover:bg-blue-100 text-slate-500 hover:text-blue-700 border border-transparent hover:border-blue-300 transition-all rounded"
+                        className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-blue-700 border border-transparent hover:border-slate-300 transition-all rounded-md"
                         title="View Details"
                       >
-                        <Eye className="w-5 h-5" />
+                        <Eye className="w-4 h-4" />
                       </button>
                     </div>
                   </td>
@@ -496,17 +504,17 @@ function UserTable({
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-5 py-4 border-t border-black/15 bg-slate-50">
-            <div className="text-sm text-slate-500">
+          <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50/50">
+            <div className="text-xs text-slate-500">
               {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, users.length)} of {users.length}
             </div>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="p-2 border border-black/15 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-1.5 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed rounded"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-3.5 h-3.5" />
               </button>
               {[...Array(Math.min(5, totalPages))].map((_, i) => {
                 const pageNum = i + 1
@@ -514,8 +522,8 @@ function UserTable({
                   <button
                     key={i}
                     onClick={() => setPage(pageNum)}
-                    className={`px-3 py-2 text-sm border border-black/15 ${
-                      page === pageNum ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-slate-50'
+                    className={`w-7 h-7 rounded text-xs font-medium transition-colors ${
+                      page === pageNum ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
                     }`}
                   >
                     {pageNum}
@@ -525,9 +533,9 @@ function UserTable({
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="p-2 border border-black/15 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-1.5 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed rounded"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -538,6 +546,7 @@ function UserTable({
 }
 
 export default function AdminUsersPage() {
+  const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<FilterRole>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
@@ -731,60 +740,63 @@ export default function AdminUsersPage() {
             <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-semibold shadow-sm">1 Analytics</div>
 
       {/* KPI + Graph Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* KPIs on the left - 2x2 grid */}
-        <div className="grid grid-cols-2 gap-4 lg:items-start">
-          {/* Total Users - Top Left */}
-          <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold text-blue-700">Total Users</div>
-              <Users className="w-6 h-6 text-blue-600" />
+        <div className="bg-white/80 border border-slate-200 rounded-xl p-3 grid grid-cols-2 gap-3">
+          {/* Total Users */}
+          <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px]">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-1.5 bg-blue-100 rounded-lg"><Users className="w-4 h-4 text-blue-600" /></div>
+              <span className="text-xs font-semibold text-slate-700">Total Users</span>
             </div>
-            <div className="text-3xl font-bold text-slate-900">{stats?.total ?? '-'}</div>
-            <div className="text-xs text-blue-600 mt-2">All users</div>
+            <div className="text-xl font-bold text-slate-900">{stats?.total ?? '-'}</div>
+            <div className="text-[10px] text-slate-500 mt-1 italic">All registered accounts in the platform</div>
           </div>
 
-          {/* Admins - Top Right */}
-          <div className="bg-gradient-to-br from-white to-purple-50 border border-purple-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold text-purple-700">Admins</div>
-              <Shield className="w-6 h-6 text-purple-600" />
+          {/* Admins */}
+          <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px]">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-1.5 bg-purple-100 rounded-lg"><Shield className="w-4 h-4 text-purple-600" /></div>
+              <span className="text-xs font-semibold text-slate-700">Admins</span>
             </div>
-            <div className="text-3xl font-bold text-purple-600">{stats?.admins ?? '-'}</div>
-            <div className="text-xs text-purple-600 mt-2">{((stats?.admins || 0) / (stats?.total || 1) * 100).toFixed(1)}%</div>
+            <div className="text-xl font-bold text-purple-600">{stats?.admins ?? '-'}</div>
+            <div className="text-[10px] text-slate-500 mt-1 italic">Users with full system management access</div>
           </div>
 
-          {/* Sellers - Bottom Left */}
-          <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold text-blue-700">Sellers</div>
-              <ShoppingBag className="w-6 h-6 text-blue-600" />
+          {/* Sellers */}
+          <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px]">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-1.5 bg-blue-100 rounded-lg"><ShoppingBag className="w-4 h-4 text-blue-600" /></div>
+              <span className="text-xs font-semibold text-slate-700">Sellers</span>
             </div>
-            <div className="text-3xl font-bold text-blue-600">{stats?.sellers ?? '-'}</div>
-            <div className="text-xs text-blue-600 mt-2">{((stats?.sellers || 0) / (stats?.total || 1) * 100).toFixed(1)}%</div>
+            <div className="text-xl font-bold text-blue-600">{stats?.sellers ?? '-'}</div>
+            <div className="text-[10px] text-slate-500 mt-1 italic">Vendors with active product listings</div>
           </div>
 
-          {/* Regular Users - Bottom Right */}
-          <div className="bg-gradient-to-br from-white to-slate-50 border border-slate-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold text-slate-700">Users</div>
-              <User className="w-6 h-6 text-slate-600" />
+          {/* Regular Users */}
+          <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px]">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-1.5 bg-slate-100 rounded-lg"><User className="w-4 h-4 text-slate-600" /></div>
+              <span className="text-xs font-semibold text-slate-700">Users</span>
             </div>
-            <div className="text-3xl font-bold text-slate-900">{stats?.users ?? '-'}</div>
-            <div className="text-xs text-slate-600 mt-2">{((stats?.users || 0) / (stats?.total || 1) * 100).toFixed(1)}%</div>
+            <div className="text-xl font-bold text-slate-900">{stats?.users ?? '-'}</div>
+            <div className="text-[10px] text-slate-500 mt-1 italic">Regular buyers browsing and purchasing</div>
           </div>
         </div>
 
         {/* Graph on the right */}
-        <div className="lg:col-span-2 bg-white border border-blue-200 shadow-md p-3 rounded-lg max-h-[300px] flex flex-col overflow-hidden">
+        <div className="lg:col-span-2 bg-white border border-slate-300 rounded-xl p-3 max-h-[300px] flex flex-col overflow-hidden">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold text-blue-900">User Analytics</h3>
+            <div>
+              <p className="text-xs text-slate-900 font-bold">User Analytics</p>
+              <p className="text-[10px] text-slate-500 italic">Role distribution & registration activity</p>
+            </div>
             <button
               onClick={() => setShowGraphModal(true)}
-              className="p-2 text-blue-600 hover:bg-blue-50 transition-colors border border-blue-300 rounded"
+              className="p-1.5 text-slate-600 hover:bg-slate-100 transition-colors border border-slate-300 rounded-md"
               title="Expand view"
             >
-              <Maximize2 className="w-4 h-4" />
+              <Maximize2 className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -792,10 +804,10 @@ export default function AdminUsersPage() {
           <div className="flex items-center gap-1.5 mb-2 flex-wrap">
             <button
               onClick={() => setGraphType('roles')}
-              className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
+              className={`px-2 py-1 text-xs font-semibold border rounded-md transition-colors ${
                 graphType === 'roles'
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
               }`}
             >
               <BarChart3 className="w-3 h-3 inline mr-0.5" />
@@ -803,10 +815,10 @@ export default function AdminUsersPage() {
             </button>
             <button
               onClick={() => setGraphType('registrations')}
-              className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
+              className={`px-2 py-1 text-xs font-semibold border rounded-md transition-colors ${
                 graphType === 'registrations'
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
               }`}
             >
               <Calendar className="w-3 h-3 inline mr-0.5" />
@@ -816,7 +828,7 @@ export default function AdminUsersPage() {
             <select
               value={graphYear}
               onChange={(e) => setGraphYear(Number(e.target.value))}
-              className="px-1.5 py-1 border border-blue-300 bg-white text-xs rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="px-2 py-1 border border-slate-300 bg-white text-xs rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             >
               {[currentYear, currentYear - 1, currentYear - 2].map((y) => (
                 <option key={y} value={y}>{y}</option>
@@ -826,7 +838,7 @@ export default function AdminUsersPage() {
               <select
                 value={graphMonth}
                 onChange={(e) => setGraphMonth(Number(e.target.value))}
-                className="px-1.5 py-1 border border-blue-300 bg-white text-xs rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="px-2 py-1 border border-slate-300 bg-white text-xs rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               >
                 {[
                   { val: 1, name: 'January' }, { val: 2, name: 'February' }, { val: 3, name: 'March' },
@@ -841,7 +853,7 @@ export default function AdminUsersPage() {
           </div>
 
           {/* Graph Display */}
-          <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="flex-1 overflow-hidden min-h-0">
             {graphType === 'roles' ? (
               <RoleDistributionChart stats={stats} />
             ) : (
@@ -857,26 +869,26 @@ export default function AdminUsersPage() {
             <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-semibold shadow-sm">2 Filters</div>
 
       {/* Filter Bar */}
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex flex-wrap items-center gap-3">
         {/* Search */}
-        <div className="relative flex-1 min-w-[200px] max-w-[320px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500" />
+        <div className="relative flex-1 min-w-[200px] max-w-[280px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
           <input
             type="text"
             placeholder="Search by name or email..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-3 py-2.5 border border-blue-300 bg-white text-base focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded"
+            className="w-full pl-9 pr-3 py-2 border border-slate-300 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded-md"
           />
         </div>
 
         {/* Role Filter */}
         <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-blue-600" />
+          <Filter className="w-3.5 h-3.5 text-slate-500" />
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value as FilterRole)}
-            className="px-3 py-2.5 border border-blue-300 bg-white text-base min-w-[140px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded"
+            className="px-2 py-2 border border-slate-300 bg-white text-sm min-w-[120px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded-md"
           >
             <option value="all">All Roles</option>
             <option value="admin">Admin</option>
@@ -889,22 +901,25 @@ export default function AdminUsersPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
-          className="px-3 py-2.5 border border-blue-300 bg-white text-base min-w-[130px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded"
+          className="px-2 py-2 border border-slate-300 bg-white text-sm min-w-[120px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded-md"
         >
           <option value="all">All Status</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </select>
 
-        {/* Export */}
-        <button className="flex items-center gap-2 px-4 py-2.5 border border-blue-300 bg-white text-base hover:bg-blue-50 transition-colors ml-auto rounded font-semibold text-blue-700">
-          <Download className="w-4 h-4" />
+        {/* Export — redirects to dashboard report panel */}
+        <button
+          onClick={() => navigate('/admin?section=users&report=open')}
+          className="flex items-center gap-1.5 px-3 py-2 border border-slate-300 bg-white text-sm hover:bg-slate-50 transition-colors ml-auto rounded-md font-semibold text-slate-700"
+        >
+          <Download className="w-3.5 h-3.5" />
           Export
         </button>
 
         {/* Bulk actions */}
         {selectedIds.size > 0 && (
-          <div className="text-sm font-semibold text-blue-700 bg-blue-100 px-3 py-2 border border-blue-300 rounded">
+          <div className="text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-1.5 border border-blue-200 rounded-md">
             {selectedIds.size} selected
           </div>
         )}
@@ -975,54 +990,57 @@ export default function AdminUsersPage() {
 
       {/* Graph Expansion Modal */}
       {showGraphModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowGraphModal(false)}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowGraphModal(false)}>
           <div
-            className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-blue-200 shadow-xl rounded-lg"
+            className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-slate-200 shadow-xl rounded-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-6 border-b border-blue-200 sticky top-0 bg-white z-10">
-              <h2 className="text-xl font-bold text-blue-900">User Analytics - Expanded View</h2>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 sticky top-0 bg-white z-10">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">User Analytics — Expanded View</h2>
+                <p className="text-[10px] text-slate-500 mt-0.5">Detailed view of user role distribution and registration activity</p>
+              </div>
               <button
                 onClick={() => setShowGraphModal(false)}
-                className="p-2 hover:bg-blue-50 transition-colors rounded"
+                className="p-1.5 hover:bg-slate-100 transition-colors rounded-md"
               >
-                <X className="w-5 h-5 text-slate-600" />
+                <X className="w-4 h-4 text-slate-500" />
               </button>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="p-5 space-y-4">
               {/* Graph Type Toggle */}
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => setGraphType('roles')}
-                  className={`px-4 py-2 text-sm font-semibold border rounded transition-colors ${
+                  className={`px-3 py-1.5 text-xs font-semibold border rounded-md transition-colors ${
                     graphType === 'roles'
                       ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  <BarChart3 className="w-4 h-4 inline mr-1" />
+                  <BarChart3 className="w-3.5 h-3.5 inline mr-1" />
                   User Roles
                 </button>
                 <button
                   onClick={() => setGraphType('registrations')}
-                  className={`px-4 py-2 text-sm font-semibold border rounded transition-colors ${
+                  className={`px-3 py-1.5 text-xs font-semibold border rounded-md transition-colors ${
                     graphType === 'registrations'
                       ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  <Calendar className="w-4 h-4 inline mr-1" />
+                  <Calendar className="w-3.5 h-3.5 inline mr-1" />
                   Registration Activity
                 </button>
               </div>
 
               {/* Expanded Filters */}
-              <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
                 <select
                   value={graphYear}
                   onChange={(e) => setGraphYear(Number(e.target.value))}
-                  className="px-4 py-2 border border-blue-300 bg-white text-sm rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="px-3 py-1.5 border border-slate-300 bg-white text-xs rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 >
                   {[currentYear, currentYear - 1, currentYear - 2].map((y) => (
                     <option key={y} value={y}>{y}</option>
@@ -1032,7 +1050,7 @@ export default function AdminUsersPage() {
                   <select
                     value={graphMonth}
                     onChange={(e) => setGraphMonth(Number(e.target.value))}
-                    className="px-4 py-2 border border-blue-300 bg-white text-sm rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="px-3 py-1.5 border border-slate-300 bg-white text-xs rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   >
                     {[
                       { val: 1, name: 'January' }, { val: 2, name: 'February' }, { val: 3, name: 'March' },
@@ -1047,7 +1065,7 @@ export default function AdminUsersPage() {
               </div>
 
               {/* Expanded Graph Display */}
-              <div className="p-8 bg-gradient-to-br from-white to-blue-50 border border-blue-200 rounded-lg">
+              <div className="p-6 bg-white border border-slate-200 rounded-xl">
                 {graphType === 'roles' ? (
                   <RoleDistributionChart stats={stats} />
                 ) : (
@@ -1243,35 +1261,35 @@ export default function AdminUsersPage() {
 
       {/* User Detail Modal */}
       {detailModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setDetailModal({ user: null, open: false })}>
-          <div className="bg-white w-full max-w-lg border border-black/15 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-black/15">
-              <h2 className="text-lg font-semibold text-slate-900">User Details</h2>
-              <button onClick={() => setDetailModal({ user: null, open: false })} className="p-1 hover:bg-slate-100">
-                <X className="w-5 h-5" />
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setDetailModal({ user: null, open: false })}>
+          <div className="bg-white w-full max-w-lg border border-slate-200 shadow-xl rounded-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+              <h2 className="text-sm font-bold text-slate-900">User Details</h2>
+              <button onClick={() => setDetailModal({ user: null, open: false })} className="p-1 hover:bg-slate-100 rounded-md">
+                <X className="w-4 h-4 text-slate-500" />
               </button>
             </div>
             {detailLoading ? (
-              <div className="p-10 text-center text-slate-500">Loading...</div>
+              <div className="p-8 text-center text-sm text-slate-500">Loading...</div>
             ) : detailModal.user ? (
-              <div className="p-5 space-y-5">
+              <div className="p-5 space-y-4">
                 {/* Profile header */}
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   {detailModal.user.avatar ? (
-                    <img src={detailModal.user.avatar} alt="" className="w-16 h-16 rounded-full object-cover border border-black/10" />
+                    <img src={detailModal.user.avatar} alt="" className="w-11 h-11 rounded-full object-cover border border-slate-200" />
                   ) : (
-                    <div className="w-16 h-16 rounded-full bg-slate-200 flex items-center justify-center text-2xl font-medium text-slate-600">
+                    <div className="w-11 h-11 rounded-full bg-slate-200 flex items-center justify-center text-lg font-medium text-slate-600">
                       {detailModal.user.name.charAt(0)}
                     </div>
                   )}
                   <div>
-                    <div className="text-xl font-bold text-slate-900">{detailModal.user.name}</div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-sm font-medium border ${roleColors[detailModal.user.role]}`}>
-                        {React.createElement(roleIcons[detailModal.user.role], { className: 'w-3.5 h-3.5' })}
+                    <div className="text-sm font-bold text-slate-900">{detailModal.user.name}</div>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded border ${roleColors[detailModal.user.role]}`}>
+                        {React.createElement(roleIcons[detailModal.user.role], { className: 'w-3 h-3' })}
                         {detailModal.user.role.charAt(0).toUpperCase() + detailModal.user.role.slice(1)}
                       </span>
-                      <span className={`px-2 py-0.5 text-sm font-medium ${detailModal.user.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                      <span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded ${detailModal.user.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {detailModal.user.status}
                       </span>
                     </div>
@@ -1279,43 +1297,43 @@ export default function AdminUsersPage() {
                 </div>
 
                 {/* Info grid */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-center gap-3 p-3 bg-slate-50 border border-black/10">
-                    <Mail className="w-5 h-5 text-slate-400" />
-                    <div>
-                      <div className="text-xs text-slate-500">Email</div>
-                      <div className="text-sm font-medium text-slate-900">{detailModal.user.email}</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center gap-2.5 p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                    <Mail className="w-4 h-4 text-slate-400" />
+                    <div className="min-w-0">
+                      <div className="text-[10px] text-slate-500">Email</div>
+                      <div className="text-xs font-medium text-slate-900 truncate">{detailModal.user.email}</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 p-3 bg-slate-50 border border-black/10">
-                    <Calendar className="w-5 h-5 text-slate-400" />
+                  <div className="flex items-center gap-2.5 p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                    <Calendar className="w-4 h-4 text-slate-400" />
                     <div>
-                      <div className="text-xs text-slate-500">Joined</div>
-                      <div className="text-sm font-medium text-slate-900">{formatDate(detailModal.user.joined_at)}</div>
+                      <div className="text-[10px] text-slate-500">Joined</div>
+                      <div className="text-xs font-medium text-slate-900">{formatDate(detailModal.user.joined_at)}</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 p-3 bg-slate-50 border border-black/10">
-                    <ScanLine className="w-5 h-5 text-slate-400" />
+                  <div className="flex items-center gap-2.5 p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                    <ScanLine className="w-4 h-4 text-slate-400" />
                     <div>
-                      <div className="text-xs text-slate-500">Scans</div>
-                      <div className="text-sm font-medium text-slate-900">{detailModal.user.scans_count}</div>
+                      <div className="text-[10px] text-slate-500">Scans</div>
+                      <div className="text-xs font-medium text-slate-900">{detailModal.user.scans_count}</div>
                     </div>
                   </div>
                   {detailModal.user.role === 'user' && (
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 border border-black/10">
-                      <ShoppingCart className="w-5 h-5 text-slate-400" />
+                    <div className="flex items-center gap-2.5 p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                      <ShoppingCart className="w-4 h-4 text-slate-400" />
                       <div>
-                        <div className="text-xs text-slate-500">Orders</div>
-                        <div className="text-sm font-medium text-slate-900">{detailModal.user.orders_count}</div>
+                        <div className="text-[10px] text-slate-500">Orders</div>
+                        <div className="text-xs font-medium text-slate-900">{detailModal.user.orders_count}</div>
                       </div>
                     </div>
                   )}
                   {detailModal.user.role === 'seller' && (
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 border border-black/10">
-                      <Package className="w-5 h-5 text-slate-400" />
+                    <div className="flex items-center gap-2.5 p-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                      <Package className="w-4 h-4 text-slate-400" />
                       <div>
-                        <div className="text-xs text-slate-500">Products</div>
-                        <div className="text-sm font-medium text-slate-900">{detailModal.user.products_count}</div>
+                        <div className="text-[10px] text-slate-500">Products</div>
+                        <div className="text-xs font-medium text-slate-900">{detailModal.user.products_count}</div>
                       </div>
                     </div>
                   )}
@@ -1323,9 +1341,9 @@ export default function AdminUsersPage() {
 
                 {/* Deactivation info */}
                 {detailModal.user.status === 'inactive' && detailModal.user.deactivation_reason && (
-                  <div className="p-3 bg-red-50 border border-red-200">
-                    <div className="text-xs text-red-600 font-medium mb-1">Deactivation Reason</div>
-                    <div className="text-sm text-red-800">{detailModal.user.deactivation_reason}</div>
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="text-[10px] text-red-600 font-semibold mb-1">Deactivation Reason</div>
+                    <div className="text-xs text-red-800">{detailModal.user.deactivation_reason}</div>
                     {detailModal.user.deactivated_at && (
                       <div className="text-xs text-red-500 mt-1">Deactivated on {formatDate(detailModal.user.deactivated_at)}</div>
                     )}
@@ -1333,10 +1351,10 @@ export default function AdminUsersPage() {
                 )}
               </div>
             ) : null}
-            <div className="flex justify-end p-5 border-t border-black/15 bg-slate-50">
+            <div className="flex justify-end px-5 py-3 border-t border-slate-200 bg-slate-50 rounded-b-xl">
               <button
                 onClick={() => setDetailModal({ user: null, open: false })}
-                className="px-4 py-2 bg-blue-600 text-white text-base font-medium hover:bg-blue-700"
+                className="px-4 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-md hover:bg-blue-700 transition-colors"
               >
                 Close
               </button>

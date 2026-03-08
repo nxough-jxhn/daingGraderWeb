@@ -3,6 +3,7 @@
  * Features: posts table with image carousel, status filtering, disable modal, comment viewer
  */
 import React, { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Search,
   ChevronLeft,
@@ -232,10 +233,12 @@ function PostCreationCalendarChart({
                 onMouseMove={(e) => dayData.day !== null && !dayData.isFuture && dayData.count > 0 ? setHover({ x: e.clientX, y: e.clientY, text: `Posts: ${dayData.count}` }) : null}
                 onMouseLeave={() => setHover(null)}
               >
-                {dayData.day !== null && !dayData.isFuture && dayData.count > 0 ? (
+                {dayData.day !== null ? (
                   <div className="text-center">
-                    <div className={dayTextClass}>{dayData.day}</div>
-                    <div className={`${countTextClass} font-bold`}>{dayData.count}</div>
+                    {dayData.count > 0 && !dayData.isFuture && (
+                      <div className={`${countTextClass} font-bold`}>{dayData.count}</div>
+                    )}
+                    <div className={`${dayTextClass} opacity-50`}>{dayData.day}</div>
                   </div>
                 ) : null}
               </div>
@@ -317,7 +320,7 @@ function PostCategoryDistributionChart({ posts, year }: { posts: AdminPost[]; ye
           {[1, 0.75, 0.5, 0.25].map((tick, i) => (
             <div
               key={`grid-${i}`}
-              className="absolute left-0 right-0 border-t border-blue-100"
+              className="absolute left-0 right-0 border-t border-slate-200"
               style={{ bottom: `${(tick * 100) / (1.2)}%` }}
             />
           ))}
@@ -369,6 +372,7 @@ function PostCategoryDistributionChart({ posts, year }: { posts: AdminPost[]; ye
 }
 
 export default function AdminPostsPage() {
+  const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
@@ -623,50 +627,53 @@ export default function AdminPostsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* KPIs on the left - 2x2 grid */}
         <div className="grid grid-cols-2 gap-4 lg:items-start">
-          <div className="bg-gradient-to-br from-white to-blue-50 border border-blue-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold text-blue-700">Total Posts</div>
-              <FileText className="w-6 h-6 text-blue-600" />
+          <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px] hover:shadow-sm transition-shadow">
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-xs font-semibold text-slate-700">Total Posts</div>
+              <div className="p-1.5 rounded-lg bg-blue-50"><FileText className="w-4 h-4 text-blue-600" /></div>
             </div>
-            <div className="text-3xl font-bold text-slate-900">{stats?.total_posts ?? '-'}</div>
-            <div className="text-xs text-blue-600 mt-2">All posts</div>
+            <div className="text-xl font-bold text-slate-900">{stats?.total_posts ?? '-'}</div>
+            <div className="text-[10px] italic text-slate-500 mt-1">All community forum posts created</div>
           </div>
-          <div className="bg-gradient-to-br from-white to-green-50 border border-green-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold text-green-700">Total Comments</div>
-              <MessageCircle className="w-6 h-6 text-green-600" />
+          <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px] hover:shadow-sm transition-shadow">
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-xs font-semibold text-slate-700">Total Comments</div>
+              <div className="p-1.5 rounded-lg bg-green-50"><MessageCircle className="w-4 h-4 text-green-600" /></div>
             </div>
-            <div className="text-3xl font-bold text-green-700">{stats?.total_comments ?? '-'}</div>
-            <div className="text-xs text-green-600 mt-2">All comments</div>
+            <div className="text-xl font-bold text-green-700">{stats?.total_comments ?? '-'}</div>
+            <div className="text-[10px] italic text-slate-500 mt-1">Replies across all forum posts</div>
           </div>
-          <div className="bg-gradient-to-br from-white to-rose-50 border border-rose-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold text-rose-700">Total Likes</div>
-              <Heart className="w-6 h-6 text-rose-600" />
+          <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px] hover:shadow-sm transition-shadow">
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-xs font-semibold text-slate-700">Total Likes</div>
+              <div className="p-1.5 rounded-lg bg-rose-50"><Heart className="w-4 h-4 text-rose-600" /></div>
             </div>
-            <div className="text-3xl font-bold text-rose-600">{analyticsLoading ? '-' : totalLikes}</div>
-            <div className="text-xs text-rose-600 mt-2">All likes</div>
+            <div className="text-xl font-bold text-rose-600">{analyticsLoading ? '-' : totalLikes}</div>
+            <div className="text-[10px] italic text-slate-500 mt-1">Accumulated likes on all posts</div>
           </div>
-          <div className="bg-gradient-to-br from-white to-indigo-50 border border-indigo-200 shadow-md p-5 rounded-lg hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-bold text-indigo-700">Active Users</div>
-              <Users className="w-6 h-6 text-indigo-600" />
+          <div className="bg-white border border-slate-300 rounded-xl p-3 min-h-[110px] hover:shadow-sm transition-shadow">
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-xs font-semibold text-slate-700">Active Users</div>
+              <div className="p-1.5 rounded-lg bg-indigo-50"><Users className="w-4 h-4 text-indigo-600" /></div>
             </div>
-            <div className="text-3xl font-bold text-indigo-700">{analyticsLoading ? '-' : activeUsers}</div>
-            <div className="text-xs text-indigo-600 mt-2">Posted at least once</div>
+            <div className="text-xl font-bold text-indigo-700">{analyticsLoading ? '-' : activeUsers}</div>
+            <div className="text-[10px] italic text-slate-500 mt-1">Users who posted at least once</div>
           </div>
         </div>
 
         {/* Graph on the right */}
-        <div className="lg:col-span-2 bg-white border border-blue-200 shadow-md p-3 rounded-lg max-h-[300px] flex flex-col overflow-hidden">
+        <div className="lg:col-span-2 bg-white border border-slate-300 rounded-xl p-3 max-h-[300px] flex flex-col overflow-hidden">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-bold text-blue-900">Community Post Analytics</h3>
+            <div>
+              <h3 className="text-sm font-bold text-slate-800">Community Post Analytics</h3>
+              <p className="text-[10px] text-slate-500">Forum activity and category trends</p>
+            </div>
             <button
               onClick={() => setShowGraphModal(true)}
-              className="p-2 text-blue-600 hover:bg-blue-50 transition-colors border border-blue-300 rounded"
+              className="p-1.5 text-slate-500 hover:bg-slate-50 transition-colors border border-slate-300 rounded-md"
               title="Expand view"
             >
-              <BarChart3 className="w-4 h-4" />
+              <BarChart3 className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -677,7 +684,7 @@ export default function AdminPostsPage() {
               className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
                 graphType === 'calendar'
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
               }`}
             >
               <Calendar className="w-3 h-3 inline mr-0.5" />
@@ -685,10 +692,10 @@ export default function AdminPostsPage() {
             </button>
             <button
               onClick={() => setGraphType('category')}
-              className={`px-2 py-1 text-xs font-semibold border rounded transition-colors ${
+              className={`px-2 py-1 text-xs font-semibold border rounded-md transition-colors ${
                 graphType === 'category'
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
               }`}
             >
               <BarChart3 className="w-3 h-3 inline mr-0.5" />
@@ -697,7 +704,7 @@ export default function AdminPostsPage() {
             <select
               value={graphYear}
               onChange={(e) => setGraphYear(Number(e.target.value))}
-              className="px-1.5 py-1 border border-blue-300 bg-white text-xs rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              className="px-1.5 py-1 border border-slate-300 bg-white text-xs rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             >
               {[today.getFullYear(), today.getFullYear() - 1, today.getFullYear() - 2].map((y) => (
                 <option key={y} value={y}>{y}</option>
@@ -707,7 +714,7 @@ export default function AdminPostsPage() {
               <select
                 value={graphMonth}
                 onChange={(e) => setGraphMonth(Number(e.target.value))}
-                className="px-1.5 py-1 border border-blue-300 bg-white text-xs rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="px-1.5 py-1 border border-slate-300 bg-white text-xs rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               >
                 {[
                   { val: 1, name: 'January' }, { val: 2, name: 'February' }, { val: 3, name: 'March' },
@@ -722,7 +729,7 @@ export default function AdminPostsPage() {
           </div>
 
           {/* Graph Display */}
-          <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="flex-1 overflow-hidden min-h-0 h-40">
             {graphType === 'calendar' ? (
               <PostCreationCalendarChart year={graphYear} month={graphMonth} posts={analyticsPosts} />
             ) : (
@@ -741,26 +748,26 @@ export default function AdminPostsPage() {
       <div className="flex flex-wrap items-center gap-4">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px] max-w-[320px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
             placeholder="Search by title, description, author..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-3 py-2.5 border border-blue-300 bg-white text-base text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded"
+            className="w-full pl-10 pr-3 py-2 border border-slate-300 bg-white text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded-md"
           />
         </div>
 
         {/* Status Filter */}
         <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-blue-600" />
+          <Filter className="w-4 h-4 text-slate-500" />
           <select
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value as FilterStatus)
               setPage(1)
             }}
-            className="px-3 py-2.5 border border-blue-300 bg-white text-base text-slate-900 min-w-[130px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded"
+            className="px-3 py-2 border border-slate-300 bg-white text-sm text-slate-900 min-w-[130px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded-md"
           >
             <option value="all">All Status</option>
             <option value="active">Active</option>
@@ -776,7 +783,7 @@ export default function AdminPostsPage() {
             setCategoryFilter(e.target.value)
             setPage(1)
           }}
-          className="px-3 py-2.5 border border-blue-300 bg-white text-base text-slate-900 min-w-[140px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded"
+          className="px-3 py-2 border border-slate-300 bg-white text-sm text-slate-900 min-w-[140px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500 rounded-md"
         >
           <option value="all">All Categories</option>
           <option value="Discussion">Discussion</option>
@@ -788,12 +795,12 @@ export default function AdminPostsPage() {
         {/* Bulk Actions */}
         {selectedIds.size > 0 && (
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-blue-700 bg-blue-100 px-3 py-2 border border-blue-300 rounded">
+            <span className="text-sm font-semibold text-blue-700 bg-blue-100 px-3 py-1.5 border border-blue-300 rounded-md">
               {selectedIds.size} selected
             </span>
             <button
               onClick={handleBulkDisable}
-              className="flex items-center gap-1 px-3 py-2 bg-orange-600 text-white text-sm font-semibold hover:bg-orange-700 transition-colors rounded"
+              className="flex items-center gap-1 px-3 py-1.5 bg-orange-600 text-white text-sm font-semibold hover:bg-orange-700 transition-colors rounded-md"
             >
               <Ban className="w-4 h-4" />
               Disable Selected
@@ -802,7 +809,9 @@ export default function AdminPostsPage() {
         )}
 
         {/* Export */}
-        <button className="flex items-center gap-2 px-4 py-2.5 border border-blue-300 bg-white text-base text-blue-700 hover:bg-blue-50 ml-auto font-semibold transition-colors rounded">
+        <button
+          onClick={() => navigate('/admin?section=posts&report=open')}
+          className="flex items-center gap-2 px-4 py-2 border border-slate-300 bg-white text-sm text-slate-700 hover:bg-slate-50 ml-auto font-semibold transition-colors rounded-md">
           <Download className="w-4 h-4" />
           Export
         </button>
@@ -814,12 +823,12 @@ export default function AdminPostsPage() {
             <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-semibold shadow-sm">3 Data</div>
 
       {/* Posts Table */}
-      <div className="bg-white border border-blue-200 shadow-sm overflow-hidden rounded-lg">
+      <div className="bg-white border border-slate-200 shadow-sm overflow-hidden rounded-lg">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gradient-to-r from-blue-50 to-white border-b border-blue-200">
+            <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="w-12 px-4 py-4">
+                <th className="w-12 px-3 py-3 border-r border-slate-200">
                   <input
                     type="checkbox"
                     checked={posts.length > 0 && selectedIds.size === posts.length}
@@ -827,24 +836,24 @@ export default function AdminPostsPage() {
                     className="w-4 h-4 accent-blue-600"
                   />
                 </th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">ID</th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Images</th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Title</th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Description</th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Category</th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Date</th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Status</th>
-                <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Author</th>
-                <th className="text-center px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">
-                  <Heart className="w-4 h-4 inline" />
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">ID</th>
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Images</th>
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Title</th>
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Description</th>
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Category</th>
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Date</th>
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Status</th>
+                <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Author</th>
+                <th className="text-center px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">
+                  <Heart className="w-3.5 h-3.5 inline" />
                 </th>
-                <th className="text-center px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">
-                  <MessageCircle className="w-4 h-4 inline" />
+                <th className="text-center px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">
+                  <MessageCircle className="w-3.5 h-3.5 inline" />
                 </th>
-                <th className="text-center px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Actions</th>
+                <th className="text-center px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-blue-100">
+            <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
                   <td colSpan={12} className="py-10 text-center text-slate-600">Loading posts...</td>
@@ -861,8 +870,8 @@ export default function AdminPostsPage() {
                 posts.map((post) => {
                   const StatusIcon = statusIcons[post.status]
                   return (
-                    <tr key={post.id} className="hover:bg-blue-50 transition-colors">
-                      <td className="px-4 py-4">
+                    <tr key={post.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-3 py-3 border-r border-slate-100">
                         <input
                           type="checkbox"
                           checked={selectedIds.has(post.id)}
@@ -870,31 +879,31 @@ export default function AdminPostsPage() {
                           className="w-4 h-4 accent-blue-600"
                         />
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-3 border-r border-slate-100">
                         <div className="flex items-center gap-1">
                           <span className="text-xs text-slate-800 font-mono">{post.id.slice(0, 8)}</span>
                           <CopyButton text={post.id} />
                         </div>
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-3 border-r border-slate-100">
                         <ImageCarousel images={post.images} />
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-3 border-r border-slate-100">
                         <div className="font-medium text-slate-900 text-sm max-w-[150px]">
                           {truncateText(post.title, 30)}
                         </div>
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-3 border-r border-slate-100">
                         <div className="text-sm text-slate-800 max-w-[200px]">
                           {truncateText(post.description, 50)}
                         </div>
                       </td>
-                      <td className="px-4 py-4">
-                        <span className="inline-block px-2 py-1 bg-slate-100 text-slate-800 text-xs font-medium">
+                      <td className="px-3 py-3 border-r border-slate-100">
+                        <span className="inline-block px-2 py-1 bg-slate-100 text-slate-800 text-xs font-medium rounded">
                           {post.category}
                         </span>
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-3 border-r border-slate-100">
                         <div className="text-sm text-slate-800">
                           {formatDate(post.created_at)}
                         </div>
@@ -904,7 +913,7 @@ export default function AdminPostsPage() {
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-3 border-r border-slate-100">
                         <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium ${statusColors[post.status]}`}>
                           <StatusIcon className="w-3 h-3" />
                           {post.status.charAt(0).toUpperCase() + post.status.slice(1)}
@@ -915,25 +924,25 @@ export default function AdminPostsPage() {
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-3 border-r border-slate-100">
                         <div className="flex items-center gap-2">
                           {post.author_avatar ? (
-                            <img src={post.author_avatar} alt="" className="w-8 h-8 rounded-full object-cover border border-black/10" />
+                            <img src={post.author_avatar} alt="" className="w-7 h-7 rounded-full object-cover border border-slate-200" />
                           ) : (
-                            <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-sm font-medium text-slate-700">
+                            <div className="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center text-xs font-medium text-slate-700">
                               {post.author_name.charAt(0).toUpperCase()}
                             </div>
                           )}
                           <div className="text-sm text-slate-800">{truncateText(post.author_name, 15)}</div>
                         </div>
                       </td>
-                      <td className="px-4 py-4 text-center">
+                      <td className="px-3 py-3 text-center border-r border-slate-100">
                         <span className="text-sm text-slate-800 font-medium">{post.likes}</span>
                       </td>
-                      <td className="px-4 py-4 text-center">
+                      <td className="px-3 py-3 text-center border-r border-slate-100">
                         <span className="text-sm text-slate-800 font-medium">{post.comments_count}</span>
                       </td>
-                      <td className="px-4 py-4">
+                      <td className="px-3 py-3">
                         <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={() => handleViewPost(post)}
@@ -971,17 +980,17 @@ export default function AdminPostsPage() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-5 py-4 border-t border-blue-200 bg-gradient-to-r from-blue-50 to-white">
-            <div className="text-sm text-slate-700">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-slate-50">
+            <div className="text-xs text-slate-500">
               {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalPosts)} of {totalPosts}
             </div>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="p-2 border border-blue-300 bg-white text-blue-600 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded"
+                className="w-7 h-7 flex items-center justify-center border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-3.5 h-3.5" />
               </button>
               {[...Array(Math.min(5, totalPages))].map((_, i) => {
                 const pageNum = i + 1
@@ -989,8 +998,8 @@ export default function AdminPostsPage() {
                   <button
                     key={i}
                     onClick={() => setPage(pageNum)}
-                    className={`px-3 py-2 text-sm border rounded transition-colors ${
-                      page === pageNum ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-blue-300 hover:bg-blue-50 text-slate-800'
+                    className={`w-7 h-7 text-xs border rounded transition-colors ${
+                      page === pageNum ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-slate-300 hover:bg-slate-50 text-slate-800'
                     }`}
                   >
                     {pageNum}
@@ -1000,9 +1009,9 @@ export default function AdminPostsPage() {
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="p-2 border border-blue-300 bg-white text-blue-600 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded"
+                className="w-7 h-7 flex items-center justify-center border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -1015,52 +1024,52 @@ export default function AdminPostsPage() {
 
       {/* Graph Expansion Modal */}
       {showGraphModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowGraphModal(false)}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setShowGraphModal(false)}>
           <div
-            className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-blue-200 shadow-xl rounded-lg"
+            className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-slate-200 shadow-xl rounded-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-6 border-b border-blue-200 sticky top-0 bg-white z-10">
-              <h2 className="text-xl font-bold text-blue-900">Community Post Analytics - Expanded View</h2>
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 sticky top-0 bg-white z-10">
+              <h2 className="text-sm font-bold text-slate-800">Community Post Analytics - Expanded View</h2>
               <button
                 onClick={() => setShowGraphModal(false)}
-                className="p-2 hover:bg-blue-50 transition-colors rounded"
+                className="p-1 hover:bg-slate-50 transition-colors rounded-md"
               >
-                <X className="w-5 h-5 text-slate-600" />
+                <X className="w-4 h-4 text-slate-500" />
               </button>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="p-4 space-y-4">
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => setGraphType('calendar')}
-                  className={`px-4 py-2 text-sm font-semibold border rounded transition-colors ${
+                  className={`px-3 py-1.5 text-xs font-semibold border rounded-md transition-colors ${
                     graphType === 'calendar'
                       ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  <Calendar className="w-4 h-4 inline mr-1" />
+                  <Calendar className="w-3.5 h-3.5 inline mr-1" />
                   Post Calendar
                 </button>
                 <button
                   onClick={() => setGraphType('category')}
-                  className={`px-4 py-2 text-sm font-semibold border rounded transition-colors ${
+                  className={`px-3 py-1.5 text-xs font-semibold border rounded-md transition-colors ${
                     graphType === 'category'
                       ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-blue-700 border-blue-300 hover:bg-blue-50'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  <BarChart3 className="w-4 h-4 inline mr-1" />
+                  <BarChart3 className="w-3.5 h-3.5 inline mr-1" />
                   Category Distribution
                 </button>
               </div>
 
-              <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
                 <select
                   value={graphYear}
                   onChange={(e) => setGraphYear(Number(e.target.value))}
-                  className="px-4 py-2 border border-blue-300 bg-white text-sm rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  className="px-3 py-1.5 border border-slate-300 bg-white text-xs rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 >
                   {[today.getFullYear(), today.getFullYear() - 1, today.getFullYear() - 2].map((y) => (
                     <option key={y} value={y}>{y}</option>
@@ -1070,7 +1079,7 @@ export default function AdminPostsPage() {
                   <select
                     value={graphMonth}
                     onChange={(e) => setGraphMonth(Number(e.target.value))}
-                    className="px-4 py-2 border border-blue-300 bg-white text-sm rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="px-3 py-1.5 border border-slate-300 bg-white text-xs rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                   >
                     {[
                       { val: 1, name: 'January' }, { val: 2, name: 'February' }, { val: 3, name: 'March' },
@@ -1084,7 +1093,7 @@ export default function AdminPostsPage() {
                 )}
               </div>
 
-              <div className="p-8 bg-gradient-to-br from-white to-blue-50 border border-blue-200 rounded-lg">
+              <div className="p-6 bg-white border border-slate-200 rounded-xl">
                 {graphType === 'calendar' ? (
                   <PostCreationCalendarChart year={graphYear} month={graphMonth} posts={analyticsPosts} variant="expanded" />
                 ) : (
@@ -1098,18 +1107,18 @@ export default function AdminPostsPage() {
 
       {/* Post Detail Modal with Comments */}
       {detailModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setDetailModal({ open: false })}>
-          <div className="bg-white w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col border border-black/15 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => setDetailModal({ open: false })}>
+          <div className="bg-white w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col border border-slate-200 shadow-xl rounded-xl" onClick={(e) => e.stopPropagation()}>
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-5 border-b border-black/15 shrink-0">
-              <h2 className="text-lg font-semibold text-slate-900">Post Details</h2>
-              <button onClick={() => setDetailModal({ open: false })} className="p-1 hover:bg-slate-100">
-                <X className="w-5 h-5" />
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 shrink-0">
+              <h2 className="text-sm font-bold text-slate-800">Post Details</h2>
+              <button onClick={() => setDetailModal({ open: false })} className="p-1 hover:bg-slate-50 rounded-md">
+                <X className="w-4 h-4 text-slate-500" />
               </button>
             </div>
 
             {/* Modal Content */}
-            <div className="flex-1 overflow-y-auto p-5">
+            <div className="flex-1 overflow-y-auto p-4">
               {detailLoading ? (
                 <div className="py-20 text-center text-slate-600">Loading post details...</div>
               ) : selectedPost ? (
@@ -1172,7 +1181,7 @@ export default function AdminPostsPage() {
                   </div>
 
                   {/* Comments Section */}
-                  <div className="border-t border-black/10 pt-5">
+                  <div className="border-t border-slate-200 pt-5">
                     <h4 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
                       <MessageCircle className="w-5 h-5" />
                       Comments ({selectedComments.length})
@@ -1187,9 +1196,9 @@ export default function AdminPostsPage() {
                           return (
                             <div
                               key={comment.id}
-                              className={`p-4 border ${
+                              className={`p-3 border rounded-lg ${
                                 comment.status === 'active'
-                                  ? 'border-black/10 bg-white'
+                                  ? 'border-slate-200 bg-white'
                                   : comment.status === 'deleted'
                                   ? 'border-red-200 bg-red-50'
                                   : 'border-orange-200 bg-orange-50'
@@ -1243,10 +1252,10 @@ export default function AdminPostsPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex justify-end p-5 border-t border-black/15 bg-slate-50 shrink-0">
+            <div className="flex justify-end p-4 border-t border-slate-200 bg-slate-50 shrink-0">
               <button
                 onClick={() => setDetailModal({ open: false })}
-                className="px-4 py-2 bg-blue-600 text-white text-base font-medium hover:bg-blue-700"
+                className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 rounded-md"
               >
                 Close
               </button>
@@ -1257,29 +1266,29 @@ export default function AdminPostsPage() {
 
       {/* Disable Post Modal */}
       {disableModal.open && disableModal.post && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white w-full max-w-md border border-black/15 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-black/15">
-              <h2 className="text-lg font-semibold text-slate-900">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white w-full max-w-md border border-slate-200 shadow-xl rounded-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+              <h2 className="text-sm font-bold text-slate-800">
                 {selectedIds.size > 1
                   ? `Disable ${selectedIds.size} Posts`
                   : disableModal.post.status === 'disabled'
                   ? 'Enable Post'
                   : 'Disable Post'}
               </h2>
-              <button onClick={() => setDisableModal({ post: null, open: false })} className="p-1 hover:bg-slate-100">
-                <X className="w-5 h-5" />
+              <button onClick={() => setDisableModal({ post: null, open: false })} className="p-1 hover:bg-slate-50 rounded-md">
+                <X className="w-4 h-4 text-slate-500" />
               </button>
             </div>
-            <div className="p-5 space-y-4">
+            <div className="p-4 space-y-4">
               {selectedIds.size <= 1 && (
-                <div className="p-3 bg-slate-50 border border-black/10">
-                  <div className="font-medium text-slate-900">{disableModal.post.title}</div>
-                  <div className="text-sm text-slate-600 mt-1">by {disableModal.post.author_name}</div>
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                  <div className="font-medium text-sm text-slate-900">{disableModal.post.title}</div>
+                  <div className="text-xs text-slate-600 mt-1">by {disableModal.post.author_name}</div>
                 </div>
               )}
 
-              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 text-amber-900 text-sm">
+              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-lg">
                 <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                 <div>
                   {disableModal.post.status === 'disabled'
@@ -1292,28 +1301,28 @@ export default function AdminPostsPage() {
 
               {disableModal.post.status !== 'disabled' && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-800 mb-2">Reason for disabling</label>
+                  <label className="block text-xs font-medium text-slate-800 mb-2">Reason for disabling</label>
                   <textarea
                     value={disableReason}
                     onChange={(e) => setDisableReason(e.target.value)}
                     rows={3}
-                    className="w-full px-3 py-2 border border-black/15 text-base text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                    className="w-full px-3 py-2 border border-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none rounded-md"
                     placeholder="e.g., Violates community guidelines, contains inappropriate content..."
                   />
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-2 p-5 border-t border-black/15 bg-slate-50">
+            <div className="flex justify-end gap-2 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
               <button
                 onClick={() => setDisableModal({ post: null, open: false })}
-                className="px-4 py-2 border border-black/15 text-base text-slate-800 hover:bg-white"
+                className="px-3 py-1.5 border border-slate-300 text-sm text-slate-800 hover:bg-white rounded-md"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDisableConfirm}
                 disabled={disableLoading}
-                className={`px-4 py-2 text-white text-base font-medium disabled:opacity-50 ${
+                className={`px-3 py-1.5 text-white text-sm font-medium disabled:opacity-50 rounded-md ${
                   disableModal.post.status === 'disabled'
                     ? 'bg-green-600 hover:bg-green-700'
                     : 'bg-orange-600 hover:bg-orange-700'
@@ -1329,22 +1338,22 @@ export default function AdminPostsPage() {
       {/* Disable Comment Modal */}
       {commentDisableModal.open && commentDisableModal.comment && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white w-full max-w-md border border-black/15 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-black/15">
-              <h2 className="text-lg font-semibold text-slate-900">
+          <div className="bg-white w-full max-w-md border border-slate-200 shadow-xl rounded-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+              <h2 className="text-sm font-bold text-slate-800">
                 {commentDisableModal.comment.status === 'disabled' ? 'Enable' : 'Disable'} Comment
               </h2>
-              <button onClick={() => setCommentDisableModal({ comment: null, open: false })} className="p-1 hover:bg-slate-100">
-                <X className="w-5 h-5" />
+              <button onClick={() => setCommentDisableModal({ comment: null, open: false })} className="p-1 hover:bg-slate-50 rounded-md">
+                <X className="w-4 h-4 text-slate-500" />
               </button>
             </div>
-            <div className="p-5 space-y-4">
-              <div className="p-3 bg-slate-50 border border-black/10">
+            <div className="p-4 space-y-4">
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
                 <div className="text-sm text-slate-800">{commentDisableModal.comment.text}</div>
                 <div className="text-xs text-slate-600 mt-1">by {commentDisableModal.comment.author_name}</div>
               </div>
 
-              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 text-amber-900 text-sm">
+              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-lg">
                 <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                 <div>
                   {commentDisableModal.comment.status === 'disabled'
@@ -1355,28 +1364,28 @@ export default function AdminPostsPage() {
 
               {commentDisableModal.comment.status !== 'disabled' && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-800 mb-2">Reason for disabling</label>
+                  <label className="block text-xs font-medium text-slate-800 mb-2">Reason for disabling</label>
                   <textarea
                     value={commentDisableReason}
                     onChange={(e) => setCommentDisableReason(e.target.value)}
                     rows={3}
-                    className="w-full px-3 py-2 border border-black/15 text-base text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                    className="w-full px-3 py-2 border border-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none rounded-md"
                     placeholder="e.g., Contains foul language, harassment, spam..."
                   />
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-2 p-5 border-t border-black/15 bg-slate-50">
+            <div className="flex justify-end gap-2 p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl">
               <button
                 onClick={() => setCommentDisableModal({ comment: null, open: false })}
-                className="px-4 py-2 border border-black/15 text-base text-slate-800 hover:bg-white"
+                className="px-3 py-1.5 border border-slate-300 text-sm text-slate-800 hover:bg-white rounded-md"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCommentDisableConfirm}
                 disabled={commentDisableLoading}
-                className={`px-4 py-2 text-white text-base font-medium disabled:opacity-50 ${
+                className={`px-3 py-1.5 text-white text-sm font-medium disabled:opacity-50 rounded-md ${
                   commentDisableModal.comment.status === 'disabled'
                     ? 'bg-green-600 hover:bg-green-700'
                     : 'bg-orange-600 hover:bg-orange-700'

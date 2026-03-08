@@ -186,6 +186,9 @@ export default function AdminScansSection({ searchValue }: { searchValue: string
   const [expandedChart, setExpandedChart] = useState(false)
   const [tablePage, setTablePage] = useState(1)
   const pageSize = 10
+  const [fishTypeDonutFilter, setFishTypeDonutFilter] = useState<'all' | string>('all')
+  const [qualityDonutFilter, setQualityDonutFilter] = useState<'all' | string>('all')
+  const [severityDonutFilter, setSeverityDonutFilter] = useState<'all' | string>('all')
 
   // ─── Granularity + Date range (inside chart header, like Users section) ───
   const [granularity, setGranularity] = useState<Granularity>('week')
@@ -264,6 +267,23 @@ export default function AdminScansSection({ searchValue }: { searchValue: string
   const colorDistribution = data?.color_distribution ?? []
   const colorTrend = data?.color_trend ?? []
   const scanVolumeTrend = data?.scan_volume_trend ?? []
+
+  // ─── Filtered donut slices ───
+  const filteredFishType = useMemo(() => {
+    if (fishTypeDonutFilter === 'all') return fishTypeDistribution
+    return fishTypeDistribution.filter(f => f.name.toLowerCase() === fishTypeDonutFilter.toLowerCase())
+  }, [fishTypeDistribution, fishTypeDonutFilter])
+
+  const filteredQuality = useMemo(() => {
+    if (qualityDonutFilter === 'all') return qualityDistribution
+    return qualityDistribution.filter(q => q.name.toLowerCase() === qualityDonutFilter.toLowerCase())
+  }, [qualityDistribution, qualityDonutFilter])
+
+  const filteredSeverity = useMemo(() => {
+    const sevWithColor = severityDistribution.map(s => ({ ...s, color: s.name === 'None' ? '#22c55e' : s.name === 'Low' ? '#f59e0b' : s.name === 'Moderate' ? '#f97316' : '#ef4444' }))
+    if (severityDonutFilter === 'all') return sevWithColor
+    return sevWithColor.filter(s => s.name.toLowerCase() === severityDonutFilter.toLowerCase())
+  }, [severityDistribution, severityDonutFilter])
 
   // ─── Filtered table rows ───
   const filteredRecords = useMemo(() => {
@@ -447,9 +467,24 @@ export default function AdminScansSection({ searchValue }: { searchValue: string
                   <div className="bg-white border border-slate-200 rounded-xl p-4">
                     <p className="text-xs text-slate-900 font-bold">🐟 Fish Type Classification</p>
                     <p className="text-[10px] text-slate-500 mb-2 italic">Distribution of scanned fish types across all scans</p>
-                    <ScanDonut slices={fishTypeDistribution} height={160} />
+                    {/* Filter Buttons */}
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      <button onClick={() => setFishTypeDonutFilter('all')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${fishTypeDonutFilter === 'all' ? 'bg-slate-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                        <div className={`w-2 h-2 rounded-full ${fishTypeDonutFilter === 'all' ? 'bg-white' : 'bg-slate-600'}`} />All
+                      </button>
+                      {fishTypeDistribution.map(f => (
+                        <button key={f.name} onClick={() => setFishTypeDonutFilter(f.name.toLowerCase())}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${fishTypeDonutFilter === f.name.toLowerCase() ? 'text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                          style={fishTypeDonutFilter === f.name.toLowerCase() ? { backgroundColor: f.color } : undefined}>
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: fishTypeDonutFilter === f.name.toLowerCase() ? '#fff' : f.color }} />
+                          {f.name}
+                        </button>
+                      ))}
+                    </div>
+                    <ScanDonut slices={filteredFishType} height={160} />
                     <div className="mt-3 space-y-1.5">
-                      {fishTypeDistribution.map((f, i) => (
+                      {filteredFishType.map((f, i) => (
                         <div key={i} className="flex items-center gap-2">
                           <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: f.color }} />
                           <span className="text-xs text-slate-700 flex-1">{f.name}</span>
@@ -490,9 +525,24 @@ export default function AdminScansSection({ searchValue }: { searchValue: string
                   <div className="bg-white border border-slate-200 rounded-xl p-4">
                     <p className="text-xs text-slate-900 font-bold">📊 Quality Grade Distribution</p>
                     <p className="text-[10px] text-slate-500 mb-2 italic">Export / Local / Reject classification outcome</p>
-                    <ScanDonut slices={qualityDistribution} height={160} />
+                    {/* Filter Buttons */}
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      <button onClick={() => setQualityDonutFilter('all')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${qualityDonutFilter === 'all' ? 'bg-slate-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                        <div className={`w-2 h-2 rounded-full ${qualityDonutFilter === 'all' ? 'bg-white' : 'bg-slate-600'}`} />All
+                      </button>
+                      {qualityDistribution.map(q => (
+                        <button key={q.name} onClick={() => setQualityDonutFilter(q.name.toLowerCase())}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${qualityDonutFilter === q.name.toLowerCase() ? 'text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                          style={qualityDonutFilter === q.name.toLowerCase() ? { backgroundColor: q.color } : undefined}>
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: qualityDonutFilter === q.name.toLowerCase() ? '#fff' : q.color }} />
+                          {q.name}
+                        </button>
+                      ))}
+                    </div>
+                    <ScanDonut slices={filteredQuality} height={160} />
                     <div className="mt-3 space-y-1.5">
-                      {qualityDistribution.map((q, i) => (
+                      {filteredQuality.map((q, i) => (
                         <div key={i} className="flex items-center gap-2">
                           <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: q.color }} />
                           <span className="text-xs text-slate-700 flex-1">{q.name}</span>
@@ -524,11 +574,32 @@ export default function AdminScansSection({ searchValue }: { searchValue: string
                     <p className="text-xs text-slate-900 font-bold">🦠 Mold Severity Breakdown</p>
                     <p className="text-[10px] text-slate-500 mb-3 italic">Distribution of mold severity levels across all scans</p>
 
-                    <ScanDonut slices={severityDistribution.map(s => ({ ...s, color: s.name === 'None' ? '#22c55e' : s.name === 'Low' ? '#f59e0b' : s.name === 'Moderate' ? '#f97316' : '#ef4444' }))} height={160} />
+                    {/* Filter Buttons */}
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      <button onClick={() => setSeverityDonutFilter('all')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${severityDonutFilter === 'all' ? 'bg-slate-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                        <div className={`w-2 h-2 rounded-full ${severityDonutFilter === 'all' ? 'bg-white' : 'bg-slate-600'}`} />All
+                      </button>
+                      {([
+                        { key: 'none', label: 'None', color: '#22c55e' },
+                        { key: 'low', label: 'Low', color: '#f59e0b' },
+                        { key: 'moderate', label: 'Moderate', color: '#f97316' },
+                        { key: 'severe', label: 'Severe', color: '#ef4444' },
+                      ]).map(opt => (
+                        <button key={opt.key} onClick={() => setSeverityDonutFilter(opt.key)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${severityDonutFilter === opt.key ? 'text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                          style={severityDonutFilter === opt.key ? { backgroundColor: opt.color } : undefined}>
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: severityDonutFilter === opt.key ? '#fff' : opt.color }} />
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <ScanDonut slices={filteredSeverity} height={160} />
                     <div className="mt-3 space-y-1.5">
-                      {severityDistribution.map((s, i) => (
+                      {filteredSeverity.map((s, i) => (
                         <div key={i} className="flex items-center gap-2">
-                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: s.name === 'None' ? '#22c55e' : s.name === 'Low' ? '#f59e0b' : s.name === 'Moderate' ? '#f97316' : '#ef4444' }} />
+                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
                           <span className="text-xs text-slate-700 flex-1">{s.name}</span>
                           <span className="text-xs font-semibold text-slate-900">{s.value}% ({s.count})</span>
                         </div>

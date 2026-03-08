@@ -96,9 +96,9 @@ export default function SellerReviewsPage() {
         breadcrumb="Reviews"
       />
 
-      <div className="flex h-[calc(100vh-14rem)] gap-4 overflow-hidden px-6 py-4">
+      <div className="flex flex-col lg:flex-row h-auto lg:h-[calc(100vh-14rem)] gap-4 overflow-visible lg:overflow-hidden px-6 py-4">
       {/* LEFT PANEL - Product List */}
-      <div className="w-2/5 flex flex-col">
+      <div className="w-full lg:w-2/5 flex flex-col min-h-[300px] lg:min-h-0">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-2xl font-semibold text-blue-900">Reviews</h1>
@@ -204,7 +204,7 @@ export default function SellerReviewsPage() {
       </div>
 
       {/* RIGHT PANEL - Reviews Details */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-h-[400px] lg:min-h-0">
         {selectedProduct ? (
           <div className="flex-1 bg-white border border-blue-200 shadow-sm rounded-lg overflow-hidden flex flex-col">
             {/* Header */}

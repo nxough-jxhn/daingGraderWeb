@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Trash2, Edit2, Eye, Plus, Loader, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { Trash2, Edit2, Eye, Plus, Loader, AlertCircle, ChevronDown, ChevronUp, Search } from 'lucide-react'
 import PageTitleHero from '../components/layout/PageTitleHero'
 import VoucherDetailModal from '../components/vouchers/VoucherDetailModal'
 import CreateVoucherModal from '../components/vouchers/CreateVoucherModal'
@@ -120,86 +120,86 @@ export default function AdminDiscountsPage() {
     return (
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-gradient-to-r from-blue-50 to-white border-b border-blue-200">
-            <tr>
-              <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Code</th>
-              {!isAdmin && <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Seller</th>}
-              <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Type</th>
-              <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Value</th>
-              <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Uses</th>
-              <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Expires</th>
-              <th className="text-left px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Status</th>
-              <th className="text-center px-4 py-4 text-sm font-bold text-blue-900 uppercase tracking-wider">Actions</th>
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-200">
+              <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Code</th>
+              {!isAdmin && <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Seller</th>}
+              <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Type</th>
+              <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Value</th>
+              <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Uses</th>
+              <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Expires</th>
+              <th className="text-left px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide border-r border-slate-200">Status</th>
+              <th className="text-center px-3 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wide">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-blue-100">
+          <tbody className="divide-y divide-slate-100">
             {vouchers.map((voucher: any) => {
               const status = getStatus(voucher)
               return (
-                <tr key={voucher._id} className="hover:bg-blue-50/50 transition-colors">
-                  <td className="px-4 py-4">
-                    <span className="font-bold text-base text-blue-600">{voucher.code}</span>
+                <tr key={voucher._id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-3 py-3 border-r border-slate-100">
+                    <span className="font-bold text-sm text-blue-600">{voucher.code}</span>
                   </td>
                   {!isAdmin && (
-                    <td className="px-4 py-4">
-                      <span className="text-base text-slate-700">{voucher.seller_name || 'Unknown'}</span>
+                    <td className="px-3 py-3 border-r border-slate-100">
+                      <span className="text-sm text-slate-700">{voucher.seller_name || 'Unknown'}</span>
                     </td>
                   )}
-                  <td className="px-4 py-4">
-                    <span className="text-base text-slate-700">
+                  <td className="px-3 py-3 border-r border-slate-100">
+                    <span className="text-sm text-slate-700">
                       {voucher.discount_type === 'percentage' ? 'Percentage' : 'Fixed'}
                     </span>
                   </td>
-                  <td className="px-4 py-4">
-                    <span className="font-semibold text-base text-slate-900">
+                  <td className="px-3 py-3 border-r border-slate-100">
+                    <span className="font-semibold text-sm text-slate-900">
                       {voucher.discount_type === 'percentage'
                         ? `${voucher.value}%`
                         : `₱${voucher.value.toLocaleString()}`}
                     </span>
                   </td>
-                  <td className="px-4 py-4">
-                    <span className="text-base text-slate-700">
+                  <td className="px-3 py-3 border-r border-slate-100">
+                    <span className="text-sm text-slate-700">
                       {voucher.current_uses}{voucher.max_uses ? ` / ${voucher.max_uses}` : ' / ∞'}
                     </span>
                   </td>
-                  <td className="px-4 py-4">
-                    <span className="text-base text-slate-600">
+                  <td className="px-3 py-3 border-r border-slate-100">
+                    <span className="text-sm text-slate-600">
                       {voucher.expiration_date ? formatDate(voucher.expiration_date) : 'No limit'}
                     </span>
                   </td>
-                  <td className="px-4 py-4">
-                    <span className={`inline-flex items-center px-2.5 py-1 text-sm font-medium border rounded ${status.color}`}>
+                  <td className="px-3 py-3 border-r border-slate-100">
+                    <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium border rounded ${status.color}`}>
                       {status.label}
                     </span>
                   </td>
-                  <td className="px-4 py-4">
+                  <td className="px-3 py-3">
                     <div className="flex items-center justify-center gap-1">
                       <button
                         onClick={() => setDetailModal({ isOpen: true, voucher })}
-                        className="p-2 hover:bg-blue-100 text-slate-500 hover:text-blue-700 border border-transparent hover:border-blue-300 transition-all"
+                        className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-700 rounded-md transition-all"
                         title="View details"
                       >
-                        <Eye className="w-4 h-4" />
+                        <Eye className="w-3.5 h-3.5" />
                       </button>
                       {isAdmin && (
                         <>
                           <button
                             onClick={() => setCreateModal({ isOpen: true, editing: voucher })}
-                            className="p-2 hover:bg-blue-100 text-slate-500 hover:text-blue-700 border border-transparent hover:border-blue-300 transition-all"
+                            className="p-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-700 rounded-md transition-all"
                             title="Edit code"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleDeleteVoucher(voucher._id)}
                             disabled={deleteLoading === voucher._id}
-                            className="p-2 hover:bg-red-100 text-slate-500 hover:text-red-700 border border-transparent hover:border-red-300 transition-all disabled:opacity-50"
+                            className="p-1.5 hover:bg-red-50 text-slate-500 hover:text-red-600 rounded-md transition-all disabled:opacity-50"
                             title="Delete code"
                           >
                             {deleteLoading === voucher._id ? (
-                              <Loader className="w-4 h-4 animate-spin" />
+                              <Loader className="w-3.5 h-3.5 animate-spin" />
                             ) : (
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             )}
                           </button>
                         </>
@@ -233,16 +233,16 @@ export default function AdminDiscountsPage() {
             <div className="absolute -left-7 -top-2 z-10 px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-semibold shadow-sm">1 Controls</div>
 
         {/* Header with Create Button */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Voucher Management</h1>
-            <p className="text-slate-600 mt-1">System-wide discount code administration</p>
+            <h1 className="text-sm font-bold text-slate-800">Voucher Management</h1>
+            <p className="text-[10px] text-slate-500 mt-0.5">System-wide discount code administration</p>
           </div>
           <button
             onClick={() => setCreateModal({ isOpen: true, editing: null })}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-3.5 h-3.5" />
             Create New Code
           </button>
         </div>
@@ -259,19 +259,22 @@ export default function AdminDiscountsPage() {
         )}
 
         {/* Search and Filter */}
-        <div className="bg-white border border-slate-200 rounded-lg p-4 mb-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <input
-              type="text"
-              placeholder="Search code..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+        <div className="mb-4">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search code..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               <option value="all">All Status</option>
               <option value="active">Active Only</option>
@@ -296,25 +299,25 @@ export default function AdminDiscountsPage() {
         {!loading && (
           <>
             {/* Admin Vouchers Section */}
-            <div className="bg-white border border-blue-200 shadow-sm overflow-hidden transition-all duration-300 rounded-lg mb-6">
+            <div className="bg-white border border-slate-300 overflow-hidden transition-all duration-300 rounded-xl mb-4">
               <div
-                className="flex items-center justify-between px-5 py-4 border-b border-blue-200 cursor-pointer hover:bg-blue-50 transition-colors bg-gradient-to-r from-white to-blue-50"
+                className="flex items-center justify-between px-4 py-3 border-b border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors"
                 onClick={() =>
                   setExpandedSections((prev) => ({ ...prev, adminOwned: !prev.adminOwned }))
                 }
               >
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-blue-900 text-base">MY VOUCHERS (Admin)</span>
-                  <span className="text-sm text-white bg-blue-600 px-2 py-0.5 rounded">{filteredAdminVouchers.length}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-800 text-sm">MY VOUCHERS (Admin)</span>
+                  <span className="text-xs text-white bg-slate-600 px-1.5 py-0.5 rounded">{filteredAdminVouchers.length}</span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-slate-600">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500">
                     {!expandedSections.adminOwned ? 'Click to expand' : `Showing ${filteredAdminVouchers.length}`}
                   </span>
                   {expandedSections.adminOwned ? (
-                    <ChevronUp className="w-5 h-5 text-blue-600" />
+                    <ChevronUp className="w-4 h-4 text-slate-500" />
                   ) : (
-                    <ChevronDown className="w-5 h-5 text-blue-600" />
+                    <ChevronDown className="w-4 h-4 text-slate-500" />
                   )}
                 </div>
               </div>
@@ -336,25 +339,25 @@ export default function AdminDiscountsPage() {
             </div>
 
             {/* All Sellers Vouchers Section */}
-            <div className="bg-white border border-blue-200 shadow-sm overflow-hidden transition-all duration-300 rounded-lg">
+            <div className="bg-white border border-slate-300 overflow-hidden transition-all duration-300 rounded-xl">
               <div
-                className="flex items-center justify-between px-5 py-4 border-b border-blue-200 cursor-pointer hover:bg-blue-50 transition-colors bg-gradient-to-r from-white to-blue-50"
+                className="flex items-center justify-between px-4 py-3 border-b border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors"
                 onClick={() =>
                   setExpandedSections((prev) => ({ ...prev, allSellers: !prev.allSellers }))
                 }
               >
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-blue-900 text-base">ALL SELLERS' VOUCHERS</span>
-                  <span className="text-sm text-white bg-blue-600 px-2 py-0.5 rounded">{filteredSellerVouchers.length}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-800 text-sm">ALL SELLERS' VOUCHERS</span>
+                  <span className="text-xs text-white bg-slate-600 px-1.5 py-0.5 rounded">{filteredSellerVouchers.length}</span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-slate-600">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500">
                     {!expandedSections.allSellers ? 'Click to expand' : `Showing ${filteredSellerVouchers.length}`}
                   </span>
                   {expandedSections.allSellers ? (
-                    <ChevronUp className="w-5 h-5 text-blue-600" />
+                    <ChevronUp className="w-4 h-4 text-slate-500" />
                   ) : (
-                    <ChevronDown className="w-5 h-5 text-blue-600" />
+                    <ChevronDown className="w-4 h-4 text-slate-500" />
                   )}
                 </div>
               </div>
