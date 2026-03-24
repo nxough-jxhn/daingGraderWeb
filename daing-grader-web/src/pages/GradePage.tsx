@@ -59,11 +59,11 @@ function StatCard({ icon, label, value, sub, note, color }: { icon: React.ReactN
       <div className="mt-1 shrink-0">{icon}</div>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</p>
-          <p className="text-xl font-bold text-slate-900 leading-tight whitespace-nowrap">{value}</p>
+          <p className="text-sm font-semibold text-slate-900 uppercase tracking-wide">{label}</p>
+          <p className="text-2xl font-bold text-slate-950 leading-tight whitespace-nowrap">{value}</p>
         </div>
-        {sub && <p className="text-xs text-slate-500 mt-0.5">{sub}</p>}
-        {note && <p className="text-[11px] text-slate-400 mt-1.5 leading-snug italic">{note}</p>}
+        {sub && <p className="text-sm text-slate-700 mt-0.5">{sub}</p>}
+        {note && <p className="text-xs text-slate-600 mt-1.5 leading-snug italic">{note}</p>}
       </div>
     </div>
   )
@@ -84,8 +84,8 @@ function FishDetailSection({ fish, isOnly }: { fish: PerFishResult; isOnly: bool
             #{fish.fish_index}
           </span>
           <div>
-            <p className="text-sm font-bold text-slate-900">{fish.fish_type}</p>
-            {!isOnly && <p className="text-[11px] text-slate-500">Fish #{fish.fish_index} of detected</p>}
+            <p className="text-base font-bold text-slate-950">{fish.fish_type}</p>
+            {!isOnly && <p className="text-xs text-slate-700">Fish #{fish.fish_index} of detected</p>}
           </div>
         </div>
         <span className={`px-3 py-1 rounded-full text-xs font-bold ring-1 ${gradeStyle.bg} ${gradeStyle.text} ${gradeStyle.ring}`}>
@@ -164,8 +164,8 @@ function ScanResultPanel({ result }: { result: AnalyzeResult }) {
         <div className="flex items-center gap-3">
           <Fish className="w-6 h-6 text-blue-600" />
           <div>
-            <p className="text-lg font-bold text-slate-900">{result.fish_type}</p>
-            <p className="text-xs text-slate-500">{perFish.length} fish detected · Overall mold: <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${moldStyle.bg} ${moldStyle.text}`}>{overallMold}</span></p>
+            <p className="text-xl font-bold text-slate-950">{result.fish_type}</p>
+            <p className="text-sm text-slate-700">{perFish.length} fish detected · Overall mold: <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-semibold ${moldStyle.bg} ${moldStyle.text}`}>{overallMold}</span></p>
           </div>
         </div>
         <span className={`px-4 py-1.5 rounded-full text-sm font-bold ring-1 ${gs.bg} ${gs.text} ${gs.ring}`}>
